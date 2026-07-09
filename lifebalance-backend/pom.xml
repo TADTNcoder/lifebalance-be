@@ -16,7 +16,7 @@
 
     <modules>
 <!--        <module>app</module>-->
-<!--        <module>discovery-server</module>-->
+        <module>discovery-server</module>
 <!--        <module>gateway</module>-->
     </modules>
 
