@@ -1,0 +1,15 @@
+server:
+  port: ${DISCOVERY_PORT:8761}
+
+eureka:
+  instance:
+    hostname: ${EUREKA_INSTANCE_HOSTNAME}
+
+  server:
+    enable-self-preservation: true
+    eviction-interval-timer-in-ms: ${EUREKA_EVICTION_INTERVAL_MS:60000}
+
+management:
+  endpoint:
+    health:
+      show-details: never
