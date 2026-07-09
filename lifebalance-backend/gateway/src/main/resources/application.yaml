@@ -1,0 +1,100 @@
+server:
+  port: 8080
+  shutdown: graceful
+  forward-headers-strategy: framework
+
+spring:
+  application:
+    name: gateway
+
+  cloud:
+    gateway:
+      server:
+        webmvc:
+          routes:
+
+            - id: identity-service
+              uri: lb://IDENTITY-SERVICE
+              predicates:
+                - Path=/api/auth/**,/api/users/**,/api/roles/**
+              filters:
+                - PreserveHostHeader
+
+            - id: task-service
+              uri: lb://TASK-SERVICE
+              predicates:
+                - Path=/api/tasks/**,/api/task-groups/**
+              filters:
+                - PreserveHostHeader
+
+            - id: finance-service
+              uri: lb://FINANCE-SERVICE
+              predicates:
+                - Path=/api/finance/**,/api/budgets/**,/api/transactions/**
+              filters:
+                - PreserveHostHeader
+
+            - id: notification-service
+              uri: lb://NOTIFICATION-SERVICE
+              predicates:
+                - Path=/api/notifications/**
+              filters:
+                - PreserveHostHeader
+
+            - id: ai-service
+              uri: lb://AI-SERVICE
+              predicates:
+                - Path=/api/ai/**
+              filters:
+                - PreserveHostHeader
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8082/realms/lifebalance
+
+eureka:
+  instance:
+    hostname: localhost
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 30
+    lease-expiration-duration-in-seconds: 90
+
+  client:
+    register-with-eureka: true
+    fetch-registry: true
+
+    service-url:
+      defaultZone: http://localhost:8761/eureka
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway,metrics,prometheus
+
+  endpoint:
+    gateway:
+      enabled: true
+
+    health:
+      probes:
+        enabled: true
+      show-details: always
+
+info:
+  app:
+    name: LifeBalance Gateway
+    version: 1.0.0
+    description: Enterprise API Gateway
+
+logging:
+  level:
+    root: INFO
+    org.springframework.security: INFO
+    org.springframework.cloud.gateway: INFO
+    org.springframework.web: INFO
+
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger - %msg%n"
