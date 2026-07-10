@@ -16,27 +16,27 @@ spring:
           routes:
 
             - id: identity-service
-              uri: lb://IDENTITY-SERVICE
+              uri: lb://LIFEBALANCE-APP
               predicates:
                 - Path=/api/auth/**,/api/users/**,/api/roles/**
 
             - id: task-service
-              uri: lb://TASK-SERVICE
+              uri: lb://LIFEBALANCE-APP
               predicates:
                 - Path=/api/tasks/**,/api/task-groups/**
 
             - id: finance-service
-              uri: lb://FINANCE-SERVICE
+              uri: lb://LIFEBALANCE-APP
               predicates:
                 - Path=/api/finance/**,/api/budgets/**,/api/transactions/**
 
             - id: notification-service
-              uri: lb://NOTIFICATION-SERVICE
+              uri: lb://LIFEBALANCE-APP
               predicates:
                 - Path=/api/notifications/**
 
             - id: ai-service
-              uri: lb://AI-SERVICE
+              uri: lb://LIFEBALANCE-APP
               predicates:
                 - Path=/api/ai/**
 

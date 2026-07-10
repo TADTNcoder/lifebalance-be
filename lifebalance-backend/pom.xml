@@ -22,7 +22,7 @@
     <name>LifeBalance Backend</name>
 
     <modules>
-<!--        <module>app</module>-->
+        <module>app</module>
         <module>discovery-server</module>
         <module>gateway</module>
     </modules>
