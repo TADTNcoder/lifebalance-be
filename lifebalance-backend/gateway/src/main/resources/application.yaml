@@ -25,6 +25,11 @@ spring:
               predicates:
                 - Path=/api/tasks/**,/api/task-groups/**
 
+            - id: timeline-service
+              uri: lb://TIMELINE-SERVICE
+              predicates:
+                - Path=/api/timeline/**
+
             - id: finance-service
               uri: lb://FINANCE-SERVICE
               predicates:
@@ -39,6 +44,11 @@ spring:
               uri: lb://AI-SERVICE
               predicates:
                 - Path=/api/ai/**
+
+            - id: analytics-service
+              uri: lb://ANALYTICS-SERVICE
+              predicates:
+                - Path=/api/analytics/**
 
 management:
   endpoints:

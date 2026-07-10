@@ -1,0 +1,20 @@
+server:
+  port: ${TIMELINE_SERVICE_PORT:8096}
+
+eureka:
+  instance:
+    hostname: ${EUREKA_INSTANCE_HOSTNAME:timeline-service}
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 30
+    lease-expiration-duration-in-seconds: 90
+
+  client:
+    register-with-eureka: true
+    fetch-registry: true
+    service-url:
+      defaultZone: ${EUREKA_DEFAULT_ZONE:http://discovery-server:8761/eureka}
+
+management:
+  endpoint:
+    health:
+      show-details: when_authorized
