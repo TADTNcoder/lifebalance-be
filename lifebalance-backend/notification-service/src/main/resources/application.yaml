@@ -1,0 +1,37 @@
+server:
+  shutdown: graceful
+  forward-headers-strategy: framework
+
+spring:
+  profiles:
+    default: local
+
+  application:
+    name: notification-service
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+info:
+  app:
+    name: LifeBalance Notification Service
+    version: 1.0.0
+    description: Notification API
+
+logging:
+  level:
+    root: INFO
+    com.lifebalance.notification: INFO
+    org.springframework.security: INFO
+    org.springframework.web: INFO
+
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger - %msg%n"
