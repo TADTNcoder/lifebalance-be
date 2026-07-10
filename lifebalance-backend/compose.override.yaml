@@ -1,0 +1,28 @@
+services:
+  identity-service:
+    ports:
+      - "${IDENTITY_DEBUG_HOST_PORT:-8091}:8080"
+
+  task-service:
+    ports:
+      - "${TASK_DEBUG_HOST_PORT:-8092}:8080"
+
+  timeline-service:
+    ports:
+      - "${TIMELINE_DEBUG_HOST_PORT:-8096}:8080"
+
+  finance-service:
+    ports:
+      - "${FINANCE_DEBUG_HOST_PORT:-8093}:8080"
+
+  notification-service:
+    ports:
+      - "${NOTIFICATION_DEBUG_HOST_PORT:-8094}:8080"
+
+  analytics-service:
+    ports:
+      - "${ANALYTICS_DEBUG_HOST_PORT:-8097}:8080"
+
+  ai-service:
+    ports:
+      - "${AI_DEBUG_HOST_PORT:-8095}:8080"

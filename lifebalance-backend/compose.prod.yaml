@@ -1,0 +1,30 @@
+services:
+  postgres:
+    ports: []
+
+  keycloak:
+    ports: []
+
+  discovery-server:
+    ports: []
+
+  identity-service:
+    ports: []
+
+  task-service:
+    ports: []
+
+  timeline-service:
+    ports: []
+
+  finance-service:
+    ports: []
+
+  notification-service:
+    ports: []
+
+  analytics-service:
+    ports: []
+
+  ai-service:
+    ports: []

@@ -4,6 +4,16 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
+### Local environment ###
+.env
+.env.*
+!.env.example
+
+### Docker runtime data ###
+logs/
+backups/
+*.log
+
 ### STS ###
 .apt_generated
 .classpath
