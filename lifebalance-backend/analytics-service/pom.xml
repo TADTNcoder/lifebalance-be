@@ -7,9 +7,9 @@
     <version>1.0.0-SNAPSHOT</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
-  <artifactId>task-service</artifactId>
-  <name>task-service</name>
-  <description>LifeBalance Task Service</description>
+  <artifactId>analytics-service</artifactId>
+  <name>analytics-service</name>
+  <description>LifeBalance Analytics Service</description>
   <dependencies>
     <dependency>
       <groupId>org.springframework.boot</groupId>
