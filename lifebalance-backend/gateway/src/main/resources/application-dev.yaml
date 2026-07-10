@@ -1,0 +1,33 @@
+server:
+  port: ${GATEWAY_PORT:8080}
+
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://keycloak:8080/realms/lifebalance}
+
+eureka:
+  instance:
+    hostname: ${EUREKA_INSTANCE_HOSTNAME:gateway}
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 30
+    lease-expiration-duration-in-seconds: 90
+
+  client:
+    register-with-eureka: true
+    fetch-registry: true
+
+    service-url:
+      defaultZone: ${EUREKA_DEFAULT_ZONE:http://discovery-server:8761/eureka}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway,metrics,prometheus
+
+  endpoint:
+    health:
+      show-details: when_authorized

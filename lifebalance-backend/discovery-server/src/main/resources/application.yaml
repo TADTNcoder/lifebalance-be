@@ -1,0 +1,30 @@
+server:
+  shutdown: graceful
+
+spring:
+  profiles:
+    default: local
+
+  application:
+    name: discovery-server
+
+eureka:
+  client:
+    register-with-eureka: false
+    fetch-registry: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+logging:
+  level:
+    root: INFO
+    com.netflix.eureka: INFO
