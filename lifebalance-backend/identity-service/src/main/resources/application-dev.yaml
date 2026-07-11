@@ -1,6 +1,12 @@
 server:
   port: ${IDENTITY_SERVICE_PORT:8091}
 
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/lifebalance_identity}
+    username: ${SPRING_DATASOURCE_USERNAME:identity_user}
+    password: ${SPRING_DATASOURCE_PASSWORD:change-me}
+
 eureka:
   instance:
     hostname: ${EUREKA_INSTANCE_HOSTNAME:identity-service}
