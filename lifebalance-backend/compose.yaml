@@ -377,36 +377,6 @@ services:
       keycloak:
         condition: service_healthy
 
-  frontend:
-    image: lifebalance/frontend:${APP_VERSION:-dev}
-    container_name: lifebalance-frontend
-    build:
-      context: ./frontend
-      dockerfile: ../docker/frontend/Dockerfile
-      args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
-        VITE_KEYCLOAK_URL: ${VITE_KEYCLOAK_URL}
-        VITE_KEYCLOAK_REALM: ${KEYCLOAK_REALM}
-        VITE_KEYCLOAK_CLIENT_ID: ${KEYCLOAK_FRONTEND_CLIENT_ID}
-    restart: unless-stopped
-    ports:
-      - "${FRONTEND_HOST_PORT:-5173}:8080"
-    depends_on:
-      gateway:
-        condition: service_healthy
-      keycloak:
-        condition: service_healthy
-    networks:
-      - lifebalance-edge
-      - lifebalance-internal
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 20s
-    logging: *default-logging
-
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
     container_name: lifebalance-rabbitmq
