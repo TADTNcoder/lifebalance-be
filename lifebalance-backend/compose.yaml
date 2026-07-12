@@ -107,6 +107,7 @@ services:
       - "${KEYCLOAK_MGMT_HOST_PORT:-9000}:9000"
     volumes:
       - ./docker/keycloak/realm:/opt/keycloak/data/import:ro
+      - ./docker/keycloak/export:/opt/keycloak/data/export
       - ./backups/keycloak:/backups
     depends_on:
       postgres:
