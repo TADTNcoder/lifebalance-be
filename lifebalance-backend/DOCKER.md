@@ -18,7 +18,6 @@ The platform is defined by:
 - Keycloak management health: `localhost:9000`
 - Eureka Discovery Server: `localhost:8761`
 - Spring Cloud Gateway: `localhost:8080`
-- Frontend: `localhost:5173`
 
 Internal service debug ports are enabled by `compose.override.yaml`:
 
@@ -67,6 +66,40 @@ Stop and remove volumes:
 ```powershell
 .\scripts\docker-down.ps1 -Volumes
 ```
+
+## Keycloak Auto Import
+
+Keycloak starts with `--import-realm` and imports JSON files from:
+
+```text
+docker/keycloak/realm
+```
+
+That folder is mounted into the container as:
+
+```text
+/opt/keycloak/data/import
+```
+
+To export the current `lifebalance` realm to the mounted export folder:
+
+```powershell
+docker exec lifebalance-keycloak /opt/keycloak/bin/kc.sh export --realm lifebalance --file /opt/keycloak/data/export/lifebalance-realm.json
+```
+
+The exported file appears at:
+
+```text
+docker/keycloak/export/lifebalance-realm.json
+```
+
+To make that export auto-import on the next clean Keycloak database initialization, copy it into the import folder:
+
+```powershell
+Copy-Item docker\keycloak\export\lifebalance-realm.json docker\keycloak\realm\lifebalance-realm.json -Force
+```
+
+Keycloak import uses `IGNORE_EXISTING`, so it will not overwrite an already-created realm in the existing Postgres volume. For a full re-import, remove the Postgres volume first.
 
 ## Networking Rules
 
