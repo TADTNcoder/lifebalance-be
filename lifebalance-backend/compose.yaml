@@ -134,15 +134,15 @@ services:
         MODULE_NAME: discovery-server
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
-      DISCOVERY_PORT: 8761
+      DISCOVERY_PORT: 8080
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
     ports:
-      - "${DISCOVERY_HOST_PORT:-8761}:8761"
+      - "${DISCOVERY_HOST_PORT:-8761}:8080"
     networks:
       - lifebalance-internal
       - lifebalance-edge
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8761/actuator/health/readiness || curl -fsS http://localhost:8761/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health/readiness || curl -fsS http://localhost:8080/actuator/health || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 12
@@ -160,7 +160,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
       GATEWAY_PORT: 8080
-      EUREKA_DEFAULT_ZONE: ${EUREKA_DEFAULT_ZONE:-http://discovery-server:8761/eureka}
+      EUREKA_DEFAULT_ZONE: ${EUREKA_DEFAULT_ZONE:-http://discovery-server:8080/eureka}
       KEYCLOAK_ISSUER_URI: ${KEYCLOAK_ISSUER_URI_INTERNAL}
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
     ports:
@@ -186,7 +186,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
       IDENTITY_SERVICE_PORT: 8080
-      EUREKA_DEFAULT_ZONE: ${EUREKA_DEFAULT_ZONE:-http://discovery-server:8761/eureka}
+      EUREKA_DEFAULT_ZONE: ${EUREKA_DEFAULT_ZONE:-http://discovery-server:8080/eureka}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${IDENTITY_DB}
       SPRING_DATASOURCE_USERNAME: ${IDENTITY_DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${IDENTITY_DB_PASSWORD}
@@ -215,7 +215,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
       TASK_SERVICE_PORT: 8080
-      EUREKA_DEFAULT_ZONE: ${EUREKA_DEFAULT_ZONE:-http://discovery-server:8761/eureka}
+      EUREKA_DEFAULT_ZONE: ${EUREKA_DEFAULT_ZONE:-http://discovery-server:8080/eureka}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${TASK_DB}
       SPRING_DATASOURCE_USERNAME: ${TASK_DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${TASK_DB_PASSWORD}
@@ -244,7 +244,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
       TIMELINE_SERVICE_PORT: 8080
-      EUREKA_DEFAULT_ZONE: ${EUREKA_DEFAULT_ZONE:-http://discovery-server:8761/eureka}
+      EUREKA_DEFAULT_ZONE: ${EUREKA_DEFAULT_ZONE:-http://discovery-server:8080/eureka}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${TIMELINE_DB}
       SPRING_DATASOURCE_USERNAME: ${TIMELINE_DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${TIMELINE_DB_PASSWORD}
@@ -273,7 +273,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
       FINANCE_SERVICE_PORT: 8080
-      EUREKA_DEFAULT_ZONE: ${EUREKA_DEFAULT_ZONE:-http://discovery-server:8761/eureka}
+      EUREKA_DEFAULT_ZONE: ${EUREKA_DEFAULT_ZONE:-http://discovery-server:8080/eureka}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${FINANCE_DB}
       SPRING_DATASOURCE_USERNAME: ${FINANCE_DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${FINANCE_DB_PASSWORD}
@@ -302,7 +302,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
       NOTIFICATION_SERVICE_PORT: 8080
-      EUREKA_DEFAULT_ZONE: ${EUREKA_DEFAULT_ZONE:-http://discovery-server:8761/eureka}
+      EUREKA_DEFAULT_ZONE: ${EUREKA_DEFAULT_ZONE:-http://discovery-server:8080/eureka}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${NOTIFICATION_DB}
       SPRING_DATASOURCE_USERNAME: ${NOTIFICATION_DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${NOTIFICATION_DB_PASSWORD}
@@ -331,7 +331,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
       ANALYTICS_SERVICE_PORT: 8080
-      EUREKA_DEFAULT_ZONE: ${EUREKA_DEFAULT_ZONE:-http://discovery-server:8761/eureka}
+      EUREKA_DEFAULT_ZONE: ${EUREKA_DEFAULT_ZONE:-http://discovery-server:8080/eureka}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${ANALYTICS_DB}
       SPRING_DATASOURCE_USERNAME: ${ANALYTICS_DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${ANALYTICS_DB_PASSWORD}
@@ -360,7 +360,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
       AI_SERVICE_PORT: 8080
-      EUREKA_DEFAULT_ZONE: ${EUREKA_DEFAULT_ZONE:-http://discovery-server:8761/eureka}
+      EUREKA_DEFAULT_ZONE: ${EUREKA_DEFAULT_ZONE:-http://discovery-server:8080/eureka}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${AI_DB}
       SPRING_DATASOURCE_USERNAME: ${AI_DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${AI_DB_PASSWORD}
