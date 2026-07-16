@@ -24,6 +24,8 @@
 
     <modules>
         <module>discovery-server</module>
+        <module>lifebalance-common</module>
+        <module>lifebalance-security</module>
         <module>gateway</module>
         <module>identity-service</module>
         <module>task-service</module>

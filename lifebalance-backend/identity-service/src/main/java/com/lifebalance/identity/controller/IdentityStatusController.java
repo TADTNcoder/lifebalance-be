@@ -1,8 +1,8 @@
 package com.lifebalance.identity.controller;
 
 import com.lifebalance.identity.service.IdentityStatusService;
-import com.lifebalance.identity.shared.api.ApiResponse;
-import com.lifebalance.identity.shared.api.ModuleStatusResponse;
+import com.lifebalance.common.api.ApiResponse;
+import com.lifebalance.common.api.ModuleStatusResponse;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;

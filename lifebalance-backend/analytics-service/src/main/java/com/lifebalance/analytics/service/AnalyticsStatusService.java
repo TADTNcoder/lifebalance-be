@@ -1,6 +1,6 @@
 package com.lifebalance.analytics.service;
 
-import com.lifebalance.analytics.shared.api.ModuleStatusResponse;
+import com.lifebalance.common.api.ModuleStatusResponse;
 import org.springframework.stereotype.Service;
 
 @Service

@@ -1,8 +1,8 @@
 package com.lifebalance.finance.controller;
 
 import com.lifebalance.finance.service.FinanceStatusService;
-import com.lifebalance.finance.shared.api.ApiResponse;
-import com.lifebalance.finance.shared.api.ModuleStatusResponse;
+import com.lifebalance.common.api.ApiResponse;
+import com.lifebalance.common.api.ModuleStatusResponse;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;

@@ -1,8 +1,8 @@
 package com.lifebalance.ai.controller;
 
 import com.lifebalance.ai.service.AiStatusService;
-import com.lifebalance.ai.shared.api.ApiResponse;
-import com.lifebalance.ai.shared.api.ModuleStatusResponse;
+import com.lifebalance.common.api.ApiResponse;
+import com.lifebalance.common.api.ModuleStatusResponse;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
