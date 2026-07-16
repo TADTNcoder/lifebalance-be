@@ -1,6 +1,6 @@
 package com.lifebalance.notification.service;
 
-import com.lifebalance.notification.shared.api.ModuleStatusResponse;
+import com.lifebalance.common.api.ModuleStatusResponse;
 import org.springframework.stereotype.Service;
 
 @Service

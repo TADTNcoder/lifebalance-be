@@ -1,8 +1,8 @@
 package com.lifebalance.notification.controller;
 
 import com.lifebalance.notification.service.NotificationStatusService;
-import com.lifebalance.notification.shared.api.ApiResponse;
-import com.lifebalance.notification.shared.api.ModuleStatusResponse;
+import com.lifebalance.common.api.ApiResponse;
+import com.lifebalance.common.api.ModuleStatusResponse;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
