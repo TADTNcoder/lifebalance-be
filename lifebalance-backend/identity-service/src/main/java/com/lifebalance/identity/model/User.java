@@ -54,6 +54,7 @@ public class User extends BaseAuditableEntity {
     @Column(name = "last_login_at")
     private OffsetDateTime lastLoginAt;
 
+    @Column(name = "keycloak_id")
     private String keycloakId;
 
     public void setEmail(String email) {

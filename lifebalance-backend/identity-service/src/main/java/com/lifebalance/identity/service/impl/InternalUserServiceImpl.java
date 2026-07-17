@@ -33,4 +33,10 @@ public class InternalUserServiceImpl implements InternalUserService {
         return userRepository.save(user);
     }
 
+    @Override
+    public User getCurrentUser(CurrentUser currentUser) {
+        return userRepository.findByKeycloakId(currentUser.getUserId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+    }
+
 }

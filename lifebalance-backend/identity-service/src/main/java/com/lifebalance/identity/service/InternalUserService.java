@@ -5,4 +5,6 @@ import com.lifebalance.identity.security.CurrentUser;
 
 public interface InternalUserService {
     User findOrCreate(CurrentUser currentUser);
+
+    User getCurrentUser(CurrentUser currentUser);
 }
