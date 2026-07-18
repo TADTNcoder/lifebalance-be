@@ -4,6 +4,7 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 
+import com.lifebalance.identity.dto.UpdateUserRequest;
 import com.lifebalance.identity.model.User;
 import com.lifebalance.identity.repository.UserRepository;
 import com.lifebalance.identity.security.CurrentUser;
@@ -37,6 +38,17 @@ public class InternalUserServiceImpl implements InternalUserService {
     public User getCurrentUser(CurrentUser currentUser) {
         return userRepository.findByKeycloakId(currentUser.getUserId())
                 .orElseThrow(() -> new RuntimeException("User not found"));
+    }
+
+    @Transactional
+    @Override
+    public User updateCurrentUser(CurrentUser currentUser, UpdateUserRequest request) {
+        User user = userRepository.findByKeycloakId(currentUser.getUserId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        user.setDisplayName(request.getDisplayName());
+        user.setEmail(request.getEmail());
+        return userRepository.save(user);
     }
 
 }
