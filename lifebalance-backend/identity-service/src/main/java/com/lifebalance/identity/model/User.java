@@ -1,6 +1,5 @@
 package com.lifebalance.identity.model;
 
-
 import com.lifebalance.identity.model.enums.AccountStatus;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
@@ -55,6 +54,9 @@ public class User extends BaseAuditableEntity {
     @Column(name = "last_login_at")
     private OffsetDateTime lastLoginAt;
 
+    @Column(name = "keycloak_id")
+    private String keycloakId;
+
     public void setEmail(String email) {
         this.email = normalize(email);
     }
@@ -80,4 +82,9 @@ public class User extends BaseAuditableEntity {
         String normalized = value.trim().toLowerCase(Locale.ROOT);
         return normalized.isEmpty() ? null : normalized;
     }
+
+    public void setKeycloakId(String userId) {
+        this.keycloakId = userId;
+    }
+
 }
