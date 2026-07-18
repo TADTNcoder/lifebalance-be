@@ -11,7 +11,11 @@ spring:
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/lifebalance_identity}
     username: ${SPRING_DATASOURCE_USERNAME:identity_user}
+<<<<<<< HEAD
     password: ${SPRING_DATASOURCE_PASSWORD:05082006}
+=======
+    password: ${SPRING_DATASOURCE_PASSWORD:tadtn}
+>>>>>>> origin/main
 
 eureka:
   instance:

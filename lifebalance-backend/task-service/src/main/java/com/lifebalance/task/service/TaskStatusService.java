@@ -1,6 +1,6 @@
 package com.lifebalance.task.service;
 
-import com.lifebalance.task.shared.api.ModuleStatusResponse;
+import com.lifebalance.common.api.ModuleStatusResponse;
 import org.springframework.stereotype.Service;
 
 @Service

@@ -1,6 +1,6 @@
 package com.lifebalance.timeline.service;
 
-import com.lifebalance.timeline.shared.api.ModuleStatusResponse;
+import com.lifebalance.common.api.ModuleStatusResponse;
 import org.springframework.stereotype.Service;
 
 @Service

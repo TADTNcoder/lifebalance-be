@@ -1,6 +1,6 @@
 package com.lifebalance.ai.service;
 
-import com.lifebalance.ai.shared.api.ModuleStatusResponse;
+import com.lifebalance.common.api.ModuleStatusResponse;
 import org.springframework.stereotype.Service;
 
 @Service
