@@ -6,10 +6,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.lifebalance.common.error.AuthErrorCode;
+import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.authentication.InsufficientAuthenticationException;
+import org.springframework.security.core.AuthenticationException;
 
 class LifebalanceAuthenticationEntryPointTest {
 
@@ -17,12 +19,12 @@ class LifebalanceAuthenticationEntryPointTest {
             .findAndAddModules()
             .build();
 
-    private final LifebalanceAuthenticationEntryPoint entryPoint =
-            new LifebalanceAuthenticationEntryPoint(objectMapper);
-
     @Test
     void shouldWriteStandardUnauthorizedJsonResponse() throws Exception {
         MockHttpServletResponse response = new MockHttpServletResponse();
+        RecordingAuthenticationFailureLogger logger = new RecordingAuthenticationFailureLogger();
+        LifebalanceAuthenticationEntryPoint entryPoint =
+                new LifebalanceAuthenticationEntryPoint(objectMapper, logger);
 
         entryPoint.commence(
                 new MockHttpServletRequest("GET", "/api/tasks"),
@@ -40,5 +42,23 @@ class LifebalanceAuthenticationEntryPointTest {
         assertThat(body.at("/error/message").asText()).isEqualTo("Authentication is required");
         assertThat(body.at("/error/details").isEmpty()).isTrue();
         assertThat(body.get("timestamp").asText()).isNotBlank();
+        assertThat(logger.errorCode).isEqualTo(AuthErrorCode.UNAUTHORIZED);
+        assertThat(logger.path).isEqualTo("/api/tasks");
+    }
+
+    private static class RecordingAuthenticationFailureLogger extends AuthenticationFailureLogger {
+
+        private String errorCode;
+        private String path;
+
+        @Override
+        public void logFailure(
+                HttpServletRequest request,
+                AuthenticationException authException,
+                String errorCode
+        ) {
+            this.errorCode = errorCode;
+            this.path = request.getRequestURI();
+        }
     }
 }
