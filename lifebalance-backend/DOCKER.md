@@ -55,6 +55,16 @@ Tail logs:
 .\scripts\docker-logs.ps1 gateway
 ```
 
+Authentication failure logs:
+
+```powershell
+.\scripts\docker-logs.ps1 gateway | Select-String "event=authentication_failure"
+.\scripts\docker-logs.ps1 keycloak | Select-String "LOGIN_ERROR"
+```
+
+Backend services emit centralized auth audit records from `lifebalance-security` with `event=authentication_failure`.
+Keycloak realm import enables event logging for login and token failure events through the `jboss-logging` listener.
+
 Stop:
 
 ```powershell
