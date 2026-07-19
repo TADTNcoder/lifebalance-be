@@ -1807,7 +1807,7 @@
     "ssl": "false",
     "user": ""
   },
-  "loginTheme": "keycloak.v2",
+  "loginTheme": "lifebalance",
   "accountTheme": "keycloak.v3",
   "adminTheme": "keycloak.v2",
   "emailTheme": "keycloak",
