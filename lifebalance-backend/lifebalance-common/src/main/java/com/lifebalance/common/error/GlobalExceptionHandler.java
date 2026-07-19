@@ -6,6 +6,8 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -38,6 +40,18 @@ public class GlobalExceptionHandler {
                 details
         );
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse.failure(error));
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
+    ResponseEntity<ApiResponse<Void>> handleAuthenticationException(AuthenticationException exception) {
+        ApiError error = ApiError.of(AuthErrorCode.UNAUTHORIZED, "Authentication is required");
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.failure(error));
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    ResponseEntity<ApiResponse<Void>> handleAccessDeniedException(AccessDeniedException exception) {
+        ApiError error = ApiError.of(AuthErrorCode.FORBIDDEN, "Access is denied");
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.failure(error));
     }
 
     @ExceptionHandler(Exception.class)
