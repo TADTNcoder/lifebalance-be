@@ -1811,12 +1811,19 @@
   "accountTheme": "keycloak.v3",
   "adminTheme": "keycloak.v2",
   "emailTheme": "keycloak",
-  "eventsEnabled": false,
+  "eventsEnabled": true,
   "eventsExpiration": 7776000,
   "eventsListeners": [
     "jboss-logging"
   ],
-  "enabledEventTypes": [],
+  "enabledEventTypes": [
+    "LOGIN_ERROR",
+    "CLIENT_LOGIN_ERROR",
+    "IDENTITY_PROVIDER_LOGIN_ERROR",
+    "CODE_TO_TOKEN_ERROR",
+    "REFRESH_TOKEN_ERROR",
+    "TOKEN_EXCHANGE_ERROR"
+  ],
   "adminEventsEnabled": false,
   "adminEventsDetailsEnabled": false,
   "identityProviders": [],
