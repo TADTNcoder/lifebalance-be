@@ -1,5 +1,7 @@
 package com.lifebalance.identity.config;
 
+import com.lifebalance.security.keycloak.LifebalanceAccessDeniedHandler;
+import com.lifebalance.security.keycloak.LifebalanceAuthenticationEntryPoint;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -15,7 +17,11 @@ import org.springframework.security.web.SecurityFilterChain;
 public class SecurityConfig {
 
         @Bean
-        SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        SecurityFilterChain securityFilterChain(
+                        HttpSecurity http,
+                        LifebalanceAuthenticationEntryPoint authenticationEntryPoint,
+                        LifebalanceAccessDeniedHandler accessDeniedHandler
+        ) throws Exception {
                 return http
                                 .csrf(AbstractHttpConfigurer::disable)
                                 .cors(Customizer.withDefaults())
@@ -30,7 +36,12 @@ public class SecurityConfig {
                                                                 "/swagger-ui.html")
                                                 .permitAll()
                                                 .anyRequest().authenticated())
-                                .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
+                                .exceptionHandling(exception -> exception
+                                                .authenticationEntryPoint(authenticationEntryPoint)
+                                                .accessDeniedHandler(accessDeniedHandler))
+                                .oauth2ResourceServer(oauth2 -> oauth2
+                                                .authenticationEntryPoint(authenticationEntryPoint)
+                                                .jwt(Customizer.withDefaults()))
                                 .build();
         }
 
