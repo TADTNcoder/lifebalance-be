@@ -47,6 +47,11 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-security</artifactId>
     </dependency>
+    <dependency>
+      <groupId>com.lifebalance</groupId>
+      <artifactId>lifebalance-security</artifactId>
+      <version>${project.version}</version>
+    </dependency>
     <!-- Configuration Metadata -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
