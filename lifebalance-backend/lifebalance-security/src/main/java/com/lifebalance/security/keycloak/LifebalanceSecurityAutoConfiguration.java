@@ -1,5 +1,6 @@
 package com.lifebalance.security.keycloak;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
@@ -26,10 +27,28 @@ public class LifebalanceSecurityAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnMissingBean
+    public LifebalanceAuthenticationEntryPoint lifebalanceAuthenticationEntryPoint(
+            ObjectMapper objectMapper
+    ) {
+        return new LifebalanceAuthenticationEntryPoint(objectMapper);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public LifebalanceAccessDeniedHandler lifebalanceAccessDeniedHandler(
+            ObjectMapper objectMapper
+    ) {
+        return new LifebalanceAccessDeniedHandler(objectMapper);
+    }
+
+    @Bean
     @ConditionalOnMissingBean(SecurityFilterChain.class)
     public SecurityFilterChain lifebalanceSecurityFilterChain(
             HttpSecurity http,
-            KeycloakUserMapper keycloakUserMapper
+            KeycloakUserMapper keycloakUserMapper,
+            LifebalanceAuthenticationEntryPoint authenticationEntryPoint,
+            LifebalanceAccessDeniedHandler accessDeniedHandler
     ) throws Exception {
         KeycloakUserMappingFilter keycloakUserMappingFilter =
                 new KeycloakUserMappingFilter(keycloakUserMapper);
@@ -56,8 +75,14 @@ public class LifebalanceSecurityAutoConfiguration {
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
+                .exceptionHandling(exception -> exception
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                        .accessDeniedHandler(accessDeniedHandler)
+                )
                 .oauth2ResourceServer(oauth2 ->
-                        oauth2.jwt(Customizer.withDefaults())
+                        oauth2
+                                .authenticationEntryPoint(authenticationEntryPoint)
+                                .jwt(Customizer.withDefaults())
                 )
                 .addFilterAfter(
                         keycloakUserMappingFilter,
