@@ -91,6 +91,9 @@ services:
       - --health-enabled=true
       - --metrics-enabled=true
       - --import-realm
+      - --spi-theme-cache-themes=false
+      - --spi-theme-cache-templates=false
+      - --spi-theme-static-max-age=-1
     environment:
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/${KEYCLOAK_DB}
@@ -107,6 +110,7 @@ services:
       - "${KEYCLOAK_MGMT_HOST_PORT:-9000}:9000"
     volumes:
       - ./docker/keycloak/realm:/opt/keycloak/data/import:ro
+      - ./docker/keycloak/themes:/opt/keycloak/themes:ro
       - ./docker/keycloak/export:/opt/keycloak/data/export
       - ./backups/keycloak:/backups
     depends_on:
