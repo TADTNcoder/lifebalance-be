@@ -22,6 +22,7 @@ import com.lifebalance.identity.dto.UpdateUserRequest;
 import com.lifebalance.identity.dto.UserResponse;
 import com.lifebalance.identity.exception.UserEmailAlreadyExistsException;
 import com.lifebalance.identity.exception.UserNotFoundException;
+import com.lifebalance.identity.exception.UserUsernameAlreadyExistsException;
 import com.lifebalance.identity.exception.UserValidationException;
 import com.lifebalance.identity.model.User;
 import com.lifebalance.identity.model.enums.AccountStatus;
@@ -65,15 +66,18 @@ class UserServiceImplTest {
     }
 
     @Test
-    void shouldUpdateUserEmailAndDisplayName() {
+    void shouldUpdateUserEmailUsernameAndDisplayName() {
         UUID userId = UUID.randomUUID();
         User user = createUser(userId);
         UpdateUserRequest request = new UpdateUserRequest();
         request.setEmail(" New.Alice@Example.COM ");
+        request.setUsername("  AliceUpdated  ");
         request.setDisplayName("  Alice Updated  ");
 
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
         when(userRepository.existsByEmailAndIdNot("new.alice@example.com", userId))
+                .thenReturn(false);
+        when(userRepository.existsByUsernameAndIdNot("aliceupdated", userId))
                 .thenReturn(false);
         when(userRepository.save(user)).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -84,8 +88,10 @@ class UserServiceImplTest {
         ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(userCaptor.capture());
         assertThat(userCaptor.getValue().getEmail()).isEqualTo("new.alice@example.com");
+        assertThat(userCaptor.getValue().getUsername()).isEqualTo("aliceupdated");
         assertThat(userCaptor.getValue().getDisplayName()).isEqualTo("Alice Updated");
         assertThat(response.getEmail()).isEqualTo("new.alice@example.com");
+        assertThat(response.getUsername()).isEqualTo("aliceupdated");
         assertThat(response.getDisplayName()).isEqualTo("Alice Updated");
     }
 
@@ -106,7 +112,12 @@ class UserServiceImplTest {
                 anyString(),
                 any()
         );
+        verify(userRepository, never()).existsByUsernameAndIdNot(
+                anyString(),
+                any()
+        );
         assertThat(response.getEmail()).isEqualTo("alice@example.com");
+        assertThat(response.getUsername()).isEqualTo("alice");
         assertThat(response.getDisplayName()).isEqualTo("Alice");
     }
 
@@ -155,6 +166,20 @@ class UserServiceImplTest {
     }
 
     @Test
+    void shouldRejectBlankUsername() {
+        UpdateUserRequest request = new UpdateUserRequest();
+        request.setUsername(" ");
+
+        UserServiceImpl service = new UserServiceImpl(userRepository);
+
+        assertThatThrownBy(() -> service.updateUser(UUID.randomUUID(), request))
+                .isInstanceOf(UserValidationException.class)
+                .hasMessage("Username must not be blank");
+        verify(userRepository, never()).findById(any());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
     void shouldRejectDuplicateEmail() {
         UUID userId = UUID.randomUUID();
         User user = createUser(userId);
@@ -170,6 +195,25 @@ class UserServiceImplTest {
         assertThatThrownBy(() -> service.updateUser(userId, request))
                 .isInstanceOf(UserEmailAlreadyExistsException.class)
                 .hasMessage("Email already exists: taken@example.com");
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldRejectDuplicateUsername() {
+        UUID userId = UUID.randomUUID();
+        User user = createUser(userId);
+        UpdateUserRequest request = new UpdateUserRequest();
+        request.setUsername("taken");
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(userRepository.existsByUsernameAndIdNot("taken", userId))
+                .thenReturn(true);
+
+        UserServiceImpl service = new UserServiceImpl(userRepository);
+
+        assertThatThrownBy(() -> service.updateUser(userId, request))
+                .isInstanceOf(UserUsernameAlreadyExistsException.class)
+                .hasMessage("Username already exists: taken");
         verify(userRepository, never()).save(any());
     }
 
