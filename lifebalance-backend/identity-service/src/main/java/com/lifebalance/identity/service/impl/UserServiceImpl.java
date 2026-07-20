@@ -129,6 +129,8 @@ public class UserServiceImpl implements UserService {
         response.setUsername(user.getUsername());
         response.setDisplayName(user.getDisplayName());
         response.setStatus(user.getStatus());
+        response.setRegisteredAt(user.getRegisteredAt());
+        response.setLastLoginAt(user.getLastLoginAt());
 
         return response;
     }

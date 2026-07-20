@@ -1,5 +1,7 @@
 package com.lifebalance.identity.controller;
 
+import java.util.UUID;
+
 import com.lifebalance.identity.model.User;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -10,8 +12,10 @@ import com.lifebalance.identity.dto.UserResponse;
 import com.lifebalance.identity.security.CurrentUser;
 import com.lifebalance.identity.service.InternalUserService;
 import com.lifebalance.identity.service.KeycloakUserMappingService;
+import com.lifebalance.identity.service.UserService;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
@@ -23,6 +27,22 @@ import lombok.RequiredArgsConstructor;
 public class UserController {
     private final InternalUserService internalUserService;
     private final KeycloakUserMappingService keycloakUserMappingService;
+    private final UserService userService;
+
+    @Operation(summary = "Get user by id", description = "Returns detail information for the requested user")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Success"),
+            @ApiResponse(responseCode = "400", description = "Invalid user id"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "404", description = "User not found")
+    })
+    @GetMapping("/{id}")
+    public UserResponse getUserById(
+            @Parameter(description = "User id in UUID format", required = true)
+            @PathVariable UUID id
+    ) {
+        return userService.getUserById(id);
+    }
 
     @Operation(summary = "Get current user profile", description = "Returns the profile information of the authenticated user")
     @ApiResponses({
@@ -39,6 +59,8 @@ public class UserController {
         response.setUsername(user.getUsername());
         response.setDisplayName(user.getDisplayName());
         response.setStatus(user.getStatus());
+        response.setRegisteredAt(user.getRegisteredAt());
+        response.setLastLoginAt(user.getLastLoginAt());
 
         return response;
 
@@ -61,6 +83,8 @@ public class UserController {
         response.setUsername(user.getUsername());
         response.setDisplayName(user.getDisplayName());
         response.setStatus(user.getStatus());
+        response.setRegisteredAt(user.getRegisteredAt());
+        response.setLastLoginAt(user.getLastLoginAt());
 
         return response;
     }

@@ -11,6 +11,7 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -38,6 +39,22 @@ public class GlobalExceptionHandler {
                 CommonErrorCode.VALIDATION_FAILED,
                 "Request validation failed",
                 details
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse.failure(error));
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    ResponseEntity<ApiResponse<Void>> handleTypeMismatchException(MethodArgumentTypeMismatchException exception) {
+        Class<?> requiredType = exception.getRequiredType();
+        String expectedType = requiredType == null ? "expected type" : requiredType.getSimpleName();
+
+        ApiError error = ApiError.of(
+                CommonErrorCode.VALIDATION_FAILED,
+                "Request parameter has invalid format",
+                Map.of(
+                        exception.getName(),
+                        "must be a valid " + expectedType
+                )
         );
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse.failure(error));
     }
