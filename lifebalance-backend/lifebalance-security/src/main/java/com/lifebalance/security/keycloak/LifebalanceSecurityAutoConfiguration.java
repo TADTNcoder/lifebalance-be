@@ -28,10 +28,17 @@ public class LifebalanceSecurityAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    public AuthenticationFailureLogger authenticationFailureLogger() {
+        return new AuthenticationFailureLogger();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     public LifebalanceAuthenticationEntryPoint lifebalanceAuthenticationEntryPoint(
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            AuthenticationFailureLogger authenticationFailureLogger
     ) {
-        return new LifebalanceAuthenticationEntryPoint(objectMapper);
+        return new LifebalanceAuthenticationEntryPoint(objectMapper, authenticationFailureLogger);
     }
 
     @Bean

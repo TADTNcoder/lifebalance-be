@@ -19,9 +19,18 @@ import org.springframework.security.web.AuthenticationEntryPoint;
 public class LifebalanceAuthenticationEntryPoint implements AuthenticationEntryPoint {
 
     private final ObjectMapper objectMapper;
+    private final AuthenticationFailureLogger authenticationFailureLogger;
 
     public LifebalanceAuthenticationEntryPoint(ObjectMapper objectMapper) {
+        this(objectMapper, new AuthenticationFailureLogger());
+    }
+
+    public LifebalanceAuthenticationEntryPoint(
+            ObjectMapper objectMapper,
+            AuthenticationFailureLogger authenticationFailureLogger
+    ) {
         this.objectMapper = objectMapper;
+        this.authenticationFailureLogger = authenticationFailureLogger;
     }
 
     @Override
@@ -31,6 +40,7 @@ public class LifebalanceAuthenticationEntryPoint implements AuthenticationEntryP
             AuthenticationException authException
     ) throws IOException {
         ApiError error = ApiError.of(resolveCode(authException), resolveMessage(authException));
+        authenticationFailureLogger.logFailure(request, authException, error.code());
 
         response.setStatus(HttpStatus.UNAUTHORIZED.value());
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
