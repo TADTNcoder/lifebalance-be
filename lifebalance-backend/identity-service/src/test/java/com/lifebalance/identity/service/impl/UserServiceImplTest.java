@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -47,6 +48,8 @@ class UserServiceImplTest {
         assertThat(response.getUsername()).isEqualTo("alice");
         assertThat(response.getDisplayName()).isEqualTo("Alice");
         assertThat(response.getStatus()).isEqualTo(AccountStatus.ACTIVE);
+        assertThat(response.getRegisteredAt()).isEqualTo(OffsetDateTime.parse("2026-07-20T10:15:30Z"));
+        assertThat(response.getLastLoginAt()).isEqualTo(OffsetDateTime.parse("2026-07-21T11:20:30Z"));
     }
 
     @Test
@@ -187,6 +190,8 @@ class UserServiceImplTest {
         user.setUsername("alice");
         user.setDisplayName("Alice");
         user.setStatus(AccountStatus.ACTIVE);
+        user.setRegisteredAt(OffsetDateTime.parse("2026-07-20T10:15:30Z"));
+        user.setLastLoginAt(OffsetDateTime.parse("2026-07-21T11:20:30Z"));
 
         return user;
     }
