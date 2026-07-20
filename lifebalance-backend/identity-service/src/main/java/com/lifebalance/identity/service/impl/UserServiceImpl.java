@@ -10,6 +10,7 @@ import com.lifebalance.identity.dto.UpdateUserRequest;
 import com.lifebalance.identity.dto.UserResponse;
 import com.lifebalance.identity.exception.UserEmailAlreadyExistsException;
 import com.lifebalance.identity.exception.UserNotFoundException;
+import com.lifebalance.identity.exception.UserUsernameAlreadyExistsException;
 import com.lifebalance.identity.exception.UserValidationException;
 import com.lifebalance.identity.model.User;
 import com.lifebalance.identity.repository.UserRepository;
@@ -23,6 +24,7 @@ import lombok.RequiredArgsConstructor;
 public class UserServiceImpl implements UserService {
 
     private static final int MAX_EMAIL_LENGTH = 255;
+    private static final int MAX_USERNAME_LENGTH = 100;
     private static final int MAX_DISPLAY_NAME_LENGTH = 255;
     private static final Pattern EMAIL_PATTERN = Pattern.compile(
             "^[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}$",
@@ -50,6 +52,7 @@ public class UserServiceImpl implements UserService {
                 .orElseThrow(() -> new UserNotFoundException(id));
 
         applyEmailUpdate(user, request.getEmail());
+        applyUsernameUpdate(user, request.getUsername());
         applyDisplayNameUpdate(user, request.getDisplayName());
 
         return toResponse(userRepository.save(user));
@@ -66,6 +69,19 @@ public class UserServiceImpl implements UserService {
         }
 
         user.setEmail(normalizedEmail);
+    }
+
+    private void applyUsernameUpdate(User user, String username) {
+        if (username == null) {
+            return;
+        }
+
+        String normalizedUsername = normalizeUsername(username);
+        if (userRepository.existsByUsernameAndIdNot(normalizedUsername, user.getId())) {
+            throw new UserUsernameAlreadyExistsException(normalizedUsername);
+        }
+
+        user.setUsername(normalizedUsername);
     }
 
     private static void applyDisplayNameUpdate(User user, String displayName) {
@@ -88,6 +104,7 @@ public class UserServiceImpl implements UserService {
         }
 
         validateEmail(request.getEmail());
+        validateUsername(request.getUsername());
         validateDisplayName(request.getDisplayName());
     }
 
@@ -105,6 +122,20 @@ public class UserServiceImpl implements UserService {
         }
         if (!EMAIL_PATTERN.matcher(normalizedEmail).matches()) {
             throw new UserValidationException("Email must be valid");
+        }
+    }
+
+    private static void validateUsername(String username) {
+        if (username == null) {
+            return;
+        }
+
+        String normalizedUsername = normalizeUsername(username);
+        if (normalizedUsername == null) {
+            throw new UserValidationException("Username must not be blank");
+        }
+        if (normalizedUsername.length() > MAX_USERNAME_LENGTH) {
+            throw new UserValidationException("Username must be at most 100 characters");
         }
     }
 
@@ -149,5 +180,12 @@ public class UserServiceImpl implements UserService {
         return normalizedEmail == null
                 ? null
                 : normalizedEmail.toLowerCase(Locale.ROOT);
+    }
+
+    private static String normalizeUsername(String username) {
+        String normalizedUsername = normalize(username);
+        return normalizedUsername == null
+                ? null
+                : normalizedUsername.toLowerCase(Locale.ROOT);
     }
 }

@@ -44,6 +44,23 @@ public class UserController {
         return userService.getUserById(id);
     }
 
+    @Operation(summary = "Partially update user by id", description = "Updates the provided user fields and leaves omitted fields unchanged")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Updated successfully"),
+            @ApiResponse(responseCode = "400", description = "Invalid user id or validation failed"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "404", description = "User not found"),
+            @ApiResponse(responseCode = "409", description = "Email or username already exists")
+    })
+    @PatchMapping("/{id}")
+    public UserResponse updateUser(
+            @Parameter(description = "User id in UUID format", required = true)
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateUserRequest request
+    ) {
+        return userService.updateUser(id, request);
+    }
+
     @Operation(summary = "Get current user profile", description = "Returns the profile information of the authenticated user")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Success"),
