@@ -5,7 +5,6 @@
 - Docker Desktop
 - Java 21 tro len
 - Maven wrapper da co san trong repo: `mvnw.cmd`
-- Node.js neu muon chay frontend local
 
 Chay cac lenh ben duoi tai thu muc root:
 
@@ -137,23 +136,7 @@ Test toan bo backend:
 .\mvnw.cmd test
 ```
 
-## 7. Chay frontend local
-
-Frontend nam trong thu muc `frontend` va dung Vite:
-
-```powershell
-cd frontend
-npm install
-npm run dev
-```
-
-Mac dinh frontend goi API qua:
-
-```text
-http://localhost:8080
-```
-
-## 8. Dung he thong
+## 7. Dung he thong
 
 Dung container, giu lai database volume:
 

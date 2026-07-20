@@ -13,6 +13,8 @@ COPY pom.xml .
 COPY .mvn .mvn
 COPY mvnw mvnw
 COPY discovery-server/pom.xml discovery-server/pom.xml
+COPY lifebalance-common/pom.xml lifebalance-common/pom.xml
+COPY lifebalance-security/pom.xml lifebalance-security/pom.xml
 COPY gateway/pom.xml gateway/pom.xml
 COPY identity-service/pom.xml identity-service/pom.xml
 COPY task-service/pom.xml task-service/pom.xml
