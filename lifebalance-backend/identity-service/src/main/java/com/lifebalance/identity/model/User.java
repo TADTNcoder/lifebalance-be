@@ -21,7 +21,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @Entity
 @Table(name = "users", schema = "identity")
-@SQLDelete(sql = "UPDATE identity.users SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+@SQLDelete(sql = "UPDATE identity.users SET status = 'DELETED', deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
 @SQLRestriction("deleted_at IS NULL")
 public class User extends BaseAuditableEntity {
     @Id

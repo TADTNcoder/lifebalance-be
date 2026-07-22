@@ -8,12 +8,16 @@ import org.springframework.stereotype.Service;
 
 import com.lifebalance.identity.dto.UpdateUserRequest;
 import com.lifebalance.identity.dto.UserResponse;
+import com.lifebalance.identity.exception.UserAlreadyDeletedException;
+import com.lifebalance.identity.exception.UserAlreadyDisabledException;
 import com.lifebalance.identity.exception.UserEmailAlreadyExistsException;
 import com.lifebalance.identity.exception.UserNotFoundException;
 import com.lifebalance.identity.exception.UserUsernameAlreadyExistsException;
 import com.lifebalance.identity.exception.UserValidationException;
 import com.lifebalance.identity.model.User;
+import com.lifebalance.identity.model.enums.AccountStatus;
 import com.lifebalance.identity.repository.UserRepository;
+import com.lifebalance.identity.service.UserSessionRevocationService;
 import com.lifebalance.identity.service.UserService;
 
 import jakarta.transaction.Transactional;
@@ -32,6 +36,7 @@ public class UserServiceImpl implements UserService {
     );
 
     private final UserRepository userRepository;
+    private final UserSessionRevocationService userSessionRevocationService;
 
     @Override
     public UserResponse getUserById(UUID id) {
@@ -56,6 +61,49 @@ public class UserServiceImpl implements UserService {
         applyDisplayNameUpdate(user, request.getDisplayName());
 
         return toResponse(userRepository.save(user));
+    }
+
+    @Override
+    @Transactional
+    public UserResponse disableUser(UUID id) {
+        User user = findExistingUser(id);
+
+        if (user.getStatus() == AccountStatus.DISABLED) {
+            throw new UserAlreadyDisabledException(id);
+        }
+
+        user.setStatus(AccountStatus.DISABLED);
+        User disabledUser = userRepository.save(user);
+        userSessionRevocationService.revokeSessions(disabledUser, "USER_DISABLED");
+
+        return toResponse(disabledUser);
+    }
+
+    @Override
+    @Transactional
+    public void softDeleteUser(UUID id) {
+        User user = findExistingUser(id);
+
+        userRepository.delete(user);
+        userSessionRevocationService.revokeSessions(user, "USER_DELETED");
+    }
+
+    private User findExistingUser(UUID id) {
+        validateUserId(id);
+
+        return userRepository.findById(id)
+                .orElseThrow(() -> resolveMissingUserException(id));
+    }
+
+    private RuntimeException resolveMissingUserException(UUID id) {
+        if (!userRepository.existsByIdIncludingDeleted(id)) {
+            return new UserNotFoundException(id);
+        }
+        if (userRepository.existsDeletedById(id)) {
+            return new UserAlreadyDeletedException(id);
+        }
+
+        return new UserNotFoundException(id);
     }
 
     private void applyEmailUpdate(User user, String email) {

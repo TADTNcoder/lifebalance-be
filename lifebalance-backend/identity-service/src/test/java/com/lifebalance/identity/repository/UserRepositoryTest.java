@@ -7,6 +7,7 @@ import com.lifebalance.identity.model.RolePermissionId;
 import com.lifebalance.identity.model.User;
 import com.lifebalance.identity.model.UserRole;
 import com.lifebalance.identity.model.UserRoleId;
+import com.lifebalance.identity.model.enums.AccountStatus;
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
 import org.junit.jupiter.api.Test;
@@ -138,6 +139,66 @@ class UserRepositoryTest {
         assertThat(userRepository.findByEmail("soft-deleted-repository@example.com")).isEmpty();
         assertThat(userRepository.findByUsername("soft-deleted-repository")).isEmpty();
         assertThat(userRepository.findByKeycloakId("kc-soft-deleted-repository")).isEmpty();
+    }
+
+    @Test
+    void softDeleteMarksUserAsDeletedInDatabase() {
+        User user = userRepository.saveAndFlush(User.builder()
+                .email("soft-delete-status@example.com")
+                .username("soft-delete-status")
+                .keycloakId("kc-soft-delete-status")
+                .build());
+
+        userRepository.delete(user);
+        userRepository.flush();
+        entityManager.clear();
+
+        Object[] row = (Object[]) entityManager.createNativeQuery("""
+                        SELECT status, deleted_at
+                        FROM identity.users
+                        WHERE id = ?
+                        """)
+                .setParameter(1, user.getId())
+                .getSingleResult();
+
+        assertThat(row[0]).isEqualTo("DELETED");
+        assertThat(row[1]).isNotNull();
+        assertThat(userRepository.findById(user.getId())).isEmpty();
+    }
+
+    @Test
+    void detectsUsersIncludingSoftDeletedRecords() {
+        User user = userRepository.saveAndFlush(User.builder()
+                .email("deleted-detection@example.com")
+                .username("deleted-detection")
+                .keycloakId("kc-deleted-detection")
+                .build());
+
+        userRepository.delete(user);
+        userRepository.flush();
+        entityManager.clear();
+
+        assertThat(userRepository.existsByIdIncludingDeleted(user.getId())).isTrue();
+        assertThat(userRepository.existsDeletedById(user.getId())).isTrue();
+        assertThat(userRepository.existsDeletedByKeycloakId("kc-deleted-detection")).isTrue();
+        assertThat(userRepository.existsDeletedByKeycloakId("missing-keycloak-id")).isFalse();
+    }
+
+    @Test
+    void savesDisabledUserStatus() {
+        User user = userRepository.saveAndFlush(User.builder()
+                .email("disabled-status@example.com")
+                .username("disabled-status")
+                .status(AccountStatus.DISABLED)
+                .build());
+
+        entityManager.clear();
+
+        assertThat(userRepository.findById(user.getId()))
+                .isPresent()
+                .get()
+                .extracting(User::getStatus)
+                .isEqualTo(AccountStatus.DISABLED);
     }
 
     @Test

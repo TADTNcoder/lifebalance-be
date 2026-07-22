@@ -6,6 +6,7 @@ import com.lifebalance.identity.model.User;
 import com.lifebalance.identity.model.enums.AuditAction;
 import com.lifebalance.identity.model.enums.AuditStatus;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
@@ -33,6 +34,7 @@ public class UserController {
     private final InternalUserService internalUserService;
     private final KeycloakUserMappingService keycloakUserMappingService;
     private final UserService userService;
+    private final AuditLogService auditLogService;
 
     @Operation(summary = "Get user by id", description = "Returns detail information for the requested user")
     @ApiResponses({
@@ -64,6 +66,39 @@ public class UserController {
             @Valid @RequestBody UpdateUserRequest request
     ) {
         return userService.updateUser(id, request);
+    }
+
+    @Operation(summary = "Disable user by id", description = "Disables a user account without soft deleting the record")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Disabled successfully"),
+            @ApiResponse(responseCode = "400", description = "Invalid user id"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "404", description = "User not found"),
+            @ApiResponse(responseCode = "409", description = "User already disabled or deleted")
+    })
+    @PatchMapping("/{id}/disable")
+    public UserResponse disableUser(
+            @Parameter(description = "User id in UUID format", required = true)
+            @PathVariable UUID id
+    ) {
+        return userService.disableUser(id);
+    }
+
+    @Operation(summary = "Soft delete user by id", description = "Marks a user as deleted and excludes it from normal user queries")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Deleted successfully"),
+            @ApiResponse(responseCode = "400", description = "Invalid user id"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "404", description = "User not found"),
+            @ApiResponse(responseCode = "409", description = "User already deleted")
+    })
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> softDeleteUser(
+            @Parameter(description = "User id in UUID format", required = true)
+            @PathVariable UUID id
+    ) {
+        userService.softDeleteUser(id);
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "Get current user profile", description = "Returns the profile information of the authenticated user")

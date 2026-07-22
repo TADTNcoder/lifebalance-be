@@ -10,4 +10,8 @@ public interface UserService {
     UserResponse getUserById(UUID id);
 
     UserResponse updateUser(UUID id, UpdateUserRequest request);
+
+    UserResponse disableUser(UUID id);
+
+    void softDeleteUser(UUID id);
 }
