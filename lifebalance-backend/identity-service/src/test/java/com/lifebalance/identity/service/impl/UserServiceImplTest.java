@@ -20,6 +20,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.lifebalance.identity.dto.UpdateUserRequest;
 import com.lifebalance.identity.dto.UserResponse;
+import com.lifebalance.identity.exception.UserAlreadyDeletedException;
+import com.lifebalance.identity.exception.UserAlreadyDisabledException;
 import com.lifebalance.identity.exception.UserEmailAlreadyExistsException;
 import com.lifebalance.identity.exception.UserNotFoundException;
 import com.lifebalance.identity.exception.UserUsernameAlreadyExistsException;
@@ -27,6 +29,7 @@ import com.lifebalance.identity.exception.UserValidationException;
 import com.lifebalance.identity.model.User;
 import com.lifebalance.identity.model.enums.AccountStatus;
 import com.lifebalance.identity.repository.UserRepository;
+import com.lifebalance.identity.service.UserSessionRevocationService;
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceImplTest {
@@ -34,13 +37,16 @@ class UserServiceImplTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private UserSessionRevocationService userSessionRevocationService;
+
     @Test
     void shouldReturnUserById() {
         UUID userId = UUID.randomUUID();
         User user = createUser(userId);
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
 
-        UserServiceImpl service = new UserServiceImpl(userRepository);
+        UserServiceImpl service = createService();
 
         UserResponse response = service.getUserById(userId);
 
@@ -58,7 +64,7 @@ class UserServiceImplTest {
         UUID userId = UUID.randomUUID();
         when(userRepository.findById(userId)).thenReturn(Optional.empty());
 
-        UserServiceImpl service = new UserServiceImpl(userRepository);
+        UserServiceImpl service = createService();
 
         assertThatThrownBy(() -> service.getUserById(userId))
                 .isInstanceOf(UserNotFoundException.class)
@@ -81,7 +87,7 @@ class UserServiceImplTest {
                 .thenReturn(false);
         when(userRepository.save(user)).thenAnswer(invocation -> invocation.getArgument(0));
 
-        UserServiceImpl service = new UserServiceImpl(userRepository);
+        UserServiceImpl service = createService();
 
         UserResponse response = service.updateUser(userId, request);
 
@@ -104,7 +110,7 @@ class UserServiceImplTest {
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
         when(userRepository.save(user)).thenAnswer(invocation -> invocation.getArgument(0));
 
-        UserServiceImpl service = new UserServiceImpl(userRepository);
+        UserServiceImpl service = createService();
 
         UserResponse response = service.updateUser(userId, request);
 
@@ -129,7 +135,7 @@ class UserServiceImplTest {
 
         when(userRepository.findById(userId)).thenReturn(Optional.empty());
 
-        UserServiceImpl service = new UserServiceImpl(userRepository);
+        UserServiceImpl service = createService();
 
         assertThatThrownBy(() -> service.updateUser(userId, request))
                 .isInstanceOf(UserNotFoundException.class)
@@ -142,7 +148,7 @@ class UserServiceImplTest {
         UpdateUserRequest request = new UpdateUserRequest();
         request.setEmail("invalid-email");
 
-        UserServiceImpl service = new UserServiceImpl(userRepository);
+        UserServiceImpl service = createService();
 
         assertThatThrownBy(() -> service.updateUser(UUID.randomUUID(), request))
                 .isInstanceOf(UserValidationException.class)
@@ -156,7 +162,7 @@ class UserServiceImplTest {
         UpdateUserRequest request = new UpdateUserRequest();
         request.setDisplayName(" ");
 
-        UserServiceImpl service = new UserServiceImpl(userRepository);
+        UserServiceImpl service = createService();
 
         assertThatThrownBy(() -> service.updateUser(UUID.randomUUID(), request))
                 .isInstanceOf(UserValidationException.class)
@@ -170,7 +176,7 @@ class UserServiceImplTest {
         UpdateUserRequest request = new UpdateUserRequest();
         request.setUsername(" ");
 
-        UserServiceImpl service = new UserServiceImpl(userRepository);
+        UserServiceImpl service = createService();
 
         assertThatThrownBy(() -> service.updateUser(UUID.randomUUID(), request))
                 .isInstanceOf(UserValidationException.class)
@@ -190,7 +196,7 @@ class UserServiceImplTest {
         when(userRepository.existsByEmailAndIdNot("taken@example.com", userId))
                 .thenReturn(true);
 
-        UserServiceImpl service = new UserServiceImpl(userRepository);
+        UserServiceImpl service = createService();
 
         assertThatThrownBy(() -> service.updateUser(userId, request))
                 .isInstanceOf(UserEmailAlreadyExistsException.class)
@@ -209,7 +215,7 @@ class UserServiceImplTest {
         when(userRepository.existsByUsernameAndIdNot("taken", userId))
                 .thenReturn(true);
 
-        UserServiceImpl service = new UserServiceImpl(userRepository);
+        UserServiceImpl service = createService();
 
         assertThatThrownBy(() -> service.updateUser(userId, request))
                 .isInstanceOf(UserUsernameAlreadyExistsException.class)
@@ -219,12 +225,122 @@ class UserServiceImplTest {
 
     @Test
     void shouldRejectMissingUserId() {
-        UserServiceImpl service = new UserServiceImpl(userRepository);
+        UserServiceImpl service = createService();
 
         assertThatThrownBy(() -> service.getUserById(null))
                 .isInstanceOf(UserValidationException.class)
                 .hasMessage("User id is required");
         verify(userRepository, never()).findById(any());
+    }
+
+    @Test
+    void shouldDisableUserAndRevokeSessions() {
+        UUID userId = UUID.randomUUID();
+        User user = createUser(userId);
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(userRepository.save(user)).thenAnswer(invocation -> invocation.getArgument(0));
+
+        UserServiceImpl service = createService();
+
+        UserResponse response = service.disableUser(userId);
+
+        assertThat(response.getStatus()).isEqualTo(AccountStatus.DISABLED);
+        verify(userRepository).save(user);
+        verify(userSessionRevocationService).revokeSessions(user, "USER_DISABLED");
+    }
+
+    @Test
+    void shouldRejectAlreadyDisabledUser() {
+        UUID userId = UUID.randomUUID();
+        User user = createUser(userId);
+        user.setStatus(AccountStatus.DISABLED);
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+
+        UserServiceImpl service = createService();
+
+        assertThatThrownBy(() -> service.disableUser(userId))
+                .isInstanceOf(UserAlreadyDisabledException.class)
+                .hasMessage("User already disabled: " + userId);
+        verify(userRepository, never()).save(any());
+        verify(userSessionRevocationService, never()).revokeSessions(any(), anyString());
+    }
+
+    @Test
+    void shouldRejectDisableWhenUserWasAlreadyDeleted() {
+        UUID userId = UUID.randomUUID();
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+        when(userRepository.existsByIdIncludingDeleted(userId)).thenReturn(true);
+        when(userRepository.existsDeletedById(userId)).thenReturn(true);
+
+        UserServiceImpl service = createService();
+
+        assertThatThrownBy(() -> service.disableUser(userId))
+                .isInstanceOf(UserAlreadyDeletedException.class)
+                .hasMessage("User already deleted: " + userId);
+        verify(userRepository, never()).save(any());
+        verify(userSessionRevocationService, never()).revokeSessions(any(), anyString());
+    }
+
+    @Test
+    void shouldSoftDeleteUserAndRevokeSessions() {
+        UUID userId = UUID.randomUUID();
+        User user = createUser(userId);
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+
+        UserServiceImpl service = createService();
+
+        service.softDeleteUser(userId);
+
+        verify(userRepository).delete(user);
+        verify(userSessionRevocationService).revokeSessions(user, "USER_DELETED");
+    }
+
+    @Test
+    void shouldRejectSoftDeleteWhenUserDoesNotExist() {
+        UUID userId = UUID.randomUUID();
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+        when(userRepository.existsByIdIncludingDeleted(userId)).thenReturn(false);
+
+        UserServiceImpl service = createService();
+
+        assertThatThrownBy(() -> service.softDeleteUser(userId))
+                .isInstanceOf(UserNotFoundException.class)
+                .hasMessage("User not found: " + userId);
+        verify(userRepository, never()).delete(any());
+        verify(userSessionRevocationService, never()).revokeSessions(any(), anyString());
+    }
+
+    @Test
+    void shouldRejectSoftDeleteWhenUserWasAlreadyDeleted() {
+        UUID userId = UUID.randomUUID();
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+        when(userRepository.existsByIdIncludingDeleted(userId)).thenReturn(true);
+        when(userRepository.existsDeletedById(userId)).thenReturn(true);
+
+        UserServiceImpl service = createService();
+
+        assertThatThrownBy(() -> service.softDeleteUser(userId))
+                .isInstanceOf(UserAlreadyDeletedException.class)
+                .hasMessage("User already deleted: " + userId);
+        verify(userRepository, never()).delete(any());
+        verify(userSessionRevocationService, never()).revokeSessions(any(), anyString());
+    }
+
+    @Test
+    void shouldRejectMissingUserIdWhenSoftDeleting() {
+        UserServiceImpl service = createService();
+
+        assertThatThrownBy(() -> service.softDeleteUser(null))
+                .isInstanceOf(UserValidationException.class)
+                .hasMessage("User id is required");
+        verify(userRepository, never()).findById(any());
+    }
+
+    private UserServiceImpl createService() {
+        return new UserServiceImpl(userRepository, userSessionRevocationService);
     }
 
     private static User createUser(UUID userId) {

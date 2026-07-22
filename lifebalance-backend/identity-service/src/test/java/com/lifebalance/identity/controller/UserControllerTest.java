@@ -5,8 +5,10 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -18,10 +20,13 @@ import com.lifebalance.common.error.GlobalExceptionHandler;
 import com.lifebalance.identity.dto.UpdateUserRequest;
 import com.lifebalance.identity.dto.UserResponse;
 import com.lifebalance.identity.error.IdentityErrorCode;
+import com.lifebalance.identity.exception.UserAlreadyDeletedException;
+import com.lifebalance.identity.exception.UserAlreadyDisabledException;
 import com.lifebalance.identity.exception.UserEmailAlreadyExistsException;
 import com.lifebalance.identity.exception.UserNotFoundException;
 import com.lifebalance.identity.exception.UserUsernameAlreadyExistsException;
 import com.lifebalance.identity.model.enums.AccountStatus;
+import com.lifebalance.identity.service.AuditLogService;
 import com.lifebalance.identity.service.InternalUserService;
 import com.lifebalance.identity.service.KeycloakUserMappingService;
 import com.lifebalance.identity.service.UserService;
@@ -47,6 +52,9 @@ class UserControllerTest {
     @Mock
     private UserService userService;
 
+    @Mock
+    private AuditLogService auditLogService;
+
     private MockMvc mockMvc;
 
     @BeforeEach
@@ -54,7 +62,8 @@ class UserControllerTest {
         UserController userController = new UserController(
                 internalUserService,
                 keycloakUserMappingService,
-                userService
+                userService,
+                auditLogService
         );
 
         mockMvc = MockMvcBuilders
@@ -261,6 +270,114 @@ class UserControllerTest {
                         .value(IdentityErrorCode.USER_USERNAME_ALREADY_EXISTS))
                 .andExpect(jsonPath("$.error.message")
                         .value("Username already exists: taken"));
+    }
+
+    @Test
+    void shouldDisableUserById() throws Exception {
+        UUID userId = UUID.fromString("1f3f8e30-8b2d-4c92-9fd8-3f11e50b2031");
+        UserResponse response = createUserResponse(userId);
+        response.setStatus(AccountStatus.DISABLED);
+
+        when(userService.disableUser(userId)).thenReturn(response);
+
+        mockMvc.perform(patch("/users/{id}/disable", userId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(userId.toString()))
+                .andExpect(jsonPath("$.status").value("DISABLED"));
+
+        verify(userService).disableUser(userId);
+    }
+
+    @Test
+    void shouldReturn409WhenUserIsAlreadyDisabled() throws Exception {
+        UUID userId = UUID.fromString("1f3f8e30-8b2d-4c92-9fd8-3f11e50b2031");
+
+        when(userService.disableUser(userId))
+                .thenThrow(new UserAlreadyDisabledException(userId));
+
+        mockMvc.perform(patch("/users/{id}/disable", userId))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code")
+                        .value(IdentityErrorCode.USER_ALREADY_DISABLED))
+                .andExpect(jsonPath("$.error.message")
+                        .value("User already disabled: " + userId));
+    }
+
+    @Test
+    void shouldReturn409WhenDisableTargetWasAlreadyDeleted() throws Exception {
+        UUID userId = UUID.fromString("1f3f8e30-8b2d-4c92-9fd8-3f11e50b2031");
+
+        when(userService.disableUser(userId))
+                .thenThrow(new UserAlreadyDeletedException(userId));
+
+        mockMvc.perform(patch("/users/{id}/disable", userId))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code")
+                        .value(IdentityErrorCode.USER_ALREADY_DELETED))
+                .andExpect(jsonPath("$.error.message")
+                        .value("User already deleted: " + userId));
+    }
+
+    @Test
+    void shouldSoftDeleteUserById() throws Exception {
+        UUID userId = UUID.fromString("1f3f8e30-8b2d-4c92-9fd8-3f11e50b2031");
+
+        mockMvc.perform(delete("/users/{id}", userId))
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
+
+        verify(userService).softDeleteUser(userId);
+    }
+
+    @Test
+    void shouldReturn404WhenDeleteTargetDoesNotExist() throws Exception {
+        UUID userId = UUID.fromString("70870326-4447-4ef6-a909-2c8dcfd81ba7");
+
+        org.mockito.Mockito.doThrow(new UserNotFoundException(userId))
+                .when(userService)
+                .softDeleteUser(userId);
+
+        mockMvc.perform(delete("/users/{id}", userId))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code")
+                        .value(IdentityErrorCode.USER_NOT_FOUND))
+                .andExpect(jsonPath("$.error.message")
+                        .value("User not found: " + userId));
+    }
+
+    @Test
+    void shouldReturn409WhenDeleteTargetWasAlreadyDeleted() throws Exception {
+        UUID userId = UUID.fromString("1f3f8e30-8b2d-4c92-9fd8-3f11e50b2031");
+
+        org.mockito.Mockito.doThrow(new UserAlreadyDeletedException(userId))
+                .when(userService)
+                .softDeleteUser(userId);
+
+        mockMvc.perform(delete("/users/{id}", userId))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code")
+                        .value(IdentityErrorCode.USER_ALREADY_DELETED))
+                .andExpect(jsonPath("$.error.message")
+                        .value("User already deleted: " + userId));
+    }
+
+    @Test
+    void shouldReturn400WhenDeleteUserIdIsNotUuid() throws Exception {
+        mockMvc.perform(delete("/users/{id}", "not-a-uuid"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code")
+                        .value(CommonErrorCode.VALIDATION_FAILED))
+                .andExpect(jsonPath("$.error.message")
+                        .value("Request parameter has invalid format"))
+                .andExpect(jsonPath("$.error.details.id")
+                        .value("must be a valid UUID"));
+
+        verify(userService, never()).softDeleteUser(any());
     }
 
     private static UserResponse createUserResponse(UUID userId) {
