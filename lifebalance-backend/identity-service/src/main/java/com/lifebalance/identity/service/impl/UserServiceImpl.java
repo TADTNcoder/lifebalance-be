@@ -8,6 +8,8 @@ import org.springframework.stereotype.Service;
 
 import com.lifebalance.identity.dto.UpdateUserRequest;
 import com.lifebalance.identity.dto.UserResponse;
+import com.lifebalance.identity.exception.UserActivationNotAllowedException;
+import com.lifebalance.identity.exception.UserAlreadyActiveException;
 import com.lifebalance.identity.exception.UserAlreadyDeletedException;
 import com.lifebalance.identity.exception.UserAlreadyDisabledException;
 import com.lifebalance.identity.exception.UserEmailAlreadyExistsException;
@@ -59,6 +61,24 @@ public class UserServiceImpl implements UserService {
         applyEmailUpdate(user, request.getEmail());
         applyUsernameUpdate(user, request.getUsername());
         applyDisplayNameUpdate(user, request.getDisplayName());
+
+        return toResponse(userRepository.save(user));
+    }
+
+    @Override
+    @Transactional
+    public UserResponse activateUser(UUID id) {
+        User user = findExistingUser(id);
+
+        if (user.getStatus() == AccountStatus.ACTIVE) {
+            throw new UserAlreadyActiveException(id);
+        }
+        if (user.getStatus() != AccountStatus.INACTIVE
+                && user.getStatus() != AccountStatus.DISABLED) {
+            throw new UserActivationNotAllowedException(id, user.getStatus());
+        }
+
+        user.setStatus(AccountStatus.ACTIVE);
 
         return toResponse(userRepository.save(user));
     }
