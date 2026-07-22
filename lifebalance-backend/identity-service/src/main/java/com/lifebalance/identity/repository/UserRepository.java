@@ -27,6 +27,29 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     Optional<User> findByKeycloakId(String keycloakId);
 
+    @Query(value = """
+            SELECT count(*) > 0
+            FROM identity.users
+            WHERE id = :id
+            """, nativeQuery = true)
+    boolean existsByIdIncludingDeleted(@Param("id") UUID id);
+
+    @Query(value = """
+            SELECT count(*) > 0
+            FROM identity.users
+            WHERE id = :id
+              AND deleted_at IS NOT NULL
+            """, nativeQuery = true)
+    boolean existsDeletedById(@Param("id") UUID id);
+
+    @Query(value = """
+            SELECT count(*) > 0
+            FROM identity.users
+            WHERE keycloak_id = :keycloakId
+              AND deleted_at IS NOT NULL
+            """, nativeQuery = true)
+    boolean existsDeletedByKeycloakId(@Param("keycloakId") String keycloakId);
+
     @Query("""
             SELECT count(user) > 0
             FROM User user
