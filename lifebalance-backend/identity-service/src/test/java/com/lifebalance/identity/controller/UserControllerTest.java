@@ -1,5 +1,6 @@
 package com.lifebalance.identity.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -13,6 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 import com.lifebalance.common.error.CommonErrorCode;
@@ -25,7 +27,11 @@ import com.lifebalance.identity.exception.UserAlreadyDisabledException;
 import com.lifebalance.identity.exception.UserEmailAlreadyExistsException;
 import com.lifebalance.identity.exception.UserNotFoundException;
 import com.lifebalance.identity.exception.UserUsernameAlreadyExistsException;
+import com.lifebalance.identity.model.User;
 import com.lifebalance.identity.model.enums.AccountStatus;
+import com.lifebalance.identity.model.enums.AuditAction;
+import com.lifebalance.identity.model.enums.AuditStatus;
+import com.lifebalance.identity.security.CurrentUser;
 import com.lifebalance.identity.service.AuditLogService;
 import com.lifebalance.identity.service.InternalUserService;
 import com.lifebalance.identity.service.KeycloakUserMappingService;
@@ -37,6 +43,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -56,10 +64,11 @@ class UserControllerTest {
     private AuditLogService auditLogService;
 
     private MockMvc mockMvc;
+    private UserController userController;
 
     @BeforeEach
     void setUp() {
-        UserController userController = new UserController(
+        userController = new UserController(
                 internalUserService,
                 keycloakUserMappingService,
                 userService,
@@ -70,6 +79,43 @@ class UserControllerTest {
                 .standaloneSetup(userController)
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
+    }
+
+    @Test
+    void shouldProvisionCurrentUserWhenFetchingMe() {
+        Jwt jwt = Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .claim("sub", "kc-user-1")
+                .build();
+        CurrentUser currentUser = new CurrentUser(
+                "kc-user-1",
+                "alice",
+                "alice@example.com",
+                List.of("user")
+        );
+        User user = createUserEntity(UUID.fromString("1f3f8e30-8b2d-4c92-9fd8-3f11e50b2031"));
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRemoteAddr("127.0.0.1");
+        request.addHeader("User-Agent", "JUnit");
+
+        when(keycloakUserMappingService.map(jwt)).thenReturn(currentUser);
+        when(internalUserService.findOrCreate(currentUser)).thenReturn(user);
+
+        UserResponse response = userController.getCurrentUser(jwt, request);
+
+        assertThat(response.getId()).isEqualTo(user.getId());
+        assertThat(response.getEmail()).isEqualTo("alice@example.com");
+        assertThat(response.getUsername()).isEqualTo("alice");
+        verify(internalUserService).findOrCreate(currentUser);
+        verify(internalUserService, never()).getCurrentUser(currentUser);
+        verify(auditLogService).saveAudit(
+                user,
+                AuditAction.LOGIN,
+                AuditStatus.SUCCESS,
+                "127.0.0.1",
+                "JUnit",
+                "User login successfully"
+        );
     }
 
     @Test
@@ -391,5 +437,18 @@ class UserControllerTest {
         response.setLastLoginAt(OffsetDateTime.parse("2026-07-21T11:20:30Z"));
 
         return response;
+    }
+
+    private static User createUserEntity(UUID userId) {
+        User user = new User();
+        user.setId(userId);
+        user.setEmail("alice@example.com");
+        user.setUsername("alice");
+        user.setDisplayName("Alice Nguyen");
+        user.setStatus(AccountStatus.ACTIVE);
+        user.setRegisteredAt(OffsetDateTime.parse("2026-07-20T10:15:30Z"));
+        user.setLastLoginAt(OffsetDateTime.parse("2026-07-21T11:20:30Z"));
+
+        return user;
     }
 }
