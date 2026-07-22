@@ -110,7 +110,7 @@ public class UserController {
     @GetMapping("/me")
     public UserResponse getCurrentUser(@AuthenticationPrincipal Jwt jwt, HttpServletRequest request) {
         CurrentUser currentUser = keycloakUserMappingService.map(jwt);
-        User user = internalUserService.getCurrentUser(currentUser);
+        User user = internalUserService.findOrCreate(currentUser);
         auditLogService.saveAudit(
                 user,
                 AuditAction.LOGIN,
@@ -119,16 +119,7 @@ public class UserController {
                 request.getHeader("User-Agent"),
                 "User login successfully");
 
-        UserResponse response = new UserResponse();
-        response.setId(user.getId());
-        response.setEmail(user.getEmail());
-        response.setUsername(user.getUsername());
-        response.setDisplayName(user.getDisplayName());
-        response.setStatus(user.getStatus());
-        response.setRegisteredAt(user.getRegisteredAt());
-        response.setLastLoginAt(user.getLastLoginAt());
-
-        return response;
+        return toResponse(user);
 
     }
 
@@ -144,6 +135,10 @@ public class UserController {
         CurrentUser currentUser = keycloakUserMappingService.map(jwt);
         User user = internalUserService.updateCurrentUser(currentUser, requestBody);
 
+        return toResponse(user);
+    }
+
+    private static UserResponse toResponse(User user) {
         UserResponse response = new UserResponse();
         response.setId(user.getId());
         response.setEmail(user.getEmail());
