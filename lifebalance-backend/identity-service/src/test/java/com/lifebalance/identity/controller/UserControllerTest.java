@@ -22,6 +22,8 @@ import com.lifebalance.common.error.GlobalExceptionHandler;
 import com.lifebalance.identity.dto.UpdateUserRequest;
 import com.lifebalance.identity.dto.UserResponse;
 import com.lifebalance.identity.error.IdentityErrorCode;
+import com.lifebalance.identity.exception.UserActivationNotAllowedException;
+import com.lifebalance.identity.exception.UserAlreadyActiveException;
 import com.lifebalance.identity.exception.UserAlreadyDeletedException;
 import com.lifebalance.identity.exception.UserAlreadyDisabledException;
 import com.lifebalance.identity.exception.UserEmailAlreadyExistsException;
@@ -316,6 +318,85 @@ class UserControllerTest {
                         .value(IdentityErrorCode.USER_USERNAME_ALREADY_EXISTS))
                 .andExpect(jsonPath("$.error.message")
                         .value("Username already exists: taken"));
+    }
+
+    @Test
+    void shouldActivateUserById() throws Exception {
+        UUID userId = UUID.fromString("1f3f8e30-8b2d-4c92-9fd8-3f11e50b2031");
+        UserResponse response = createUserResponse(userId);
+        response.setStatus(AccountStatus.ACTIVE);
+
+        when(userService.activateUser(userId)).thenReturn(response);
+
+        mockMvc.perform(patch("/users/{id}/activate", userId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(userId.toString()))
+                .andExpect(jsonPath("$.status").value("ACTIVE"));
+
+        verify(userService).activateUser(userId);
+    }
+
+    @Test
+    void shouldReturn404WhenActivateTargetDoesNotExist() throws Exception {
+        UUID userId = UUID.fromString("70870326-4447-4ef6-a909-2c8dcfd81ba7");
+
+        when(userService.activateUser(userId))
+                .thenThrow(new UserNotFoundException(userId));
+
+        mockMvc.perform(patch("/users/{id}/activate", userId))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code")
+                        .value(IdentityErrorCode.USER_NOT_FOUND))
+                .andExpect(jsonPath("$.error.message")
+                        .value("User not found: " + userId));
+    }
+
+    @Test
+    void shouldReturn409WhenUserIsAlreadyActive() throws Exception {
+        UUID userId = UUID.fromString("1f3f8e30-8b2d-4c92-9fd8-3f11e50b2031");
+
+        when(userService.activateUser(userId))
+                .thenThrow(new UserAlreadyActiveException(userId));
+
+        mockMvc.perform(patch("/users/{id}/activate", userId))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code")
+                        .value(IdentityErrorCode.USER_ALREADY_ACTIVE))
+                .andExpect(jsonPath("$.error.message")
+                        .value("User already active: " + userId));
+    }
+
+    @Test
+    void shouldReturn409WhenUserCannotBeActivatedFromCurrentStatus() throws Exception {
+        UUID userId = UUID.fromString("1f3f8e30-8b2d-4c92-9fd8-3f11e50b2031");
+
+        when(userService.activateUser(userId))
+                .thenThrow(new UserActivationNotAllowedException(userId, AccountStatus.SUSPENDED));
+
+        mockMvc.perform(patch("/users/{id}/activate", userId))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code")
+                        .value(IdentityErrorCode.USER_ACTIVATION_NOT_ALLOWED))
+                .andExpect(jsonPath("$.error.message")
+                        .value("User cannot be activated from status SUSPENDED: " + userId));
+    }
+
+    @Test
+    void shouldReturn400WhenActivateUserIdIsNotUuid() throws Exception {
+        mockMvc.perform(patch("/users/{id}/activate", "not-a-uuid"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code")
+                        .value(CommonErrorCode.VALIDATION_FAILED))
+                .andExpect(jsonPath("$.error.message")
+                        .value("Request parameter has invalid format"))
+                .andExpect(jsonPath("$.error.details.id")
+                        .value("must be a valid UUID"));
+
+        verify(userService, never()).activateUser(any());
     }
 
     @Test

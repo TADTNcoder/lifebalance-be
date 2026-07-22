@@ -68,6 +68,22 @@ public class UserController {
         return userService.updateUser(id, request);
     }
 
+    @Operation(summary = "Activate user by id", description = "Activates an inactive or disabled user account")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Activated successfully"),
+            @ApiResponse(responseCode = "400", description = "Invalid user id"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "404", description = "User not found"),
+            @ApiResponse(responseCode = "409", description = "User already active, deleted, or cannot be activated from the current status")
+    })
+    @PatchMapping("/{id}/activate")
+    public UserResponse activateUser(
+            @Parameter(description = "User id in UUID format", required = true)
+            @PathVariable UUID id
+    ) {
+        return userService.activateUser(id);
+    }
+
     @Operation(summary = "Disable user by id", description = "Disables a user account without soft deleting the record")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Disabled successfully"),

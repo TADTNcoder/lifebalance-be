@@ -20,6 +20,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.lifebalance.identity.dto.UpdateUserRequest;
 import com.lifebalance.identity.dto.UserResponse;
+import com.lifebalance.identity.exception.UserActivationNotAllowedException;
+import com.lifebalance.identity.exception.UserAlreadyActiveException;
 import com.lifebalance.identity.exception.UserAlreadyDeletedException;
 import com.lifebalance.identity.exception.UserAlreadyDisabledException;
 import com.lifebalance.identity.exception.UserEmailAlreadyExistsException;
@@ -228,6 +230,111 @@ class UserServiceImplTest {
         UserServiceImpl service = createService();
 
         assertThatThrownBy(() -> service.getUserById(null))
+                .isInstanceOf(UserValidationException.class)
+                .hasMessage("User id is required");
+        verify(userRepository, never()).findById(any());
+    }
+
+    @Test
+    void shouldActivateInactiveUser() {
+        UUID userId = UUID.randomUUID();
+        User user = createUser(userId);
+        user.setStatus(AccountStatus.INACTIVE);
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(userRepository.save(user)).thenAnswer(invocation -> invocation.getArgument(0));
+
+        UserServiceImpl service = createService();
+
+        UserResponse response = service.activateUser(userId);
+
+        assertThat(response.getStatus()).isEqualTo(AccountStatus.ACTIVE);
+        verify(userRepository).save(user);
+        verify(userSessionRevocationService, never()).revokeSessions(any(), anyString());
+    }
+
+    @Test
+    void shouldActivateDisabledUser() {
+        UUID userId = UUID.randomUUID();
+        User user = createUser(userId);
+        user.setStatus(AccountStatus.DISABLED);
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(userRepository.save(user)).thenAnswer(invocation -> invocation.getArgument(0));
+
+        UserServiceImpl service = createService();
+
+        UserResponse response = service.activateUser(userId);
+
+        assertThat(response.getStatus()).isEqualTo(AccountStatus.ACTIVE);
+        verify(userRepository).save(user);
+    }
+
+    @Test
+    void shouldRejectAlreadyActiveUserWhenActivating() {
+        UUID userId = UUID.randomUUID();
+        User user = createUser(userId);
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+
+        UserServiceImpl service = createService();
+
+        assertThatThrownBy(() -> service.activateUser(userId))
+                .isInstanceOf(UserAlreadyActiveException.class)
+                .hasMessage("User already active: " + userId);
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldRejectActivationWhenUserDoesNotExist() {
+        UUID userId = UUID.randomUUID();
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+        when(userRepository.existsByIdIncludingDeleted(userId)).thenReturn(false);
+
+        UserServiceImpl service = createService();
+
+        assertThatThrownBy(() -> service.activateUser(userId))
+                .isInstanceOf(UserNotFoundException.class)
+                .hasMessage("User not found: " + userId);
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldRejectActivationWhenUserWasAlreadyDeleted() {
+        UUID userId = UUID.randomUUID();
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+        when(userRepository.existsByIdIncludingDeleted(userId)).thenReturn(true);
+        when(userRepository.existsDeletedById(userId)).thenReturn(true);
+
+        UserServiceImpl service = createService();
+
+        assertThatThrownBy(() -> service.activateUser(userId))
+                .isInstanceOf(UserAlreadyDeletedException.class)
+                .hasMessage("User already deleted: " + userId);
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldRejectSuspendedUserWhenActivating() {
+        UUID userId = UUID.randomUUID();
+        User user = createUser(userId);
+        user.setStatus(AccountStatus.SUSPENDED);
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+
+        UserServiceImpl service = createService();
+
+        assertThatThrownBy(() -> service.activateUser(userId))
+                .isInstanceOf(UserActivationNotAllowedException.class)
+                .hasMessage("User cannot be activated from status SUSPENDED: " + userId);
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldRejectMissingUserIdWhenActivating() {
+        UserServiceImpl service = createService();
+
+        assertThatThrownBy(() -> service.activateUser(null))
                 .isInstanceOf(UserValidationException.class)
                 .hasMessage("User id is required");
         verify(userRepository, never()).findById(any());
