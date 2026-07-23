@@ -3,8 +3,10 @@ package com.lifebalance.identity.service.impl;
 import java.util.Optional;
 
 import org.springframework.stereotype.Service;
-
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import com.lifebalance.identity.dto.UpdateUserRequest;
+import com.lifebalance.identity.dto.UserResponse;
 import com.lifebalance.identity.model.User;
 import com.lifebalance.identity.repository.UserRepository;
 import com.lifebalance.identity.security.CurrentUser;
@@ -51,4 +53,29 @@ public class InternalUserServiceImpl implements InternalUserService {
         return userRepository.save(user);
     }
 
+    @Override
+    public Page<UserResponse> search(
+            String keyword,
+            Pageable pageable) {
+
+        return userRepository
+                .findByUsernameContainingIgnoreCaseOrEmailContainingIgnoreCase(
+                        keyword,
+                        keyword,
+                        pageable)
+                .map(this::mapToResponse);
+    }
+
+    private UserResponse mapToResponse(User user) {
+
+        UserResponse response = new UserResponse();
+
+        response.setId(user.getId());
+        response.setEmail(user.getEmail());
+        response.setUsername(user.getUsername());
+        response.setDisplayName(user.getDisplayName());
+        response.setStatus(user.getStatus());
+
+        return response;
+    }
 }
