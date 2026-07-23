@@ -1,0 +1,465 @@
+package com.lifebalance.identity.service.impl;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.time.OffsetDateTime;
+import java.util.Optional;
+import java.util.UUID;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import com.lifebalance.identity.dto.UpdateUserRequest;
+import com.lifebalance.identity.dto.UserResponse;
+import com.lifebalance.identity.exception.UserActivationNotAllowedException;
+import com.lifebalance.identity.exception.UserAlreadyActiveException;
+import com.lifebalance.identity.exception.UserAlreadyDeletedException;
+import com.lifebalance.identity.exception.UserAlreadyDisabledException;
+import com.lifebalance.identity.exception.UserEmailAlreadyExistsException;
+import com.lifebalance.identity.exception.UserNotFoundException;
+import com.lifebalance.identity.exception.UserUsernameAlreadyExistsException;
+import com.lifebalance.identity.exception.UserValidationException;
+import com.lifebalance.identity.model.User;
+import com.lifebalance.identity.model.enums.AccountStatus;
+import com.lifebalance.identity.repository.UserRepository;
+import com.lifebalance.identity.service.UserSessionRevocationService;
+
+@ExtendWith(MockitoExtension.class)
+class UserServiceImplTest {
+
+    @Mock
+    private UserRepository userRepository;
+
+    @Mock
+    private UserSessionRevocationService userSessionRevocationService;
+
+    @Test
+    void shouldReturnUserById() {
+        UUID userId = UUID.randomUUID();
+        User user = createUser(userId);
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+
+        UserServiceImpl service = createService();
+
+        UserResponse response = service.getUserById(userId);
+
+        assertThat(response.getId()).isEqualTo(userId);
+        assertThat(response.getEmail()).isEqualTo("alice@example.com");
+        assertThat(response.getUsername()).isEqualTo("alice");
+        assertThat(response.getDisplayName()).isEqualTo("Alice");
+        assertThat(response.getStatus()).isEqualTo(AccountStatus.ACTIVE);
+        assertThat(response.getRegisteredAt()).isEqualTo(OffsetDateTime.parse("2026-07-20T10:15:30Z"));
+        assertThat(response.getLastLoginAt()).isEqualTo(OffsetDateTime.parse("2026-07-21T11:20:30Z"));
+    }
+
+    @Test
+    void shouldThrowWhenUserIsNotFoundById() {
+        UUID userId = UUID.randomUUID();
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+        UserServiceImpl service = createService();
+
+        assertThatThrownBy(() -> service.getUserById(userId))
+                .isInstanceOf(UserNotFoundException.class)
+                .hasMessage("User not found: " + userId);
+    }
+
+    @Test
+    void shouldUpdateUserEmailUsernameAndDisplayName() {
+        UUID userId = UUID.randomUUID();
+        User user = createUser(userId);
+        UpdateUserRequest request = new UpdateUserRequest();
+        request.setEmail(" New.Alice@Example.COM ");
+        request.setUsername("  AliceUpdated  ");
+        request.setDisplayName("  Alice Updated  ");
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(userRepository.existsByEmailAndIdNot("new.alice@example.com", userId))
+                .thenReturn(false);
+        when(userRepository.existsByUsernameAndIdNot("aliceupdated", userId))
+                .thenReturn(false);
+        when(userRepository.save(user)).thenAnswer(invocation -> invocation.getArgument(0));
+
+        UserServiceImpl service = createService();
+
+        UserResponse response = service.updateUser(userId, request);
+
+        ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(userCaptor.capture());
+        assertThat(userCaptor.getValue().getEmail()).isEqualTo("new.alice@example.com");
+        assertThat(userCaptor.getValue().getUsername()).isEqualTo("aliceupdated");
+        assertThat(userCaptor.getValue().getDisplayName()).isEqualTo("Alice Updated");
+        assertThat(response.getEmail()).isEqualTo("new.alice@example.com");
+        assertThat(response.getUsername()).isEqualTo("aliceupdated");
+        assertThat(response.getDisplayName()).isEqualTo("Alice Updated");
+    }
+
+    @Test
+    void shouldKeepExistingValuesWhenPatchFieldsAreNull() {
+        UUID userId = UUID.randomUUID();
+        User user = createUser(userId);
+        UpdateUserRequest request = new UpdateUserRequest();
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(userRepository.save(user)).thenAnswer(invocation -> invocation.getArgument(0));
+
+        UserServiceImpl service = createService();
+
+        UserResponse response = service.updateUser(userId, request);
+
+        verify(userRepository, never()).existsByEmailAndIdNot(
+                anyString(),
+                any()
+        );
+        verify(userRepository, never()).existsByUsernameAndIdNot(
+                anyString(),
+                any()
+        );
+        assertThat(response.getEmail()).isEqualTo("alice@example.com");
+        assertThat(response.getUsername()).isEqualTo("alice");
+        assertThat(response.getDisplayName()).isEqualTo("Alice");
+    }
+
+    @Test
+    void shouldThrowWhenUpdateTargetDoesNotExist() {
+        UUID userId = UUID.randomUUID();
+        UpdateUserRequest request = new UpdateUserRequest();
+        request.setDisplayName("Alice Updated");
+
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+        UserServiceImpl service = createService();
+
+        assertThatThrownBy(() -> service.updateUser(userId, request))
+                .isInstanceOf(UserNotFoundException.class)
+                .hasMessage("User not found: " + userId);
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldRejectInvalidEmail() {
+        UpdateUserRequest request = new UpdateUserRequest();
+        request.setEmail("invalid-email");
+
+        UserServiceImpl service = createService();
+
+        assertThatThrownBy(() -> service.updateUser(UUID.randomUUID(), request))
+                .isInstanceOf(UserValidationException.class)
+                .hasMessage("Email must be valid");
+        verify(userRepository, never()).findById(any());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldRejectBlankDisplayName() {
+        UpdateUserRequest request = new UpdateUserRequest();
+        request.setDisplayName(" ");
+
+        UserServiceImpl service = createService();
+
+        assertThatThrownBy(() -> service.updateUser(UUID.randomUUID(), request))
+                .isInstanceOf(UserValidationException.class)
+                .hasMessage("Display name must not be blank");
+        verify(userRepository, never()).findById(any());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldRejectBlankUsername() {
+        UpdateUserRequest request = new UpdateUserRequest();
+        request.setUsername(" ");
+
+        UserServiceImpl service = createService();
+
+        assertThatThrownBy(() -> service.updateUser(UUID.randomUUID(), request))
+                .isInstanceOf(UserValidationException.class)
+                .hasMessage("Username must not be blank");
+        verify(userRepository, never()).findById(any());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldRejectDuplicateEmail() {
+        UUID userId = UUID.randomUUID();
+        User user = createUser(userId);
+        UpdateUserRequest request = new UpdateUserRequest();
+        request.setEmail("taken@example.com");
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(userRepository.existsByEmailAndIdNot("taken@example.com", userId))
+                .thenReturn(true);
+
+        UserServiceImpl service = createService();
+
+        assertThatThrownBy(() -> service.updateUser(userId, request))
+                .isInstanceOf(UserEmailAlreadyExistsException.class)
+                .hasMessage("Email already exists: taken@example.com");
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldRejectDuplicateUsername() {
+        UUID userId = UUID.randomUUID();
+        User user = createUser(userId);
+        UpdateUserRequest request = new UpdateUserRequest();
+        request.setUsername("taken");
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(userRepository.existsByUsernameAndIdNot("taken", userId))
+                .thenReturn(true);
+
+        UserServiceImpl service = createService();
+
+        assertThatThrownBy(() -> service.updateUser(userId, request))
+                .isInstanceOf(UserUsernameAlreadyExistsException.class)
+                .hasMessage("Username already exists: taken");
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldRejectMissingUserId() {
+        UserServiceImpl service = createService();
+
+        assertThatThrownBy(() -> service.getUserById(null))
+                .isInstanceOf(UserValidationException.class)
+                .hasMessage("User id is required");
+        verify(userRepository, never()).findById(any());
+    }
+
+    @Test
+    void shouldActivateInactiveUser() {
+        UUID userId = UUID.randomUUID();
+        User user = createUser(userId);
+        user.setStatus(AccountStatus.INACTIVE);
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(userRepository.save(user)).thenAnswer(invocation -> invocation.getArgument(0));
+
+        UserServiceImpl service = createService();
+
+        UserResponse response = service.activateUser(userId);
+
+        assertThat(response.getStatus()).isEqualTo(AccountStatus.ACTIVE);
+        verify(userRepository).save(user);
+        verify(userSessionRevocationService, never()).revokeSessions(any(), anyString());
+    }
+
+    @Test
+    void shouldActivateDisabledUser() {
+        UUID userId = UUID.randomUUID();
+        User user = createUser(userId);
+        user.setStatus(AccountStatus.DISABLED);
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(userRepository.save(user)).thenAnswer(invocation -> invocation.getArgument(0));
+
+        UserServiceImpl service = createService();
+
+        UserResponse response = service.activateUser(userId);
+
+        assertThat(response.getStatus()).isEqualTo(AccountStatus.ACTIVE);
+        verify(userRepository).save(user);
+    }
+
+    @Test
+    void shouldRejectAlreadyActiveUserWhenActivating() {
+        UUID userId = UUID.randomUUID();
+        User user = createUser(userId);
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+
+        UserServiceImpl service = createService();
+
+        assertThatThrownBy(() -> service.activateUser(userId))
+                .isInstanceOf(UserAlreadyActiveException.class)
+                .hasMessage("User already active: " + userId);
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldRejectActivationWhenUserDoesNotExist() {
+        UUID userId = UUID.randomUUID();
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+        when(userRepository.existsByIdIncludingDeleted(userId)).thenReturn(false);
+
+        UserServiceImpl service = createService();
+
+        assertThatThrownBy(() -> service.activateUser(userId))
+                .isInstanceOf(UserNotFoundException.class)
+                .hasMessage("User not found: " + userId);
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldRejectActivationWhenUserWasAlreadyDeleted() {
+        UUID userId = UUID.randomUUID();
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+        when(userRepository.existsByIdIncludingDeleted(userId)).thenReturn(true);
+        when(userRepository.existsDeletedById(userId)).thenReturn(true);
+
+        UserServiceImpl service = createService();
+
+        assertThatThrownBy(() -> service.activateUser(userId))
+                .isInstanceOf(UserAlreadyDeletedException.class)
+                .hasMessage("User already deleted: " + userId);
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldRejectSuspendedUserWhenActivating() {
+        UUID userId = UUID.randomUUID();
+        User user = createUser(userId);
+        user.setStatus(AccountStatus.SUSPENDED);
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+
+        UserServiceImpl service = createService();
+
+        assertThatThrownBy(() -> service.activateUser(userId))
+                .isInstanceOf(UserActivationNotAllowedException.class)
+                .hasMessage("User cannot be activated from status SUSPENDED: " + userId);
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldRejectMissingUserIdWhenActivating() {
+        UserServiceImpl service = createService();
+
+        assertThatThrownBy(() -> service.activateUser(null))
+                .isInstanceOf(UserValidationException.class)
+                .hasMessage("User id is required");
+        verify(userRepository, never()).findById(any());
+    }
+
+    @Test
+    void shouldDisableUserAndRevokeSessions() {
+        UUID userId = UUID.randomUUID();
+        User user = createUser(userId);
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(userRepository.save(user)).thenAnswer(invocation -> invocation.getArgument(0));
+
+        UserServiceImpl service = createService();
+
+        UserResponse response = service.disableUser(userId);
+
+        assertThat(response.getStatus()).isEqualTo(AccountStatus.DISABLED);
+        verify(userRepository).save(user);
+        verify(userSessionRevocationService).revokeSessions(user, "USER_DISABLED");
+    }
+
+    @Test
+    void shouldRejectAlreadyDisabledUser() {
+        UUID userId = UUID.randomUUID();
+        User user = createUser(userId);
+        user.setStatus(AccountStatus.DISABLED);
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+
+        UserServiceImpl service = createService();
+
+        assertThatThrownBy(() -> service.disableUser(userId))
+                .isInstanceOf(UserAlreadyDisabledException.class)
+                .hasMessage("User already disabled: " + userId);
+        verify(userRepository, never()).save(any());
+        verify(userSessionRevocationService, never()).revokeSessions(any(), anyString());
+    }
+
+    @Test
+    void shouldRejectDisableWhenUserWasAlreadyDeleted() {
+        UUID userId = UUID.randomUUID();
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+        when(userRepository.existsByIdIncludingDeleted(userId)).thenReturn(true);
+        when(userRepository.existsDeletedById(userId)).thenReturn(true);
+
+        UserServiceImpl service = createService();
+
+        assertThatThrownBy(() -> service.disableUser(userId))
+                .isInstanceOf(UserAlreadyDeletedException.class)
+                .hasMessage("User already deleted: " + userId);
+        verify(userRepository, never()).save(any());
+        verify(userSessionRevocationService, never()).revokeSessions(any(), anyString());
+    }
+
+    @Test
+    void shouldSoftDeleteUserAndRevokeSessions() {
+        UUID userId = UUID.randomUUID();
+        User user = createUser(userId);
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+
+        UserServiceImpl service = createService();
+
+        service.softDeleteUser(userId);
+
+        verify(userRepository).delete(user);
+        verify(userSessionRevocationService).revokeSessions(user, "USER_DELETED");
+    }
+
+    @Test
+    void shouldRejectSoftDeleteWhenUserDoesNotExist() {
+        UUID userId = UUID.randomUUID();
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+        when(userRepository.existsByIdIncludingDeleted(userId)).thenReturn(false);
+
+        UserServiceImpl service = createService();
+
+        assertThatThrownBy(() -> service.softDeleteUser(userId))
+                .isInstanceOf(UserNotFoundException.class)
+                .hasMessage("User not found: " + userId);
+        verify(userRepository, never()).delete(any());
+        verify(userSessionRevocationService, never()).revokeSessions(any(), anyString());
+    }
+
+    @Test
+    void shouldRejectSoftDeleteWhenUserWasAlreadyDeleted() {
+        UUID userId = UUID.randomUUID();
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+        when(userRepository.existsByIdIncludingDeleted(userId)).thenReturn(true);
+        when(userRepository.existsDeletedById(userId)).thenReturn(true);
+
+        UserServiceImpl service = createService();
+
+        assertThatThrownBy(() -> service.softDeleteUser(userId))
+                .isInstanceOf(UserAlreadyDeletedException.class)
+                .hasMessage("User already deleted: " + userId);
+        verify(userRepository, never()).delete(any());
+        verify(userSessionRevocationService, never()).revokeSessions(any(), anyString());
+    }
+
+    @Test
+    void shouldRejectMissingUserIdWhenSoftDeleting() {
+        UserServiceImpl service = createService();
+
+        assertThatThrownBy(() -> service.softDeleteUser(null))
+                .isInstanceOf(UserValidationException.class)
+                .hasMessage("User id is required");
+        verify(userRepository, never()).findById(any());
+    }
+
+    private UserServiceImpl createService() {
+        return new UserServiceImpl(userRepository, userSessionRevocationService);
+    }
+
+    private static User createUser(UUID userId) {
+        User user = new User();
+        user.setId(userId);
+        user.setEmail("alice@example.com");
+        user.setUsername("alice");
+        user.setDisplayName("Alice");
+        user.setStatus(AccountStatus.ACTIVE);
+        user.setRegisteredAt(OffsetDateTime.parse("2026-07-20T10:15:30Z"));
+        user.setLastLoginAt(OffsetDateTime.parse("2026-07-21T11:20:30Z"));
+
+        return user;
+    }
+}

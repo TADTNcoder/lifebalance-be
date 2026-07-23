@@ -7,6 +7,9 @@ import lombok.Data;
 @Data
 public class UpdateUserRequest {
 
+    @Size(max = 100)
+    private String username;
+
     @Size(max = 255)
     private String displayName;
 
