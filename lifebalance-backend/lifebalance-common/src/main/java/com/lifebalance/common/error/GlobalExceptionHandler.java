@@ -16,6 +16,16 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    private final SecurityExceptionAuditLogger securityExceptionAuditLogger;
+
+    public GlobalExceptionHandler() {
+        this(new SecurityExceptionAuditLogger());
+    }
+
+    GlobalExceptionHandler(SecurityExceptionAuditLogger securityExceptionAuditLogger) {
+        this.securityExceptionAuditLogger = securityExceptionAuditLogger;
+    }
+
     @ExceptionHandler(AppException.class)
     ResponseEntity<ApiResponse<Void>> handleAppException(AppException exception) {
         ApiError error = ApiError.of(exception.getCode(), exception.getMessage());
@@ -62,12 +72,14 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AuthenticationException.class)
     ResponseEntity<ApiResponse<Void>> handleAuthenticationException(AuthenticationException exception) {
         ApiError error = ApiError.of(AuthErrorCode.UNAUTHORIZED, "Authentication is required");
+        securityExceptionAuditLogger.logAuthenticationFailure(exception, error.code());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.failure(error));
     }
 
     @ExceptionHandler(AccessDeniedException.class)
     ResponseEntity<ApiResponse<Void>> handleAccessDeniedException(AccessDeniedException exception) {
         ApiError error = ApiError.of(AuthErrorCode.FORBIDDEN, "Access is denied");
+        securityExceptionAuditLogger.logAuthorizationFailure(exception, error.code());
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.failure(error));
     }
 
