@@ -23,4 +23,10 @@ public class UserResponse {
     private OffsetDateTime registeredAt;
 
     private OffsetDateTime lastLoginAt;
+
+    private String lockReason;
+
+    private OffsetDateTime lockedAt;
+
+    private OffsetDateTime lockedUntil;
 }
