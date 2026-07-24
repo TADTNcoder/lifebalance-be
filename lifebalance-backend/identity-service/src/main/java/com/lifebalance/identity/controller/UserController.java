@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.lifebalance.identity.dto.LockUserRequest;
 import com.lifebalance.identity.dto.UpdateUserRequest;
 import com.lifebalance.identity.dto.UserResponse;
 import com.lifebalance.identity.model.User;
@@ -148,6 +149,26 @@ public class UserController {
         return userService.disableUser(id);
     }
 
+    @Operation(summary = "Lock user by id", description = "Locks a user account and revokes existing user sessions")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Locked successfully"),
+            @ApiResponse(responseCode = "400", description = "Invalid user id or validation failed"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "404", description = "User not found"),
+            @ApiResponse(responseCode = "409", description = "User already locked, deleted, or self-lock is not allowed")
+    })
+    @PatchMapping("/{id}/lock")
+    public UserResponse lockUser(
+            @Parameter(description = "User id in UUID format", required = true)
+            @PathVariable UUID id,
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody LockUserRequest request
+    ) {
+        CurrentUser currentUser = keycloakUserMappingService.map(jwt);
+
+        return userService.lockUser(id, currentUser.getUserId(), request);
+    }
+
     @Operation(summary = "Soft delete user by id", description = "Marks a user as deleted and excludes it from normal user queries")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Deleted successfully"),
@@ -189,6 +210,9 @@ public class UserController {
         response.setStatus(user.getStatus());
         response.setRegisteredAt(user.getRegisteredAt());
         response.setLastLoginAt(user.getLastLoginAt());
+        response.setLockReason(user.getLockReason());
+        response.setLockedAt(user.getLockedAt());
+        response.setLockedUntil(user.getLockedUntil());
 
         return response;
     }

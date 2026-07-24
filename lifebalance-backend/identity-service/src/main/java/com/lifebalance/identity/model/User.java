@@ -54,6 +54,21 @@ public class User extends BaseAuditableEntity {
     @Column(name = "last_login_at")
     private OffsetDateTime lastLoginAt;
 
+    @Column(name = "lock_reason", columnDefinition = "TEXT")
+    private String lockReason;
+
+    @Column(name = "locked_at")
+    private OffsetDateTime lockedAt;
+
+    @Column(name = "locked_until")
+    private OffsetDateTime lockedUntil;
+
+    @Column(name = "locked_by_keycloak_id")
+    private String lockedByKeycloakId;
+
+    @Column(name = "token_valid_after")
+    private OffsetDateTime tokenValidAfter;
+
     @Column(name = "keycloak_id")
     private String keycloakId;
 
