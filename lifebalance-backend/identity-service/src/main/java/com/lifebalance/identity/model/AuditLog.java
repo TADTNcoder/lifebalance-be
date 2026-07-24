@@ -1,6 +1,5 @@
 package com.lifebalance.identity.model;
 
-import java.time.OffsetDateTime;
 import java.util.UUID;
 
 import com.lifebalance.identity.model.enums.AuditAction;
