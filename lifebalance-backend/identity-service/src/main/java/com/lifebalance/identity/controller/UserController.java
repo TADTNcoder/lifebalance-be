@@ -2,26 +2,32 @@ package com.lifebalance.identity.controller;
 
 import java.util.UUID;
 
-import com.lifebalance.identity.model.User;
-import com.lifebalance.identity.model.enums.AuditAction;
-import com.lifebalance.identity.model.enums.AuditStatus;
-
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import com.lifebalance.identity.dto.UpdateUserRequest;
 import com.lifebalance.identity.dto.UserResponse;
+import com.lifebalance.identity.model.User;
+import com.lifebalance.identity.model.enums.AuditAction;
+import com.lifebalance.identity.model.enums.AuditStatus;
 import com.lifebalance.identity.security.CurrentUser;
 import com.lifebalance.identity.service.AuditLogService;
 import com.lifebalance.identity.service.InternalUserService;
 import com.lifebalance.identity.service.KeycloakUserMappingService;
 import com.lifebalance.identity.service.UserService;
-
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -35,41 +41,48 @@ import lombok.RequiredArgsConstructor;
 @RequestMapping("/users")
 @RequiredArgsConstructor
 public class UserController {
-        private final InternalUserService internalUserService;
-        private final KeycloakUserMappingService keycloakUserMappingService;
-        private final AuditLogService auditLogService;
-
-        @Operation(summary = "Get current user profile", description = "Returns the profile information of the authenticated user")
-        @ApiResponses({
-                        @ApiResponse(responseCode = "200", description = "Success"),
-                        @ApiResponse(responseCode = "401", description = "Unauthorized")
-        })
-
-        @GetMapping("/me")
-        public UserResponse getCurrentUser(@AuthenticationPrincipal Jwt jwt, HttpServletRequest request) {
-                CurrentUser currentUser = keycloakUserMappingService.map(jwt);
-                User user = internalUserService.getCurrentUser(currentUser);
-                auditLogService.saveAudit(
-                                user,
-                                AuditAction.LOGIN,
-                                AuditStatus.SUCCESS,
-                                request.getRemoteAddr(),
-                                request.getHeader("User-Agent"),
-                                "User login successfully");
-
-                UserResponse response = new UserResponse();
-                response.setId(user.getId());
-                response.setEmail(user.getEmail());
-                response.setUsername(user.getUsername());
-                response.setDisplayName(user.getDisplayName());
-                response.setStatus(user.getStatus());
-
-                return response;
 
     private final InternalUserService internalUserService;
     private final KeycloakUserMappingService keycloakUserMappingService;
     private final UserService userService;
     private final AuditLogService auditLogService;
+
+    @Operation(summary = "Get current user profile", description = "Returns the profile information of the authenticated user")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Success"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized")
+    })
+    @GetMapping("/me")
+    public UserResponse getCurrentUser(@AuthenticationPrincipal Jwt jwt, HttpServletRequest request) {
+        CurrentUser currentUser = keycloakUserMappingService.map(jwt);
+        User user = internalUserService.findOrCreate(currentUser);
+        auditLogService.saveAudit(
+                user,
+                AuditAction.LOGIN,
+                AuditStatus.SUCCESS,
+                request.getRemoteAddr(),
+                request.getHeader("User-Agent"),
+                "User login successfully");
+
+        return toResponse(user);
+    }
+
+    @Operation(summary = "Update current user profile", description = "Updates the profile information of the authenticated user")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Updated successfully"),
+            @ApiResponse(responseCode = "400", description = "Validation failed"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized")
+    })
+    @PutMapping("/me")
+    public UserResponse updateCurrentUser(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody UpdateUserRequest requestBody
+    ) {
+        CurrentUser currentUser = keycloakUserMappingService.map(jwt);
+        User user = internalUserService.updateCurrentUser(currentUser, requestBody);
+
+        return toResponse(user);
+    }
 
     @Operation(summary = "Get user by id", description = "Returns detail information for the requested user")
     @ApiResponses({
@@ -152,49 +165,19 @@ public class UserController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "Get current user profile", description = "Returns the profile information of the authenticated user")
+    @Operation(summary = "Search users with pagination")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Success"),
-            @ApiResponse(responseCode = "401", description = "Unauthorized")
+            @ApiResponse(responseCode = "200", description = "Success")
     })
+    @GetMapping
+    public Page<UserResponse> searchUsers(
+            @RequestParam(defaultValue = "") String keyword,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        Pageable pageable = PageRequest.of(page, size);
 
-    @GetMapping("/me")
-    public UserResponse getCurrentUser(@AuthenticationPrincipal Jwt jwt, HttpServletRequest request) {
-        CurrentUser currentUser = keycloakUserMappingService.map(jwt);
-        User user = internalUserService.findOrCreate(currentUser);
-        auditLogService.saveAudit(
-                user,
-                AuditAction.LOGIN,
-                AuditStatus.SUCCESS,
-                request.getRemoteAddr(),
-                request.getHeader("User-Agent"),
-                "User login successfully");
-
-        return toResponse(user);
-
-
-        }
-
-        @Operation(summary = "Update current user profile", description = "Updates the profile information of the authenticated user")
-        @ApiResponses({
-                        @ApiResponse(responseCode = "200", description = "Updated successfully"),
-                        @ApiResponse(responseCode = "400", description = "Validation failed"),
-                        @ApiResponse(responseCode = "401", description = "Unauthorized")
-        })
-        @PutMapping("/me")
-        public UserResponse updateCurrentUser(@AuthenticationPrincipal Jwt jwt, HttpServletRequest request,
-                        @Valid @RequestBody UpdateUserRequest requestBody) {
-                CurrentUser currentUser = keycloakUserMappingService.map(jwt);
-                User user = internalUserService.updateCurrentUser(currentUser, requestBody);
-
-
-                UserResponse response = new UserResponse();
-                response.setId(user.getId());
-                response.setEmail(user.getEmail());
-                response.setUsername(user.getUsername());
-                response.setDisplayName(user.getDisplayName());
-
-        return toResponse(user);
+        return internalUserService.search(keyword, pageable);
     }
 
     private static UserResponse toResponse(User user) {
@@ -207,26 +190,6 @@ public class UserController {
         response.setRegisteredAt(user.getRegisteredAt());
         response.setLastLoginAt(user.getLastLoginAt());
 
-
-                return response;
-        }
-
-        @Operation(summary = "Search users with pagination")
-        @ApiResponses({
-                        @ApiResponse(responseCode = "200", description = "Success")
-        })
-        @GetMapping
-        public Page<UserResponse> searchUsers(
-
-                        @RequestParam(defaultValue = "") String keyword,
-
-                        @RequestParam(defaultValue = "0") int page,
-
-                        @RequestParam(defaultValue = "10") int size) {
-
-                Pageable pageable = PageRequest.of(page, size);
-
-                return internalUserService.search(keyword, pageable);
-        }
-}
+        return response;
+    }
 }

@@ -13,18 +13,6 @@ import com.lifebalance.identity.model.User;
 
 public interface UserRepository extends JpaRepository<User, UUID> {
 
-  Optional<User> findByKeycloakId(String keycloakId);
-
-  @Query(value = """
-      SELECT DISTINCT role.code
-      FROM identity.user_roles user_role
-      JOIN identity.roles role ON role.id = user_role.role_id
-      WHERE user_role.user_id = :userId
-        AND role.deleted_at IS NULL
-      ORDER BY role.code
-      """, nativeQuery = true)
-  List<String> findRoleCodesByUserId(@Param("userId") UUID userId);
-
   @Query("""
       SELECT user
       FROM User user
