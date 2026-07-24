@@ -30,6 +30,7 @@ import com.lifebalance.identity.exception.UserAlreadyDisabledException;
 import com.lifebalance.identity.exception.UserAlreadyLockedException;
 import com.lifebalance.identity.exception.UserEmailAlreadyExistsException;
 import com.lifebalance.identity.exception.UserNotFoundException;
+import com.lifebalance.identity.exception.UserNotLockedException;
 import com.lifebalance.identity.exception.UserSelfLockNotAllowedException;
 import com.lifebalance.identity.exception.UserUsernameAlreadyExistsException;
 import com.lifebalance.identity.model.User;
@@ -609,6 +610,87 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.error.details.lockedUntil").isNotEmpty());
 
         verify(userService, never()).lockUser(any(), any(), any());
+    }
+
+    @Test
+    void shouldUnlockUserById() throws Exception {
+        UUID userId = UUID.fromString("1f3f8e30-8b2d-4c92-9fd8-3f11e50b2031");
+        UserResponse response = createUserResponse(userId);
+        response.setStatus(AccountStatus.ACTIVE);
+
+        when(userService.unlockUser(userId)).thenReturn(response);
+
+        mockMvc.perform(patch("/users/{id}/unlock", userId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(userId.toString()))
+                .andExpect(jsonPath("$.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.keycloakId").doesNotExist())
+                .andExpect(jsonPath("$.lockedByKeycloakId").doesNotExist());
+
+        verify(userService).unlockUser(userId);
+    }
+
+    @Test
+    void shouldReturn404WhenUnlockTargetDoesNotExist() throws Exception {
+        UUID userId = UUID.fromString("70870326-4447-4ef6-a909-2c8dcfd81ba7");
+
+        when(userService.unlockUser(userId))
+                .thenThrow(new UserNotFoundException(userId));
+
+        mockMvc.perform(patch("/users/{id}/unlock", userId))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code")
+                        .value(IdentityErrorCode.USER_NOT_FOUND))
+                .andExpect(jsonPath("$.error.message")
+                        .value("User not found: " + userId));
+    }
+
+    @Test
+    void shouldReturn409WhenUnlockTargetWasAlreadyDeleted() throws Exception {
+        UUID userId = UUID.fromString("1f3f8e30-8b2d-4c92-9fd8-3f11e50b2031");
+
+        when(userService.unlockUser(userId))
+                .thenThrow(new UserAlreadyDeletedException(userId));
+
+        mockMvc.perform(patch("/users/{id}/unlock", userId))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code")
+                        .value(IdentityErrorCode.USER_ALREADY_DELETED))
+                .andExpect(jsonPath("$.error.message")
+                        .value("User already deleted: " + userId));
+    }
+
+    @Test
+    void shouldReturn409WhenUserIsNotLocked() throws Exception {
+        UUID userId = UUID.fromString("1f3f8e30-8b2d-4c92-9fd8-3f11e50b2031");
+
+        when(userService.unlockUser(userId))
+                .thenThrow(new UserNotLockedException(userId));
+
+        mockMvc.perform(patch("/users/{id}/unlock", userId))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code")
+                        .value(IdentityErrorCode.USER_NOT_LOCKED))
+                .andExpect(jsonPath("$.error.message")
+                        .value("User is not locked: " + userId));
+    }
+
+    @Test
+    void shouldReturn400WhenUnlockUserIdIsNotUuid() throws Exception {
+        mockMvc.perform(patch("/users/{id}/unlock", "not-a-uuid"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code")
+                        .value(CommonErrorCode.VALIDATION_FAILED))
+                .andExpect(jsonPath("$.error.message")
+                        .value("Request parameter has invalid format"))
+                .andExpect(jsonPath("$.error.details.id")
+                        .value("must be a valid UUID"));
+
+        verify(userService, never()).unlockUser(any());
     }
 
     @Test

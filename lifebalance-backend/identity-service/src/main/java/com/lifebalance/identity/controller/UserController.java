@@ -169,6 +169,22 @@ public class UserController {
         return userService.lockUser(id, currentUser.getUserId(), request);
     }
 
+    @Operation(summary = "Unlock user by id", description = "Unlocks a locked user account")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Unlocked successfully"),
+            @ApiResponse(responseCode = "400", description = "Invalid user id"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "404", description = "User not found"),
+            @ApiResponse(responseCode = "409", description = "User is not locked or was already deleted")
+    })
+    @PatchMapping("/{id}/unlock")
+    public UserResponse unlockUser(
+            @Parameter(description = "User id in UUID format", required = true)
+            @PathVariable UUID id
+    ) {
+        return userService.unlockUser(id);
+    }
+
     @Operation(summary = "Soft delete user by id", description = "Marks a user as deleted and excludes it from normal user queries")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Deleted successfully"),

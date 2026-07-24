@@ -28,6 +28,7 @@ import com.lifebalance.identity.exception.UserAlreadyDisabledException;
 import com.lifebalance.identity.exception.UserAlreadyLockedException;
 import com.lifebalance.identity.exception.UserEmailAlreadyExistsException;
 import com.lifebalance.identity.exception.UserNotFoundException;
+import com.lifebalance.identity.exception.UserNotLockedException;
 import com.lifebalance.identity.exception.UserSelfLockNotAllowedException;
 import com.lifebalance.identity.exception.UserUsernameAlreadyExistsException;
 import com.lifebalance.identity.exception.UserValidationException;
@@ -493,6 +494,100 @@ class UserServiceImplTest {
                 .hasMessage("Locked until must be in the future");
         verify(userRepository, never()).findByIdForUpdate(any());
         verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldUnlockUserAndClearLockMetadata() {
+        UUID userId = UUID.randomUUID();
+        User user = createUser(userId);
+        OffsetDateTime lockedAt = OffsetDateTime.parse("2026-07-25T10:15:30Z");
+        user.setStatus(AccountStatus.LOCKED);
+        user.setLockReason("Policy violation");
+        user.setLockedAt(lockedAt);
+        user.setLockedUntil(OffsetDateTime.parse("2099-08-01T00:00:00Z"));
+        user.setLockedByKeycloakId("kc-admin-1");
+        user.setTokenValidAfter(lockedAt);
+
+        when(userRepository.findByIdForUpdate(userId)).thenReturn(Optional.of(user));
+        when(userRepository.save(user)).thenAnswer(invocation -> invocation.getArgument(0));
+
+        UserServiceImpl service = createService();
+
+        UserResponse response = service.unlockUser(userId);
+
+        ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(userCaptor.capture());
+        User unlockedUser = userCaptor.getValue();
+        assertThat(unlockedUser.getStatus()).isEqualTo(AccountStatus.ACTIVE);
+        assertThat(unlockedUser.getLockReason()).isNull();
+        assertThat(unlockedUser.getLockedAt()).isNull();
+        assertThat(unlockedUser.getLockedUntil()).isNull();
+        assertThat(unlockedUser.getLockedByKeycloakId()).isNull();
+        assertThat(unlockedUser.getTokenValidAfter()).isEqualTo(lockedAt);
+        assertThat(response.getStatus()).isEqualTo(AccountStatus.ACTIVE);
+        assertThat(response.getLockReason()).isNull();
+        assertThat(response.getLockedAt()).isNull();
+        assertThat(response.getLockedUntil()).isNull();
+        verify(userSessionRevocationService, never()).revokeSessions(any(), anyString());
+    }
+
+    @Test
+    void shouldRejectUnlockWhenUserDoesNotExist() {
+        UUID userId = UUID.randomUUID();
+
+        when(userRepository.findByIdForUpdate(userId)).thenReturn(Optional.empty());
+        when(userRepository.existsByIdIncludingDeleted(userId)).thenReturn(false);
+
+        UserServiceImpl service = createService();
+
+        assertThatThrownBy(() -> service.unlockUser(userId))
+                .isInstanceOf(UserNotFoundException.class)
+                .hasMessage("User not found: " + userId);
+        verify(userRepository, never()).save(any());
+        verify(userSessionRevocationService, never()).revokeSessions(any(), anyString());
+    }
+
+    @Test
+    void shouldRejectUnlockWhenUserWasAlreadyDeleted() {
+        UUID userId = UUID.randomUUID();
+
+        when(userRepository.findByIdForUpdate(userId)).thenReturn(Optional.empty());
+        when(userRepository.existsByIdIncludingDeleted(userId)).thenReturn(true);
+        when(userRepository.existsDeletedById(userId)).thenReturn(true);
+
+        UserServiceImpl service = createService();
+
+        assertThatThrownBy(() -> service.unlockUser(userId))
+                .isInstanceOf(UserAlreadyDeletedException.class)
+                .hasMessage("User already deleted: " + userId);
+        verify(userRepository, never()).save(any());
+        verify(userSessionRevocationService, never()).revokeSessions(any(), anyString());
+    }
+
+    @Test
+    void shouldRejectUnlockWhenUserIsNotLocked() {
+        UUID userId = UUID.randomUUID();
+        User user = createUser(userId);
+
+        when(userRepository.findByIdForUpdate(userId)).thenReturn(Optional.of(user));
+
+        UserServiceImpl service = createService();
+
+        assertThatThrownBy(() -> service.unlockUser(userId))
+                .isInstanceOf(UserNotLockedException.class)
+                .hasMessage("User is not locked: " + userId);
+        verify(userRepository, never()).save(any());
+        verify(userSessionRevocationService, never()).revokeSessions(any(), anyString());
+    }
+
+    @Test
+    void shouldRejectMissingUserIdWhenUnlocking() {
+        UserServiceImpl service = createService();
+
+        assertThatThrownBy(() -> service.unlockUser(null))
+                .isInstanceOf(UserValidationException.class)
+                .hasMessage("User id is required");
+        verify(userRepository, never()).findByIdForUpdate(any());
     }
 
     @Test

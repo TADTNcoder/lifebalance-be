@@ -8,6 +8,7 @@ public final class IdentityErrorCode {
     public static final String USER_USERNAME_ALREADY_EXISTS = "IDENTITY_USER_USERNAME_ALREADY_EXISTS";
     public static final String USER_ALREADY_DISABLED = "IDENTITY_USER_ALREADY_DISABLED";
     public static final String USER_ALREADY_LOCKED = "IDENTITY_USER_ALREADY_LOCKED";
+    public static final String USER_NOT_LOCKED = "IDENTITY_USER_NOT_LOCKED";
     public static final String USER_SELF_LOCK_NOT_ALLOWED = "IDENTITY_USER_SELF_LOCK_NOT_ALLOWED";
     public static final String USER_ALREADY_ACTIVE = "IDENTITY_USER_ALREADY_ACTIVE";
     public static final String USER_ACTIVATION_NOT_ALLOWED = "IDENTITY_USER_ACTIVATION_NOT_ALLOWED";
