@@ -1,19 +1,23 @@
 package com.lifebalance.identity.service.impl;
 
+import java.time.OffsetDateTime;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Service;
 
+import com.lifebalance.identity.dto.LockUserRequest;
 import com.lifebalance.identity.dto.UpdateUserRequest;
 import com.lifebalance.identity.dto.UserResponse;
 import com.lifebalance.identity.exception.UserActivationNotAllowedException;
 import com.lifebalance.identity.exception.UserAlreadyActiveException;
 import com.lifebalance.identity.exception.UserAlreadyDeletedException;
 import com.lifebalance.identity.exception.UserAlreadyDisabledException;
+import com.lifebalance.identity.exception.UserAlreadyLockedException;
 import com.lifebalance.identity.exception.UserEmailAlreadyExistsException;
 import com.lifebalance.identity.exception.UserNotFoundException;
+import com.lifebalance.identity.exception.UserSelfLockNotAllowedException;
 import com.lifebalance.identity.exception.UserUsernameAlreadyExistsException;
 import com.lifebalance.identity.exception.UserValidationException;
 import com.lifebalance.identity.model.User;
@@ -101,6 +105,37 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
+    public UserResponse lockUser(UUID id, String actorKeycloakId, LockUserRequest request) {
+        validateUserId(id);
+        String normalizedActorKeycloakId = validateActorKeycloakId(actorKeycloakId);
+        validateLockRequest(request);
+
+        User user = userRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> resolveMissingUserException(id));
+
+        if (user.getStatus() == AccountStatus.LOCKED) {
+            throw new UserAlreadyLockedException(id);
+        }
+        if (normalizedActorKeycloakId.equals(normalize(user.getKeycloakId()))) {
+            throw new UserSelfLockNotAllowedException(id);
+        }
+
+        OffsetDateTime lockedAt = OffsetDateTime.now();
+        user.setStatus(AccountStatus.LOCKED);
+        user.setLockReason(request.getReason().trim());
+        user.setLockedAt(lockedAt);
+        user.setLockedUntil(request.getLockedUntil());
+        user.setLockedByKeycloakId(normalizedActorKeycloakId);
+        user.setTokenValidAfter(lockedAt);
+
+        User lockedUser = userRepository.save(user);
+        userSessionRevocationService.revokeSessions(lockedUser, "USER_LOCKED");
+
+        return toResponse(lockedUser);
+    }
+
+    @Override
+    @Transactional
     public void softDeleteUser(UUID id) {
         User user = findExistingUser(id);
 
@@ -176,6 +211,28 @@ public class UserServiceImpl implements UserService {
         validateDisplayName(request.getDisplayName());
     }
 
+    private static String validateActorKeycloakId(String actorKeycloakId) {
+        String normalizedActorKeycloakId = normalize(actorKeycloakId);
+        if (normalizedActorKeycloakId == null) {
+            throw new UserValidationException("Actor keycloak id is required");
+        }
+
+        return normalizedActorKeycloakId;
+    }
+
+    private static void validateLockRequest(LockUserRequest request) {
+        if (request == null) {
+            throw new UserValidationException("Lock request is required");
+        }
+        if (normalize(request.getReason()) == null) {
+            throw new UserValidationException("Lock reason is required");
+        }
+        if (request.getLockedUntil() != null
+                && !request.getLockedUntil().isAfter(OffsetDateTime.now())) {
+            throw new UserValidationException("Locked until must be in the future");
+        }
+    }
+
     private static void validateEmail(String email) {
         if (email == null) {
             return;
@@ -230,6 +287,9 @@ public class UserServiceImpl implements UserService {
         response.setStatus(user.getStatus());
         response.setRegisteredAt(user.getRegisteredAt());
         response.setLastLoginAt(user.getLastLoginAt());
+        response.setLockReason(user.getLockReason());
+        response.setLockedAt(user.getLockedAt());
+        response.setLockedUntil(user.getLockedUntil());
 
         return response;
     }

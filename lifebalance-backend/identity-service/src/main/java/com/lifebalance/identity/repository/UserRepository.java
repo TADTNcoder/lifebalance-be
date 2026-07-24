@@ -6,10 +6,13 @@ import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.lifebalance.identity.model.User;
+
+import jakarta.persistence.LockModeType;
 
 public interface UserRepository extends JpaRepository<User, UUID> {
 
@@ -28,6 +31,14 @@ public interface UserRepository extends JpaRepository<User, UUID> {
   Optional<User> findByUsername(@Param("username") String username);
 
   Optional<User> findByKeycloakId(String keycloakId);
+
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @Query("""
+      SELECT user
+      FROM User user
+      WHERE user.id = :id
+      """)
+  Optional<User> findByIdForUpdate(@Param("id") UUID id);
 
   @Query(value = """
       SELECT count(*) > 0

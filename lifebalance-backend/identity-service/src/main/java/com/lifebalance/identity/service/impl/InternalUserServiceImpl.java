@@ -102,6 +102,9 @@ public class InternalUserServiceImpl implements InternalUserService {
         response.setUsername(user.getUsername());
         response.setDisplayName(user.getDisplayName());
         response.setStatus(user.getStatus());
+        response.setLockReason(user.getLockReason());
+        response.setLockedAt(user.getLockedAt());
+        response.setLockedUntil(user.getLockedUntil());
 
         return response;
     }
