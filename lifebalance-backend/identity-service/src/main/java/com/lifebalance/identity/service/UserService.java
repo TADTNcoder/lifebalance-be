@@ -18,5 +18,7 @@ public interface UserService {
 
     UserResponse lockUser(UUID id, String actorKeycloakId, LockUserRequest request);
 
+    UserResponse unlockUser(UUID id);
+
     void softDeleteUser(UUID id);
 }

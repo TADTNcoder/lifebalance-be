@@ -17,6 +17,7 @@ import com.lifebalance.identity.exception.UserAlreadyDisabledException;
 import com.lifebalance.identity.exception.UserAlreadyLockedException;
 import com.lifebalance.identity.exception.UserEmailAlreadyExistsException;
 import com.lifebalance.identity.exception.UserNotFoundException;
+import com.lifebalance.identity.exception.UserNotLockedException;
 import com.lifebalance.identity.exception.UserSelfLockNotAllowedException;
 import com.lifebalance.identity.exception.UserUsernameAlreadyExistsException;
 import com.lifebalance.identity.exception.UserValidationException;
@@ -132,6 +133,27 @@ public class UserServiceImpl implements UserService {
         userSessionRevocationService.revokeSessions(lockedUser, "USER_LOCKED");
 
         return toResponse(lockedUser);
+    }
+
+    @Override
+    @Transactional
+    public UserResponse unlockUser(UUID id) {
+        validateUserId(id);
+
+        User user = userRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> resolveMissingUserException(id));
+
+        if (user.getStatus() != AccountStatus.LOCKED) {
+            throw new UserNotLockedException(id);
+        }
+
+        user.setStatus(AccountStatus.ACTIVE);
+        user.setLockReason(null);
+        user.setLockedAt(null);
+        user.setLockedUntil(null);
+        user.setLockedByKeycloakId(null);
+
+        return toResponse(userRepository.save(user));
     }
 
     @Override
