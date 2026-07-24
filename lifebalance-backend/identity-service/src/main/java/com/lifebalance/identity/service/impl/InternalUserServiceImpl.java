@@ -8,14 +8,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import com.lifebalance.identity.dto.UpdateUserRequest;
-<<<<<<< HEAD
+
 import com.lifebalance.identity.dto.UserResponse;
-=======
+
 import com.lifebalance.identity.exception.UserEmailAlreadyExistsException;
 import com.lifebalance.identity.exception.UserInactiveException;
 import com.lifebalance.identity.exception.UserUsernameAlreadyExistsException;
 import com.lifebalance.identity.exception.UserValidationException;
->>>>>>> origin/main
 import com.lifebalance.identity.model.User;
 import com.lifebalance.identity.model.enums.AccountStatus;
 import com.lifebalance.identity.repository.UserRepository;
@@ -81,7 +80,6 @@ public class InternalUserServiceImpl implements InternalUserService {
         user.setEmail(request.getEmail());
         return userRepository.save(user);
     }
-
 
     @Override
     public Page<UserResponse> search(
