@@ -7,10 +7,11 @@ import java.util.Locale;
 import org.springframework.stereotype.Service;
 
 import com.lifebalance.identity.dto.CheckPermissionResponse;
+import com.lifebalance.identity.dto.UserAuthorizationSnapshot;
 import com.lifebalance.identity.model.User;
-import com.lifebalance.identity.repository.UserRepository;
 import com.lifebalance.identity.security.CurrentUser;
 import com.lifebalance.identity.service.AuthorizationService;
+import com.lifebalance.identity.service.RbacAuthorizationService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -18,7 +19,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class AuthorizationServiceImpl implements AuthorizationService {
 
-    private final UserRepository userRepository;
+    private final RbacAuthorizationService rbacAuthorizationService;
 
     @Override
     public CheckPermissionResponse checkPermission(
@@ -27,16 +28,14 @@ public class AuthorizationServiceImpl implements AuthorizationService {
             String permissionCode
     ) {
         List<String> tokenRoles = normalizeList(currentUser.getRoles());
-        List<String> roles = normalizeList(
-                userRepository.findRoleCodesByUserId(user.getId())
-        );
-        List<String> permissions = normalizeList(
-                userRepository.findPermissionCodesByUserId(user.getId())
-        );
+        UserAuthorizationSnapshot authorization =
+                rbacAuthorizationService.getAuthorizationSnapshot(user.getId());
+        List<String> roles = List.copyOf(authorization.roles());
+        List<String> permissions = List.copyOf(authorization.permissions());
         String requestedPermission = normalize(permissionCode);
         Boolean hasPermission = requestedPermission == null
                 ? null
-                : containsIgnoreCase(permissions, requestedPermission);
+                : rbacAuthorizationService.hasPermission(authorization, requestedPermission);
 
         return new CheckPermissionResponse(
                 true,
@@ -73,17 +72,8 @@ public class AuthorizationServiceImpl implements AuthorizationService {
         }
 
         String normalized = value.trim();
-        return normalized.isEmpty() ? null : normalized;
-    }
-
-    private static boolean containsIgnoreCase(
-            List<String> values,
-            String target
-    ) {
-        String normalizedTarget = target.toLowerCase(Locale.ROOT);
-
-        return values.stream()
-                .map(value -> value.toLowerCase(Locale.ROOT))
-                .anyMatch(value -> value.equals(normalizedTarget));
+        return normalized.isEmpty()
+                ? null
+                : normalized.toLowerCase(Locale.ROOT);
     }
 }
