@@ -13,5 +13,5 @@ public class UpdateRoleRequest {
 
     private String description;
 
-    private Boolean system = false;
+    private Boolean system;
 }

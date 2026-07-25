@@ -3,7 +3,9 @@ package com.lifebalance.identity.service.impl;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
@@ -12,16 +14,17 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.lifebalance.identity.dto.CheckPermissionResponse;
+import com.lifebalance.identity.dto.UserAuthorizationSnapshot;
 import com.lifebalance.identity.model.User;
 import com.lifebalance.identity.model.enums.AccountStatus;
-import com.lifebalance.identity.repository.UserRepository;
 import com.lifebalance.identity.security.CurrentUser;
+import com.lifebalance.identity.service.RbacAuthorizationService;
 
 @ExtendWith(MockitoExtension.class)
 class AuthorizationServiceImplTest {
 
     @Mock
-    private UserRepository userRepository;
+    private RbacAuthorizationService rbacAuthorizationService;
 
     @Test
     void shouldReturnCurrentRolesPermissionsAndRequestedPermissionResult() {
@@ -41,13 +44,18 @@ class AuthorizationServiceImplTest {
                 List.of("user", "task:read")
         );
 
-        when(userRepository.findRoleCodesByUserId(userId))
-                .thenReturn(List.of("USER"));
-        when(userRepository.findPermissionCodesByUserId(userId))
-                .thenReturn(List.of("task:read", "task:write"));
+        UserAuthorizationSnapshot authorization = new UserAuthorizationSnapshot(
+                userId,
+                linkedSet("user"),
+                linkedSet("task:read", "task:write")
+        );
+        when(rbacAuthorizationService.getAuthorizationSnapshot(userId))
+                .thenReturn(authorization);
+        when(rbacAuthorizationService.hasPermission(authorization, "task:read"))
+                .thenReturn(true);
 
         AuthorizationServiceImpl service =
-                new AuthorizationServiceImpl(userRepository);
+                new AuthorizationServiceImpl(rbacAuthorizationService);
 
         CheckPermissionResponse response =
                 service.checkPermission(user, currentUser, "TASK:READ");
@@ -56,10 +64,10 @@ class AuthorizationServiceImplTest {
         assertThat(response.userId()).isEqualTo(userId);
         assertThat(response.keycloakId()).isEqualTo("kc-user-1");
         assertThat(response.tokenRoles()).containsExactly("task:read", "user");
-        assertThat(response.roles()).containsExactly("USER");
+        assertThat(response.roles()).containsExactly("user");
         assertThat(response.permissions())
                 .containsExactly("task:read", "task:write");
-        assertThat(response.requestedPermission()).isEqualTo("TASK:READ");
+        assertThat(response.requestedPermission()).isEqualTo("task:read");
         assertThat(response.hasPermission()).isTrue();
     }
 
@@ -76,13 +84,11 @@ class AuthorizationServiceImplTest {
                 null
         );
 
-        when(userRepository.findRoleCodesByUserId(userId))
-                .thenReturn(List.of());
-        when(userRepository.findPermissionCodesByUserId(userId))
-                .thenReturn(List.of());
+        when(rbacAuthorizationService.getAuthorizationSnapshot(userId))
+                .thenReturn(new UserAuthorizationSnapshot(userId, Set.of(), Set.of()));
 
         AuthorizationServiceImpl service =
-                new AuthorizationServiceImpl(userRepository);
+                new AuthorizationServiceImpl(rbacAuthorizationService);
 
         CheckPermissionResponse response =
                 service.checkPermission(user, currentUser, " ");
@@ -92,5 +98,9 @@ class AuthorizationServiceImplTest {
         assertThat(response.permissions()).isEmpty();
         assertThat(response.requestedPermission()).isNull();
         assertThat(response.hasPermission()).isNull();
+    }
+
+    private static Set<String> linkedSet(String... values) {
+        return new LinkedHashSet<>(List.of(values));
     }
 }

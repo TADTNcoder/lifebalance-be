@@ -1,6 +1,7 @@
 package com.lifebalance.identity.service.impl;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -8,8 +9,10 @@ import org.springframework.stereotype.Service;
 import com.lifebalance.identity.dto.CreateRoleRequest;
 import com.lifebalance.identity.dto.RoleResponse;
 import com.lifebalance.identity.dto.UpdateRoleRequest;
+import com.lifebalance.identity.exception.RoleNotFoundException;
 import com.lifebalance.identity.model.Role;
 import com.lifebalance.identity.repository.RoleRepository;
+import com.lifebalance.identity.service.RoleBusinessValidator;
 import com.lifebalance.identity.service.RoleService;
 
 import jakarta.transaction.Transactional;
@@ -20,19 +23,18 @@ import lombok.RequiredArgsConstructor;
 public class RoleServiceImpl implements RoleService {
 
     private final RoleRepository roleRepository;
+    private final RoleBusinessValidator roleBusinessValidator;
 
     @Transactional
     @Override
     public RoleResponse create(CreateRoleRequest request) {
-        if (roleRepository.existsByCode(request.getCode())) {
-            throw new RuntimeException("Role code already exists");
-        }
+        roleBusinessValidator.validateCreate(request);
 
         Role role = Role.builder()
-                .code(request.getCode())
-                .name(request.getName())
-                .description(request.getDescription())
-                .system(request.getSystem())
+                .code(normalizeCode(request.getCode()))
+                .name(trimToNull(request.getName()))
+                .description(trimToNull(request.getDescription()))
+                .system(false)
                 .build();
         role = roleRepository.save(role);
 
@@ -51,7 +53,7 @@ public class RoleServiceImpl implements RoleService {
     @Override
     public RoleResponse getById(UUID id) {
         Role role = roleRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Role not found"));
+                .orElseThrow(() -> new RoleNotFoundException(id));
 
         return mapToResponse(role);
     }
@@ -60,13 +62,11 @@ public class RoleServiceImpl implements RoleService {
     @Override
     public RoleResponse update(UUID id, UpdateRoleRequest request) {
         Role role = roleRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Role not found"));
-        role.setName(request.getName());
-        role.setDescription(request.getDescription());
+                .orElseThrow(() -> new RoleNotFoundException(id));
+        roleBusinessValidator.validateUpdate(role, request);
 
-        if (request.getSystem() != null) {
-            role.setSystem(request.getSystem());
-        }
+        role.setName(trimToNull(request.getName()));
+        role.setDescription(trimToNull(request.getDescription()));
         role = roleRepository.save(role);
 
         return mapToResponse(role);
@@ -76,7 +76,8 @@ public class RoleServiceImpl implements RoleService {
     @Override
     public void delete(UUID id) {
         Role role = roleRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Role not found"));
+                .orElseThrow(() -> new RoleNotFoundException(id));
+        roleBusinessValidator.validateDelete(role);
         roleRepository.delete(role);
     }
 
@@ -93,6 +94,20 @@ public class RoleServiceImpl implements RoleService {
         response.setUpdatedAt(role.getUpdatedAt());
 
         return response;
+    }
+
+    private String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private String normalizeCode(String value) {
+        String trimmed = trimToNull(value);
+        return trimmed == null ? null : trimmed.toLowerCase(Locale.ROOT);
     }
 
 }
