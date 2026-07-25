@@ -79,7 +79,6 @@ public class InternalUserServiceImpl implements InternalUserService {
         return userRepository.save(user);
     }
 
-
     @Override
     public Page<UserResponse> search(
             String keyword,
