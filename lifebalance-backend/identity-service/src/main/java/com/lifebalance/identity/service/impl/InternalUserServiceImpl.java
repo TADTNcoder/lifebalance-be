@@ -8,9 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import com.lifebalance.identity.dto.UpdateUserRequest;
-
 import com.lifebalance.identity.dto.UserResponse;
-
 import com.lifebalance.identity.exception.UserEmailAlreadyExistsException;
 import com.lifebalance.identity.exception.UserInactiveException;
 import com.lifebalance.identity.exception.UserUsernameAlreadyExistsException;
@@ -103,6 +101,9 @@ public class InternalUserServiceImpl implements InternalUserService {
         response.setUsername(user.getUsername());
         response.setDisplayName(user.getDisplayName());
         response.setStatus(user.getStatus());
+        response.setLockReason(user.getLockReason());
+        response.setLockedAt(user.getLockedAt());
+        response.setLockedUntil(user.getLockedUntil());
 
         return response;
     }

@@ -202,6 +202,36 @@ class UserRepositoryTest {
     }
 
     @Test
+    void savesLockedUserStatusAndMetadata() {
+        OffsetDateTime lockedAt = OffsetDateTime.parse("2026-07-25T10:15:30Z");
+        OffsetDateTime lockedUntil = OffsetDateTime.parse("2099-08-01T00:00:00Z");
+        User user = userRepository.saveAndFlush(User.builder()
+                .email("locked-status@example.com")
+                .username("locked-status")
+                .status(AccountStatus.LOCKED)
+                .lockReason("Policy violation")
+                .lockedAt(lockedAt)
+                .lockedUntil(lockedUntil)
+                .lockedByKeycloakId("kc-admin-1")
+                .tokenValidAfter(lockedAt)
+                .build());
+
+        entityManager.clear();
+
+        assertThat(userRepository.findById(user.getId()))
+                .isPresent()
+                .get()
+                .satisfies(found -> {
+                    assertThat(found.getStatus()).isEqualTo(AccountStatus.LOCKED);
+                    assertThat(found.getLockReason()).isEqualTo("Policy violation");
+                    assertThat(found.getLockedAt()).isEqualTo(lockedAt);
+                    assertThat(found.getLockedUntil()).isEqualTo(lockedUntil);
+                    assertThat(found.getLockedByKeycloakId()).isEqualTo("kc-admin-1");
+                    assertThat(found.getTokenValidAfter()).isEqualTo(lockedAt);
+                });
+    }
+
+    @Test
     void findsRoleAndPermissionCodesByUserId() {
         User user = userRepository.saveAndFlush(User.builder()
                 .email("authorized-user@example.com")

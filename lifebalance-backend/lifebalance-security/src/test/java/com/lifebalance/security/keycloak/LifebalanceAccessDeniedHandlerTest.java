@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.lifebalance.common.error.AuthErrorCode;
+import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -17,12 +18,12 @@ class LifebalanceAccessDeniedHandlerTest {
             .findAndAddModules()
             .build();
 
-    private final LifebalanceAccessDeniedHandler accessDeniedHandler =
-            new LifebalanceAccessDeniedHandler(objectMapper);
-
     @Test
     void shouldWriteStandardForbiddenJsonResponse() throws Exception {
         MockHttpServletResponse response = new MockHttpServletResponse();
+        RecordingAuthorizationFailureLogger logger = new RecordingAuthorizationFailureLogger();
+        LifebalanceAccessDeniedHandler accessDeniedHandler =
+                new LifebalanceAccessDeniedHandler(objectMapper, logger);
 
         accessDeniedHandler.handle(
                 new MockHttpServletRequest("GET", "/api/admin"),
@@ -40,5 +41,23 @@ class LifebalanceAccessDeniedHandlerTest {
         assertThat(body.at("/error/message").asText()).isEqualTo("Access is denied");
         assertThat(body.at("/error/details").isEmpty()).isTrue();
         assertThat(body.get("timestamp").asText()).isNotBlank();
+        assertThat(logger.errorCode).isEqualTo(AuthErrorCode.FORBIDDEN);
+        assertThat(logger.path).isEqualTo("/api/admin");
+    }
+
+    private static class RecordingAuthorizationFailureLogger extends AuthorizationFailureLogger {
+
+        private String errorCode;
+        private String path;
+
+        @Override
+        public void logFailure(
+                HttpServletRequest request,
+                AccessDeniedException accessDeniedException,
+                String errorCode
+        ) {
+            this.errorCode = errorCode;
+            this.path = request.getRequestURI();
+        }
     }
 }

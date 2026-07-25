@@ -7,7 +7,9 @@ import lombok.*;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 
+import java.util.HashSet;
 import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 
 @Getter
@@ -41,6 +43,10 @@ public class Role extends BaseAuditableEntity {
     @Column(name = "is_system", nullable = false)
     @Builder.Default
     private Boolean system = false;
+
+    @OneToMany(mappedBy = "role", fetch = FetchType.LAZY)
+    @Builder.Default
+    private Set<RolePermission> rolePermissions = new HashSet<>();
 
     public void setCode(String code) {
         this.code = normalize(code);

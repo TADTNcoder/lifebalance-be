@@ -7,7 +7,9 @@ import lombok.*;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 
+import java.util.HashSet;
 import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 
 @Getter
@@ -43,6 +45,14 @@ public class Permission extends BaseAuditableEntity {
     @Column(columnDefinition = "TEXT")
     private String description;
 
+    @Column(name = "is_system", nullable = false)
+    @Builder.Default
+    private Boolean system = false;
+
+    @OneToMany(mappedBy = "permission", fetch = FetchType.LAZY)
+    @Builder.Default
+    private Set<RolePermission> rolePermissions = new HashSet<>();
+
     public void setCode(String code) {
         this.code = normalize(code);
     }
@@ -53,9 +63,12 @@ public class Permission extends BaseAuditableEntity {
 
     @PrePersist
     @PreUpdate
-    void normalizeIdentifiers() {
+    void applyDefaults() {
         code = normalize(code);
         module = normalize(module);
+        if (system == null) {
+            system = false;
+        }
     }
 
     private static String normalize(String value) {

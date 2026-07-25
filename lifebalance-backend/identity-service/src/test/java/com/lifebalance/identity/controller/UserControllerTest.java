@@ -19,6 +19,7 @@ import java.util.UUID;
 
 import com.lifebalance.common.error.CommonErrorCode;
 import com.lifebalance.common.error.GlobalExceptionHandler;
+import com.lifebalance.identity.dto.LockUserRequest;
 import com.lifebalance.identity.dto.UpdateUserRequest;
 import com.lifebalance.identity.dto.UserResponse;
 import com.lifebalance.identity.error.IdentityErrorCode;
@@ -26,8 +27,11 @@ import com.lifebalance.identity.exception.UserActivationNotAllowedException;
 import com.lifebalance.identity.exception.UserAlreadyActiveException;
 import com.lifebalance.identity.exception.UserAlreadyDeletedException;
 import com.lifebalance.identity.exception.UserAlreadyDisabledException;
+import com.lifebalance.identity.exception.UserAlreadyLockedException;
 import com.lifebalance.identity.exception.UserEmailAlreadyExistsException;
 import com.lifebalance.identity.exception.UserNotFoundException;
+import com.lifebalance.identity.exception.UserNotLockedException;
+import com.lifebalance.identity.exception.UserSelfLockNotAllowedException;
 import com.lifebalance.identity.exception.UserUsernameAlreadyExistsException;
 import com.lifebalance.identity.model.User;
 import com.lifebalance.identity.model.enums.AccountStatus;
@@ -41,14 +45,20 @@ import com.lifebalance.identity.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.core.MethodParameter;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.bind.support.WebDataBinderFactory;
+import org.springframework.web.context.request.NativeWebRequest;
+import org.springframework.web.method.support.HandlerMethodArgumentResolver;
+import org.springframework.web.method.support.ModelAndViewContainer;
 
 @ExtendWith(MockitoExtension.class)
 class UserControllerTest {
@@ -79,6 +89,7 @@ class UserControllerTest {
 
         mockMvc = MockMvcBuilders
                 .standaloneSetup(userController)
+                .setCustomArgumentResolvers(new JwtArgumentResolver())
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }
@@ -448,6 +459,241 @@ class UserControllerTest {
     }
 
     @Test
+    void shouldLockUserById() throws Exception {
+        UUID userId = UUID.fromString("1f3f8e30-8b2d-4c92-9fd8-3f11e50b2031");
+        UserResponse response = createUserResponse(userId);
+        response.setStatus(AccountStatus.LOCKED);
+        response.setLockReason("Policy violation");
+        response.setLockedAt(OffsetDateTime.parse("2026-07-25T10:15:30Z"));
+        response.setLockedUntil(OffsetDateTime.parse("2099-08-01T00:00:00Z"));
+        CurrentUser admin = new CurrentUser(
+                "kc-admin-1",
+                "admin",
+                "admin@example.com",
+                List.of("ADMIN")
+        );
+
+        when(keycloakUserMappingService.map(any(Jwt.class))).thenReturn(admin);
+        when(userService.lockUser(eq(userId), eq("kc-admin-1"), any(LockUserRequest.class)))
+                .thenReturn(response);
+
+        mockMvc.perform(patch("/users/{id}/lock", userId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason": "Policy violation",
+                                  "lockedUntil": "2099-08-01T00:00:00Z"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(userId.toString()))
+                .andExpect(jsonPath("$.status").value("LOCKED"))
+                .andExpect(jsonPath("$.lockReason").value("Policy violation"))
+                .andExpect(jsonPath("$.lockedAt").isNotEmpty())
+                .andExpect(jsonPath("$.lockedUntil").isNotEmpty())
+                .andExpect(jsonPath("$.keycloakId").doesNotExist())
+                .andExpect(jsonPath("$.lockedByKeycloakId").doesNotExist());
+
+        ArgumentCaptor<LockUserRequest> requestCaptor = ArgumentCaptor.forClass(LockUserRequest.class);
+        verify(userService).lockUser(eq(userId), eq("kc-admin-1"), requestCaptor.capture());
+        assertThat(requestCaptor.getValue().getReason()).isEqualTo("Policy violation");
+        assertThat(requestCaptor.getValue().getLockedUntil())
+                .isEqualTo(OffsetDateTime.parse("2099-08-01T00:00:00Z"));
+    }
+
+    @Test
+    void shouldReturn404WhenLockTargetDoesNotExist() throws Exception {
+        UUID userId = UUID.fromString("70870326-4447-4ef6-a909-2c8dcfd81ba7");
+        CurrentUser admin = new CurrentUser(
+                "kc-admin-1",
+                "admin",
+                "admin@example.com",
+                List.of("ADMIN")
+        );
+
+        when(keycloakUserMappingService.map(any(Jwt.class))).thenReturn(admin);
+        when(userService.lockUser(eq(userId), eq("kc-admin-1"), any(LockUserRequest.class)))
+                .thenThrow(new UserNotFoundException(userId));
+
+        mockMvc.perform(patch("/users/{id}/lock", userId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason": "Policy violation"
+                                }
+                                """))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code")
+                        .value(IdentityErrorCode.USER_NOT_FOUND))
+                .andExpect(jsonPath("$.error.message")
+                        .value("User not found: " + userId));
+    }
+
+    @Test
+    void shouldReturn409WhenUserIsAlreadyLocked() throws Exception {
+        UUID userId = UUID.fromString("1f3f8e30-8b2d-4c92-9fd8-3f11e50b2031");
+        CurrentUser admin = new CurrentUser(
+                "kc-admin-1",
+                "admin",
+                "admin@example.com",
+                List.of("ADMIN")
+        );
+
+        when(keycloakUserMappingService.map(any(Jwt.class))).thenReturn(admin);
+        when(userService.lockUser(eq(userId), eq("kc-admin-1"), any(LockUserRequest.class)))
+                .thenThrow(new UserAlreadyLockedException(userId));
+
+        mockMvc.perform(patch("/users/{id}/lock", userId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason": "Policy violation"
+                                }
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code")
+                        .value(IdentityErrorCode.USER_ALREADY_LOCKED))
+                .andExpect(jsonPath("$.error.message")
+                        .value("User already locked: " + userId));
+    }
+
+    @Test
+    void shouldReturn409WhenAdminLocksOwnAccount() throws Exception {
+        UUID userId = UUID.fromString("1f3f8e30-8b2d-4c92-9fd8-3f11e50b2031");
+        CurrentUser admin = new CurrentUser(
+                "kc-admin-1",
+                "admin",
+                "admin@example.com",
+                List.of("ADMIN")
+        );
+
+        when(keycloakUserMappingService.map(any(Jwt.class))).thenReturn(admin);
+        when(userService.lockUser(eq(userId), eq("kc-admin-1"), any(LockUserRequest.class)))
+                .thenThrow(new UserSelfLockNotAllowedException(userId));
+
+        mockMvc.perform(patch("/users/{id}/lock", userId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason": "Policy violation"
+                                }
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code")
+                        .value(IdentityErrorCode.USER_SELF_LOCK_NOT_ALLOWED))
+                .andExpect(jsonPath("$.error.message")
+                        .value("User cannot lock own account: " + userId));
+    }
+
+    @Test
+    void shouldReturn400WhenLockRequestValidationFails() throws Exception {
+        UUID userId = UUID.fromString("1f3f8e30-8b2d-4c92-9fd8-3f11e50b2031");
+
+        mockMvc.perform(patch("/users/{id}/lock", userId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason": " ",
+                                  "lockedUntil": "2020-01-01T00:00:00Z"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code")
+                        .value(CommonErrorCode.VALIDATION_FAILED))
+                .andExpect(jsonPath("$.error.message")
+                        .value("Request validation failed"))
+                .andExpect(jsonPath("$.error.details.reason").isNotEmpty())
+                .andExpect(jsonPath("$.error.details.lockedUntil").isNotEmpty());
+
+        verify(userService, never()).lockUser(any(), any(), any());
+    }
+
+    @Test
+    void shouldUnlockUserById() throws Exception {
+        UUID userId = UUID.fromString("1f3f8e30-8b2d-4c92-9fd8-3f11e50b2031");
+        UserResponse response = createUserResponse(userId);
+        response.setStatus(AccountStatus.ACTIVE);
+
+        when(userService.unlockUser(userId)).thenReturn(response);
+
+        mockMvc.perform(patch("/users/{id}/unlock", userId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(userId.toString()))
+                .andExpect(jsonPath("$.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.keycloakId").doesNotExist())
+                .andExpect(jsonPath("$.lockedByKeycloakId").doesNotExist());
+
+        verify(userService).unlockUser(userId);
+    }
+
+    @Test
+    void shouldReturn404WhenUnlockTargetDoesNotExist() throws Exception {
+        UUID userId = UUID.fromString("70870326-4447-4ef6-a909-2c8dcfd81ba7");
+
+        when(userService.unlockUser(userId))
+                .thenThrow(new UserNotFoundException(userId));
+
+        mockMvc.perform(patch("/users/{id}/unlock", userId))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code")
+                        .value(IdentityErrorCode.USER_NOT_FOUND))
+                .andExpect(jsonPath("$.error.message")
+                        .value("User not found: " + userId));
+    }
+
+    @Test
+    void shouldReturn409WhenUnlockTargetWasAlreadyDeleted() throws Exception {
+        UUID userId = UUID.fromString("1f3f8e30-8b2d-4c92-9fd8-3f11e50b2031");
+
+        when(userService.unlockUser(userId))
+                .thenThrow(new UserAlreadyDeletedException(userId));
+
+        mockMvc.perform(patch("/users/{id}/unlock", userId))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code")
+                        .value(IdentityErrorCode.USER_ALREADY_DELETED))
+                .andExpect(jsonPath("$.error.message")
+                        .value("User already deleted: " + userId));
+    }
+
+    @Test
+    void shouldReturn409WhenUserIsNotLocked() throws Exception {
+        UUID userId = UUID.fromString("1f3f8e30-8b2d-4c92-9fd8-3f11e50b2031");
+
+        when(userService.unlockUser(userId))
+                .thenThrow(new UserNotLockedException(userId));
+
+        mockMvc.perform(patch("/users/{id}/unlock", userId))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code")
+                        .value(IdentityErrorCode.USER_NOT_LOCKED))
+                .andExpect(jsonPath("$.error.message")
+                        .value("User is not locked: " + userId));
+    }
+
+    @Test
+    void shouldReturn400WhenUnlockUserIdIsNotUuid() throws Exception {
+        mockMvc.perform(patch("/users/{id}/unlock", "not-a-uuid"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code")
+                        .value(CommonErrorCode.VALIDATION_FAILED))
+                .andExpect(jsonPath("$.error.message")
+                        .value("Request parameter has invalid format"))
+                .andExpect(jsonPath("$.error.details.id")
+                        .value("must be a valid UUID"));
+
+        verify(userService, never()).unlockUser(any());
+    }
+
+    @Test
     void shouldSoftDeleteUserById() throws Exception {
         UUID userId = UUID.fromString("1f3f8e30-8b2d-4c92-9fd8-3f11e50b2031");
 
@@ -531,5 +777,27 @@ class UserControllerTest {
         user.setLastLoginAt(OffsetDateTime.parse("2026-07-21T11:20:30Z"));
 
         return user;
+    }
+
+    private static final class JwtArgumentResolver implements HandlerMethodArgumentResolver {
+
+        @Override
+        public boolean supportsParameter(MethodParameter parameter) {
+            return parameter.hasParameterAnnotation(AuthenticationPrincipal.class)
+                    && Jwt.class.isAssignableFrom(parameter.getParameterType());
+        }
+
+        @Override
+        public Object resolveArgument(
+                MethodParameter parameter,
+                ModelAndViewContainer mavContainer,
+                NativeWebRequest webRequest,
+                WebDataBinderFactory binderFactory
+        ) {
+            return Jwt.withTokenValue("token")
+                    .header("alg", "none")
+                    .claim("sub", "kc-admin-1")
+                    .build();
+        }
     }
 }

@@ -6,24 +6,15 @@ import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.lifebalance.identity.model.User;
 
+import jakarta.persistence.LockModeType;
+
 public interface UserRepository extends JpaRepository<User, UUID> {
-
-  Optional<User> findByKeycloakId(String keycloakId);
-
-  @Query(value = """
-      SELECT DISTINCT role.code
-      FROM identity.user_roles user_role
-      JOIN identity.roles role ON role.id = user_role.role_id
-      WHERE user_role.user_id = :userId
-        AND role.deleted_at IS NULL
-      ORDER BY role.code
-      """, nativeQuery = true)
-  List<String> findRoleCodesByUserId(@Param("userId") UUID userId);
 
   @Query("""
       SELECT user
@@ -40,6 +31,14 @@ public interface UserRepository extends JpaRepository<User, UUID> {
   Optional<User> findByUsername(@Param("username") String username);
 
   Optional<User> findByKeycloakId(String keycloakId);
+
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @Query("""
+      SELECT user
+      FROM User user
+      WHERE user.id = :id
+      """)
+  Optional<User> findByIdForUpdate(@Param("id") UUID id);
 
   @Query(value = """
       SELECT count(*) > 0

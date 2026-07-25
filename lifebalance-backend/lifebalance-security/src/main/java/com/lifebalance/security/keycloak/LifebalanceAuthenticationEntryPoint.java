@@ -2,14 +2,11 @@ package com.lifebalance.security.keycloak;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lifebalance.common.api.ApiError;
-import com.lifebalance.common.api.ApiResponse;
 import com.lifebalance.common.error.AuthErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
@@ -18,7 +15,7 @@ import org.springframework.security.web.AuthenticationEntryPoint;
 
 public class LifebalanceAuthenticationEntryPoint implements AuthenticationEntryPoint {
 
-    private final ObjectMapper objectMapper;
+    private final AuthErrorResponseWriter responseWriter;
     private final AuthenticationFailureLogger authenticationFailureLogger;
 
     public LifebalanceAuthenticationEntryPoint(ObjectMapper objectMapper) {
@@ -29,7 +26,7 @@ public class LifebalanceAuthenticationEntryPoint implements AuthenticationEntryP
             ObjectMapper objectMapper,
             AuthenticationFailureLogger authenticationFailureLogger
     ) {
-        this.objectMapper = objectMapper;
+        this.responseWriter = new AuthErrorResponseWriter(objectMapper);
         this.authenticationFailureLogger = authenticationFailureLogger;
     }
 
@@ -42,10 +39,7 @@ public class LifebalanceAuthenticationEntryPoint implements AuthenticationEntryP
         ApiError error = ApiError.of(resolveCode(authException), resolveMessage(authException));
         authenticationFailureLogger.logFailure(request, authException, error.code());
 
-        response.setStatus(HttpStatus.UNAUTHORIZED.value());
-        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        objectMapper.writeValue(response.getOutputStream(), ApiResponse.failure(error));
+        responseWriter.write(response, HttpStatus.UNAUTHORIZED, error);
     }
 
     private String resolveCode(AuthenticationException authException) {
