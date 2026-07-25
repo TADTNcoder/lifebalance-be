@@ -1,6 +1,9 @@
 package com.lifebalance.identity.model;
 
 import com.lifebalance.identity.model.enums.AccountStatus;
+import com.lifebalance.identity.model.enums.AuditAction;
+import com.lifebalance.identity.model.enums.AuditEntityName;
+import com.lifebalance.identity.model.enums.AuditStatus;
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
 import org.junit.jupiter.api.Test;
@@ -184,5 +187,51 @@ class IdentityEntityPersistenceTests {
                 .isEqualTo(second)
                 .hasSameHashCodeAs(second)
                 .isNotEqualTo(differentPermission);
+    }
+
+    @Test
+    void persistsAuditLogWithActorTargetAndSnapshotValues() {
+        User actor = User.builder()
+                .email("audit-admin@example.com")
+                .username("audit-admin")
+                .build();
+        entityManager.persist(actor);
+        entityManager.flush();
+
+        UUID roleId = UUID.randomUUID();
+        AuditLog auditLog = AuditLog.builder()
+                .entityName(AuditEntityName.ROLE)
+                .entityId(roleId.toString())
+                .actorId(actor.getId())
+                .actorKeycloakId("kc-audit-admin")
+                .actorUsername("audit-admin")
+                .userId(actor.getId())
+                .keycloakId("kc-audit-admin")
+                .action(AuditAction.UPDATE_ROLE)
+                .status(AuditStatus.SUCCESS)
+                .ipAddress("127.0.0.1")
+                .userAgent("JUnit")
+                .oldValue("{\"name\":\"Old role\"}")
+                .newValue("{\"name\":\"New role\"}")
+                .details("Role updated")
+                .build();
+
+        entityManager.persist(auditLog);
+        entityManager.flush();
+        entityManager.clear();
+
+        AuditLog found = entityManager.find(AuditLog.class, auditLog.getId());
+
+        assertThat(found).isNotNull();
+        assertThat(found.getEntityName()).isEqualTo(AuditEntityName.ROLE);
+        assertThat(found.getEntityId()).isEqualTo(roleId.toString());
+        assertThat(found.getActorId()).isEqualTo(actor.getId());
+        assertThat(found.getActorKeycloakId()).isEqualTo("kc-audit-admin");
+        assertThat(found.getActorUsername()).isEqualTo("audit-admin");
+        assertThat(found.getAction()).isEqualTo(AuditAction.UPDATE_ROLE);
+        assertThat(found.getStatus()).isEqualTo(AuditStatus.SUCCESS);
+        assertThat(found.getOldValue()).isEqualTo("{\"name\":\"Old role\"}");
+        assertThat(found.getNewValue()).isEqualTo("{\"name\":\"New role\"}");
+        assertThat(found.getCreatedAt()).isNotNull();
     }
 }
