@@ -14,4 +14,12 @@ public class RoleNotFoundException extends AppException {
                 HttpStatus.NOT_FOUND
         );
     }
+
+    public RoleNotFoundException(String code) {
+        super(
+                IdentityErrorCode.ROLE_NOT_FOUND,
+                "Role not found: " + code,
+                HttpStatus.NOT_FOUND
+        );
+    }
 }

@@ -1,16 +1,32 @@
 package com.lifebalance.identity.service.impl;
 
+import java.time.OffsetDateTime;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
 import com.lifebalance.identity.dto.CreateRoleRequest;
+import com.lifebalance.identity.dto.PermissionResponse;
 import com.lifebalance.identity.dto.RoleResponse;
 import com.lifebalance.identity.dto.UpdateRoleRequest;
+import com.lifebalance.identity.exception.PermissionNotFoundException;
 import com.lifebalance.identity.exception.RoleNotFoundException;
+import com.lifebalance.identity.exception.RoleValidationException;
+import com.lifebalance.identity.model.Permission;
 import com.lifebalance.identity.model.Role;
+import com.lifebalance.identity.model.RolePermission;
+import com.lifebalance.identity.model.RolePermissionId;
+import com.lifebalance.identity.repository.PermissionRepository;
+import com.lifebalance.identity.repository.RolePermissionRepository;
 import com.lifebalance.identity.repository.RoleRepository;
 import com.lifebalance.identity.service.RoleBusinessValidator;
 import com.lifebalance.identity.service.RoleService;
@@ -24,10 +40,12 @@ public class RoleServiceImpl implements RoleService {
 
     private final RoleRepository roleRepository;
     private final RoleBusinessValidator roleBusinessValidator;
+    private final PermissionRepository permissionRepository;
+    private final RolePermissionRepository rolePermissionRepository;
 
     @Transactional
     @Override
-    public RoleResponse create(CreateRoleRequest request) {
+    public RoleResponse createRole(CreateRoleRequest request) {
         roleBusinessValidator.validateCreate(request);
 
         Role role = Role.builder()
@@ -37,30 +55,43 @@ public class RoleServiceImpl implements RoleService {
                 .system(false)
                 .build();
         role = roleRepository.save(role);
+        List<Permission> permissions = replaceRolePermissions(role, request.getPermissionIds());
 
-        return mapToResponse(role);
+        return mapToResponse(role, permissions);
     }
 
     @Override
-    public List<RoleResponse> getAll() {
-        List<Role> roles = roleRepository.findAll();
+    public List<RoleResponse> getAllRoles() {
+        List<Role> roles = roleRepository.findAll().stream()
+                .sorted(Comparator.comparing(Role::getCode, Comparator.nullsLast(String::compareTo)))
+                .toList();
+        Map<UUID, List<Permission>> permissionsByRoleId = getPermissionsByRoleId(roles);
 
         return roles.stream()
-                .map(this::mapToResponse)
+                .map(role -> mapToResponse(role, permissionsByRoleId.getOrDefault(role.getId(), List.of())))
                 .toList();
     }
 
     @Override
-    public RoleResponse getById(UUID id) {
+    public RoleResponse getRoleById(UUID id) {
         Role role = roleRepository.findById(id)
                 .orElseThrow(() -> new RoleNotFoundException(id));
 
-        return mapToResponse(role);
+        return mapToResponse(role, permissionRepository.findByRoleId(role.getId()));
+    }
+
+    @Override
+    public RoleResponse getRoleByCode(String code) {
+        String normalizedCode = normalizeRequiredCode(code);
+        Role role = roleRepository.findByCode(normalizedCode)
+                .orElseThrow(() -> new RoleNotFoundException(normalizedCode));
+
+        return mapToResponse(role, permissionRepository.findByRoleId(role.getId()));
     }
 
     @Transactional
     @Override
-    public RoleResponse update(UUID id, UpdateRoleRequest request) {
+    public RoleResponse updateRole(UUID id, UpdateRoleRequest request) {
         Role role = roleRepository.findById(id)
                 .orElseThrow(() -> new RoleNotFoundException(id));
         roleBusinessValidator.validateUpdate(role, request);
@@ -68,20 +99,35 @@ public class RoleServiceImpl implements RoleService {
         role.setName(trimToNull(request.getName()));
         role.setDescription(trimToNull(request.getDescription()));
         role = roleRepository.save(role);
+        List<Permission> permissions = request.getPermissionIds() == null
+                ? permissionRepository.findByRoleId(role.getId())
+                : replaceRolePermissions(role, request.getPermissionIds());
 
-        return mapToResponse(role);
+        return mapToResponse(role, permissions);
     }
 
     @Transactional
     @Override
-    public void delete(UUID id) {
+    public void deleteRole(UUID id) {
         Role role = roleRepository.findById(id)
                 .orElseThrow(() -> new RoleNotFoundException(id));
         roleBusinessValidator.validateDelete(role);
         roleRepository.delete(role);
     }
 
-    private RoleResponse mapToResponse(Role role) {
+    @Transactional
+    @Override
+    public RoleResponse assignPermissionsToRole(UUID roleId, Collection<UUID> permissionIds) {
+        Role role = roleRepository.findById(roleId)
+                .orElseThrow(() -> new RoleNotFoundException(roleId));
+        roleBusinessValidator.validateAssignPermissions(role);
+
+        List<Permission> permissions = replaceRolePermissions(role, permissionIds);
+
+        return mapToResponse(role, permissions);
+    }
+
+    private RoleResponse mapToResponse(Role role, List<Permission> permissions) {
 
         RoleResponse response = new RoleResponse();
 
@@ -90,10 +136,119 @@ public class RoleServiceImpl implements RoleService {
         response.setName(role.getName());
         response.setDescription(role.getDescription());
         response.setSystem(role.getSystem());
+        response.setPermissions(mapPermissionResponses(permissions));
         response.setCreatedAt(role.getCreatedAt());
         response.setUpdatedAt(role.getUpdatedAt());
 
         return response;
+    }
+
+    private List<PermissionResponse> mapPermissionResponses(List<Permission> permissions) {
+        return permissions.stream()
+                .sorted(Comparator
+                        .comparing(Permission::getModule, Comparator.nullsLast(String::compareTo))
+                        .thenComparing(Permission::getCode, Comparator.nullsLast(String::compareTo)))
+                .map(this::mapPermissionResponse)
+                .toList();
+    }
+
+    private PermissionResponse mapPermissionResponse(Permission permission) {
+        PermissionResponse response = new PermissionResponse();
+
+        response.setId(permission.getId());
+        response.setCode(permission.getCode());
+        response.setName(permission.getName());
+        response.setModule(permission.getModule());
+        response.setDescription(permission.getDescription());
+        response.setSystem(permission.getSystem());
+        response.setCreatedAt(permission.getCreatedAt());
+        response.setUpdatedAt(permission.getUpdatedAt());
+
+        return response;
+    }
+
+    private Map<UUID, List<Permission>> getPermissionsByRoleId(List<Role> roles) {
+        List<UUID> roleIds = roles.stream()
+                .map(Role::getId)
+                .filter(Objects::nonNull)
+                .toList();
+        if (roleIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return rolePermissionRepository.findByRoleIds(roleIds).stream()
+                .collect(Collectors.groupingBy(
+                        rolePermission -> rolePermission.getRole().getId(),
+                        Collectors.mapping(RolePermission::getPermission, Collectors.toList())
+                ));
+    }
+
+    private List<Permission> replaceRolePermissions(Role role, Collection<UUID> permissionIds) {
+        List<Permission> permissions = findPermissions(permissionIds);
+
+        rolePermissionRepository.deleteByRoleId(role.getId());
+        if (permissions.isEmpty()) {
+            return List.of();
+        }
+
+        OffsetDateTime grantedAt = OffsetDateTime.now();
+        List<RolePermission> rolePermissions = permissions.stream()
+                .map(permission -> RolePermission.builder()
+                        .id(new RolePermissionId(role.getId(), permission.getId()))
+                        .role(role)
+                        .permission(permission)
+                        .grantedAt(grantedAt)
+                        .build())
+                .toList();
+        rolePermissionRepository.saveAll(rolePermissions);
+
+        return permissions;
+    }
+
+    private List<Permission> findPermissions(Collection<UUID> permissionIds) {
+        List<UUID> normalizedPermissionIds = normalizePermissionIds(permissionIds);
+        if (normalizedPermissionIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<Permission> permissions = permissionRepository.findAllById(normalizedPermissionIds);
+        if (permissions.size() != normalizedPermissionIds.size()) {
+            Set<UUID> foundIds = permissions.stream()
+                    .map(Permission::getId)
+                    .collect(Collectors.toSet());
+            UUID missingId = normalizedPermissionIds.stream()
+                    .filter(permissionId -> !foundIds.contains(permissionId))
+                    .findFirst()
+                    .orElse(normalizedPermissionIds.getFirst());
+            throw new PermissionNotFoundException(missingId);
+        }
+
+        Map<UUID, Permission> permissionsById = permissions.stream()
+                .collect(Collectors.toMap(Permission::getId, Function.identity()));
+        return normalizedPermissionIds.stream()
+                .map(permissionsById::get)
+                .toList();
+    }
+
+    private List<UUID> normalizePermissionIds(Collection<UUID> permissionIds) {
+        if (permissionIds == null || permissionIds.isEmpty()) {
+            return List.of();
+        }
+        if (permissionIds.stream().anyMatch(Objects::isNull)) {
+            throw new RoleValidationException("Permission id is required");
+        }
+
+        return permissionIds.stream()
+                .distinct()
+                .toList();
+    }
+
+    private String normalizeRequiredCode(String value) {
+        String normalized = normalizeCode(value);
+        if (normalized == null) {
+            throw new RoleValidationException("Role code is required");
+        }
+        return normalized;
     }
 
     private String trimToNull(String value) {

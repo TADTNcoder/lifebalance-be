@@ -24,30 +24,42 @@ public class RoleController {
     @Operation(summary = "Get all roles")
     @GetMapping
     public List<RoleResponse> getAll() {
-        return roleService.getAll();
+        return roleService.getAllRoles();
     }
 
     @Operation(summary = "Create role")
     @PostMapping
     public RoleResponse create(@Valid @RequestBody CreateRoleRequest request) {
-        return roleService.create(request);
+        return roleService.createRole(request);
     }
 
     @Operation(summary = "Get role by id")
     @GetMapping("/{id}")
     public RoleResponse getById(@PathVariable UUID id) {
-        return roleService.getById(id);
+        return roleService.getRoleById(id);
+    }
+
+    @Operation(summary = "Get role by code")
+    @GetMapping("/code/{code}")
+    public RoleResponse getByCode(@PathVariable String code) {
+        return roleService.getRoleByCode(code);
     }
 
     @Operation(summary = "Update role")
     @PutMapping("/{id}")
     public RoleResponse update(@PathVariable UUID id, @Valid @RequestBody UpdateRoleRequest request) {
-        return roleService.update(id, request);
+        return roleService.updateRole(id, request);
+    }
+
+    @Operation(summary = "Assign permissions to role")
+    @PutMapping("/{id}/permissions")
+    public RoleResponse assignPermissions(@PathVariable UUID id, @RequestBody List<UUID> permissionIds) {
+        return roleService.assignPermissionsToRole(id, permissionIds);
     }
 
     @Operation(summary = "Delete role")
     @DeleteMapping("/{id}")
     public void delete(@PathVariable UUID id) {
-        roleService.delete(id);
+        roleService.deleteRole(id);
     }
 }
