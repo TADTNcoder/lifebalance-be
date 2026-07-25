@@ -67,6 +67,15 @@ public interface RoleRepository extends JpaRepository<Role, UUID> {
     List<Role> findBySystemFalseOrderByCodeAsc();
 
     @Query("""
+            SELECT count(userRole) > 0
+            FROM UserRole userRole
+            JOIN userRole.user user
+            WHERE userRole.role.id = :roleId
+              AND user.deletedAt IS NULL
+            """)
+    boolean existsAssignedToActiveUser(@Param("roleId") UUID roleId);
+
+    @Query("""
             SELECT DISTINCT role
             FROM UserRole userRole
             JOIN userRole.role role
