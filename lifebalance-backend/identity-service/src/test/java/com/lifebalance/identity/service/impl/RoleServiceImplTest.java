@@ -22,6 +22,7 @@ import com.lifebalance.identity.repository.PermissionRepository;
 import com.lifebalance.identity.repository.RolePermissionRepository;
 import com.lifebalance.identity.repository.RoleRepository;
 import com.lifebalance.identity.service.RoleBusinessValidator;
+import com.lifebalance.identity.service.UserAuthorizationCacheService;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -43,6 +44,9 @@ class RoleServiceImplTest {
 
     @Mock
     private RolePermissionRepository rolePermissionRepository;
+
+    @Mock
+    private UserAuthorizationCacheService userAuthorizationCacheService;
 
     @Test
     void shouldCreateCustomRoleWithPermissions() {
@@ -298,7 +302,8 @@ class RoleServiceImplTest {
                 roleRepository,
                 new RoleBusinessValidator(roleRepository),
                 permissionRepository,
-                rolePermissionRepository
+                rolePermissionRepository,
+                userAuthorizationCacheService
         );
     }
 

@@ -16,6 +16,7 @@ import com.lifebalance.identity.exception.SystemPermissionProtectedException;
 import com.lifebalance.identity.model.Permission;
 import com.lifebalance.identity.repository.PermissionRepository;
 import com.lifebalance.identity.service.PermissionBusinessValidator;
+import com.lifebalance.identity.service.UserAuthorizationCacheService;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -31,6 +32,9 @@ class PermissionServiceImplTest {
 
     @Mock
     private PermissionRepository permissionRepository;
+
+    @Mock
+    private UserAuthorizationCacheService userAuthorizationCacheService;
 
     @Test
     void shouldGetAllPermissionsOrderedByModuleAndCode() {
@@ -251,7 +255,8 @@ class PermissionServiceImplTest {
     private PermissionServiceImpl createService() {
         return new PermissionServiceImpl(
                 permissionRepository,
-                new PermissionBusinessValidator(permissionRepository)
+                new PermissionBusinessValidator(permissionRepository),
+                userAuthorizationCacheService
         );
     }
 
