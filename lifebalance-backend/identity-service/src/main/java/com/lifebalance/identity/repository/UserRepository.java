@@ -120,6 +120,26 @@ public interface UserRepository extends JpaRepository<User, UUID> {
       """, nativeQuery = true)
   List<String> findPermissionCodesByUserId(@Param("userId") UUID userId);
 
+  @Query(value = """
+      SELECT DISTINCT user_role.user_id
+      FROM identity.user_roles user_role
+      JOIN identity.users user_account ON user_account.id = user_role.user_id
+      WHERE user_role.role_id = :roleId
+        AND user_account.deleted_at IS NULL
+      """, nativeQuery = true)
+  List<UUID> findUserIdsByRoleId(@Param("roleId") UUID roleId);
+
+  @Query(value = """
+      SELECT DISTINCT user_role.user_id
+      FROM identity.user_roles user_role
+      JOIN identity.users user_account ON user_account.id = user_role.user_id
+      JOIN identity.role_permissions role_permission
+        ON role_permission.role_id = user_role.role_id
+      WHERE role_permission.permission_id = :permissionId
+        AND user_account.deleted_at IS NULL
+      """, nativeQuery = true)
+  List<UUID> findUserIdsByPermissionId(@Param("permissionId") UUID permissionId);
+
   Page<User> findByUsernameContainingIgnoreCaseOrEmailContainingIgnoreCase(
       String username,
       String email,
