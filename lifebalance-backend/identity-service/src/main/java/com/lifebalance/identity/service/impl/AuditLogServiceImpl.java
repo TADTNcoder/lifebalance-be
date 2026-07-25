@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 import com.lifebalance.identity.model.AuditLog;
 import com.lifebalance.identity.model.User;
 import com.lifebalance.identity.model.enums.AuditAction;
+import com.lifebalance.identity.model.enums.AuditEntityName;
 import com.lifebalance.identity.model.enums.AuditStatus;
 import com.lifebalance.identity.repository.AuditLogRepository;
 import com.lifebalance.identity.service.AuditLogService;
@@ -27,6 +28,11 @@ public class AuditLogServiceImpl implements AuditLogService {
             String details) {
 
         AuditLog auditLog = AuditLog.builder()
+                .entityName(AuditEntityName.AUTHENTICATION)
+                .entityId(user.getId().toString())
+                .actorId(user.getId())
+                .actorKeycloakId(user.getKeycloakId())
+                .actorUsername(user.getUsername())
                 .userId(user.getId())
                 .keycloakId(user.getKeycloakId())
                 .action(action)
