@@ -36,11 +36,29 @@ public interface RoleRepository extends JpaRepository<Role, UUID> {
     @Query("""
             SELECT count(role) > 0
             FROM Role role
+            WHERE lower(role.name) = lower(trim(:name))
+            """)
+    boolean existsByName(@Param("name") String name);
+
+    @Query("""
+            SELECT count(role) > 0
+            FROM Role role
             WHERE lower(role.code) = lower(trim(:code))
               AND role.id <> :id
             """)
     boolean existsByCodeAndIdNot(
             @Param("code") String code,
+            @Param("id") UUID id
+    );
+
+    @Query("""
+            SELECT count(role) > 0
+            FROM Role role
+            WHERE lower(role.name) = lower(trim(:name))
+              AND role.id <> :id
+            """)
+    boolean existsByNameAndIdNot(
+            @Param("name") String name,
             @Param("id") UUID id
     );
 
