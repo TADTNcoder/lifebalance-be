@@ -30,6 +30,7 @@ import com.lifebalance.identity.repository.RolePermissionRepository;
 import com.lifebalance.identity.repository.RoleRepository;
 import com.lifebalance.identity.service.RoleBusinessValidator;
 import com.lifebalance.identity.service.RoleService;
+import com.lifebalance.identity.service.UserAuthorizationCacheService;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +43,7 @@ public class RoleServiceImpl implements RoleService {
     private final RoleBusinessValidator roleBusinessValidator;
     private final PermissionRepository permissionRepository;
     private final RolePermissionRepository rolePermissionRepository;
+    private final UserAuthorizationCacheService userAuthorizationCacheService;
 
     @Transactional
     @Override
@@ -102,6 +104,9 @@ public class RoleServiceImpl implements RoleService {
         List<Permission> permissions = request.getPermissionIds() == null
                 ? permissionRepository.findByRoleId(role.getId())
                 : replaceRolePermissions(role, request.getPermissionIds());
+        if (request.getPermissionIds() != null) {
+            userAuthorizationCacheService.evictUsersByRoleId(role.getId());
+        }
 
         return mapToResponse(role, permissions);
     }
@@ -113,6 +118,7 @@ public class RoleServiceImpl implements RoleService {
                 .orElseThrow(() -> new RoleNotFoundException(id));
         roleBusinessValidator.validateDelete(role);
         roleRepository.delete(role);
+        userAuthorizationCacheService.evictUsersByRoleId(role.getId());
     }
 
     @Transactional
@@ -123,6 +129,7 @@ public class RoleServiceImpl implements RoleService {
         roleBusinessValidator.validateAssignPermissions(role);
 
         List<Permission> permissions = replaceRolePermissions(role, permissionIds);
+        userAuthorizationCacheService.evictUsersByRoleId(role.getId());
 
         return mapToResponse(role, permissions);
     }

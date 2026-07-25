@@ -9,6 +9,7 @@ import com.lifebalance.identity.model.Permission;
 import com.lifebalance.identity.repository.PermissionRepository;
 import com.lifebalance.identity.service.PermissionBusinessValidator;
 import com.lifebalance.identity.service.PermissionService;
+import com.lifebalance.identity.service.UserAuthorizationCacheService;
 import jakarta.transaction.Transactional;
 import java.util.Collection;
 import java.util.List;
@@ -24,6 +25,7 @@ public class PermissionServiceImpl implements PermissionService {
 
     private final PermissionRepository permissionRepository;
     private final PermissionBusinessValidator permissionBusinessValidator;
+    private final UserAuthorizationCacheService userAuthorizationCacheService;
 
     @Override
     public List<PermissionResponse> getAllPermissions() {
@@ -87,6 +89,7 @@ public class PermissionServiceImpl implements PermissionService {
         permission.setModule(normalizeKey(request.getModule()));
         permission.setDescription(trimToNull(request.getDescription()));
         permission = permissionRepository.save(permission);
+        userAuthorizationCacheService.evictUsersByPermissionId(permission.getId());
 
         return mapToResponse(permission);
     }
@@ -98,6 +101,7 @@ public class PermissionServiceImpl implements PermissionService {
                 .orElseThrow(() -> new PermissionNotFoundException(id));
         permissionBusinessValidator.validateDelete(permission);
         permissionRepository.delete(permission);
+        userAuthorizationCacheService.evictUsersByPermissionId(permission.getId());
     }
 
     @Override

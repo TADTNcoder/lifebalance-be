@@ -24,6 +24,7 @@ import com.lifebalance.identity.exception.UserValidationException;
 import com.lifebalance.identity.model.User;
 import com.lifebalance.identity.model.enums.AccountStatus;
 import com.lifebalance.identity.repository.UserRepository;
+import com.lifebalance.identity.service.UserAuthorizationCacheService;
 import com.lifebalance.identity.service.UserSessionRevocationService;
 import com.lifebalance.identity.service.UserService;
 
@@ -44,6 +45,7 @@ public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
     private final UserSessionRevocationService userSessionRevocationService;
+    private final UserAuthorizationCacheService userAuthorizationCacheService;
 
     @Override
     public UserResponse getUserById(UUID id) {
@@ -85,7 +87,10 @@ public class UserServiceImpl implements UserService {
 
         user.setStatus(AccountStatus.ACTIVE);
 
-        return toResponse(userRepository.save(user));
+        User activatedUser = userRepository.save(user);
+        userAuthorizationCacheService.evictUser(activatedUser.getId());
+
+        return toResponse(activatedUser);
     }
 
     @Override
@@ -100,6 +105,7 @@ public class UserServiceImpl implements UserService {
         user.setStatus(AccountStatus.DISABLED);
         User disabledUser = userRepository.save(user);
         userSessionRevocationService.revokeSessions(disabledUser, "USER_DISABLED");
+        userAuthorizationCacheService.evictUser(disabledUser.getId());
 
         return toResponse(disabledUser);
     }
@@ -131,6 +137,7 @@ public class UserServiceImpl implements UserService {
 
         User lockedUser = userRepository.save(user);
         userSessionRevocationService.revokeSessions(lockedUser, "USER_LOCKED");
+        userAuthorizationCacheService.evictUser(lockedUser.getId());
 
         return toResponse(lockedUser);
     }
@@ -153,7 +160,10 @@ public class UserServiceImpl implements UserService {
         user.setLockedUntil(null);
         user.setLockedByKeycloakId(null);
 
-        return toResponse(userRepository.save(user));
+        User unlockedUser = userRepository.save(user);
+        userAuthorizationCacheService.evictUser(unlockedUser.getId());
+
+        return toResponse(unlockedUser);
     }
 
     @Override
@@ -163,6 +173,7 @@ public class UserServiceImpl implements UserService {
 
         userRepository.delete(user);
         userSessionRevocationService.revokeSessions(user, "USER_DELETED");
+        userAuthorizationCacheService.evictUser(user.getId());
     }
 
     private User findExistingUser(UUID id) {
