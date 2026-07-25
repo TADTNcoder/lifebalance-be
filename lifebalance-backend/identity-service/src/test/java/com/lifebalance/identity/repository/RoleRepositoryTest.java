@@ -73,6 +73,8 @@ class RoleRepositoryTest {
                 .isEqualTo(role.getId());
         assertThat(roleRepository.existsByCode(" FINANCE-MANAGER ")).isTrue();
         assertThat(roleRepository.existsByCode("missing-role")).isFalse();
+        assertThat(roleRepository.existsByName(" FINANCE MANAGER ")).isTrue();
+        assertThat(roleRepository.existsByName("Missing Role")).isFalse();
     }
 
     @Test
@@ -88,6 +90,8 @@ class RoleRepositoryTest {
 
         assertThat(roleRepository.existsByCodeAndIdNot(" duplicate-role-a ", first.getId())).isFalse();
         assertThat(roleRepository.existsByCodeAndIdNot(" DUPLICATE-ROLE-A ", second.getId())).isTrue();
+        assertThat(roleRepository.existsByNameAndIdNot(" Duplicate Role A ", first.getId())).isFalse();
+        assertThat(roleRepository.existsByNameAndIdNot(" DUPLICATE ROLE A ", second.getId())).isTrue();
     }
 
     @Test
