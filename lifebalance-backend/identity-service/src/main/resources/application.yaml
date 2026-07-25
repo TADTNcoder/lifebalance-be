@@ -9,6 +9,11 @@ spring:
   application:
     name: identity-service
 
+  data:
+    redis:
+      repositories:
+        enabled: false
+
   jpa:
     hibernate:
       ddl-auto: validate
@@ -35,6 +40,12 @@ management:
         enabled: true
 
 lifebalance:
+  rbac:
+    cache:
+      type: ${LIFEBALANCE_RBAC_CACHE_TYPE:caffeine}
+      ttl: ${LIFEBALANCE_RBAC_CACHE_TTL:15m}
+      maximum-size: ${LIFEBALANCE_RBAC_CACHE_MAXIMUM_SIZE:10000}
+
   security:
     keycloak:
       client-id: ${KEYCLOAK_CLIENT_ID:lifebalance-api}
