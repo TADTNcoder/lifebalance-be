@@ -78,6 +78,7 @@ public class PermissionServiceImpl implements PermissionService {
                 .system(false)
                 .build();
         permission = permissionRepository.save(permission);
+        
         String newValue = permissionAuditSnapshotMapper.toJson(permission);
         permissionAuditEventPublisher.publishPermissionAudit(
                 AuditAction.CREATE_PERMISSION,
@@ -96,6 +97,7 @@ public class PermissionServiceImpl implements PermissionService {
         Permission permission = permissionRepository.findById(id)
                 .orElseThrow(() -> new PermissionNotFoundException(id));
         permissionBusinessValidator.validateUpdate(permission, request);
+        
         String oldValue = permissionAuditSnapshotMapper.toJson(permission);
 
         permission.setCode(normalizeKey(request.getCode()));
@@ -103,6 +105,7 @@ public class PermissionServiceImpl implements PermissionService {
         permission.setModule(normalizeKey(request.getModule()));
         permission.setDescription(trimToNull(request.getDescription()));
         permission = permissionRepository.save(permission);
+        
         userAuthorizationCacheService.evictUsersByPermissionId(permission.getId());
         String newValue = permissionAuditSnapshotMapper.toJson(permission);
         permissionAuditEventPublisher.publishPermissionAudit(
@@ -122,6 +125,7 @@ public class PermissionServiceImpl implements PermissionService {
         Permission permission = permissionRepository.findById(id)
                 .orElseThrow(() -> new PermissionNotFoundException(id));
         permissionBusinessValidator.validateDelete(permission);
+        
         String oldValue = permissionAuditSnapshotMapper.toJson(permission);
         permissionRepository.delete(permission);
         userAuthorizationCacheService.evictUsersByPermissionId(permission.getId());
