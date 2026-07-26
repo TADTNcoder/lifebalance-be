@@ -3,10 +3,15 @@ package com.lifebalance.identity.service.impl;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.lifebalance.identity.audit.PermissionAuditEventPublisher;
+import com.lifebalance.identity.audit.PermissionAuditSnapshotMapper;
 import com.lifebalance.identity.dto.CreatePermissionRequest;
 import com.lifebalance.identity.dto.PermissionResponse;
 import com.lifebalance.identity.dto.UpdatePermissionRequest;
@@ -14,6 +19,7 @@ import com.lifebalance.identity.exception.PermissionNotFoundException;
 import com.lifebalance.identity.exception.PermissionValidationException;
 import com.lifebalance.identity.exception.SystemPermissionProtectedException;
 import com.lifebalance.identity.model.Permission;
+import com.lifebalance.identity.model.enums.AuditAction;
 import com.lifebalance.identity.repository.PermissionRepository;
 import com.lifebalance.identity.service.PermissionBusinessValidator;
 import com.lifebalance.identity.service.UserAuthorizationCacheService;
@@ -35,6 +41,12 @@ class PermissionServiceImplTest {
 
     @Mock
     private UserAuthorizationCacheService userAuthorizationCacheService;
+
+    @Mock
+    private PermissionAuditSnapshotMapper permissionAuditSnapshotMapper;
+
+    @Mock
+    private PermissionAuditEventPublisher permissionAuditEventPublisher;
 
     @Test
     void shouldGetAllPermissionsOrderedByModuleAndCode() {
@@ -150,6 +162,53 @@ class PermissionServiceImplTest {
     }
 
     @Test
+    void shouldPublishAuditEventWhenCreatingPermission() {
+        UUID permissionId = UUID.randomUUID();
+        CreatePermissionRequest request = createPermissionRequest(
+                " Task:Create ",
+                " Create Tasks ",
+                " Task ",
+                " Can create tasks "
+        );
+        when(permissionRepository.save(any(Permission.class))).thenAnswer(invocation -> {
+            Permission permission = invocation.getArgument(0);
+            permission.setId(permissionId);
+            return permission;
+        });
+        when(permissionAuditSnapshotMapper.toJson(any(Permission.class))).thenReturn("new-permission");
+
+        PermissionServiceImpl service = createService();
+
+        service.createPermission(request);
+
+        verify(permissionAuditEventPublisher).publishPermissionAudit(
+                eq(AuditAction.CREATE_PERMISSION),
+                eq(permissionId),
+                isNull(),
+                eq("new-permission"),
+                eq("Permission created")
+        );
+    }
+
+    @Test
+    void shouldNotPublishAuditEventWhenCreatingPermissionFailsValidation() {
+        CreatePermissionRequest request = createPermissionRequest(
+                " ",
+                " Create Tasks ",
+                " Task ",
+                " Can create tasks "
+        );
+
+        PermissionServiceImpl service = createService();
+
+        assertThatThrownBy(() -> service.createPermission(request))
+                .isInstanceOf(PermissionValidationException.class)
+                .hasMessage("Permission code is required");
+        verify(permissionRepository, never()).save(any());
+        verifyNoInteractions(permissionAuditEventPublisher);
+    }
+
+    @Test
     void shouldUpdateCustomPermission() {
         UUID permissionId = UUID.randomUUID();
         Permission permission = createPermission(permissionId, "task:read", "Read Tasks", "task", false);
@@ -175,6 +234,33 @@ class PermissionServiceImplTest {
     }
 
     @Test
+    void shouldPublishAuditEventWhenUpdatingPermission() {
+        UUID permissionId = UUID.randomUUID();
+        Permission permission = createPermission(permissionId, "task:read", "Read Tasks", "task", false);
+        UpdatePermissionRequest request = updatePermissionRequest(
+                " Task:Update ",
+                " Update Tasks ",
+                " Task ",
+                " Can update tasks "
+        );
+        when(permissionRepository.findById(permissionId)).thenReturn(Optional.of(permission));
+        when(permissionRepository.save(permission)).thenAnswer(invocation -> invocation.getArgument(0));
+        when(permissionAuditSnapshotMapper.toJson(permission)).thenReturn("old-permission", "new-permission");
+
+        PermissionServiceImpl service = createService();
+
+        service.updatePermission(permissionId, request);
+
+        verify(permissionAuditEventPublisher).publishPermissionAudit(
+                eq(AuditAction.UPDATE_PERMISSION),
+                eq(permissionId),
+                eq("old-permission"),
+                eq("new-permission"),
+                eq("Permission updated")
+        );
+    }
+
+    @Test
     void shouldRejectSystemPermissionUpdate() {
         UUID permissionId = UUID.randomUUID();
         Permission permission = createPermission(permissionId, "admin:read", "Read Admin", "admin", true);
@@ -192,6 +278,7 @@ class PermissionServiceImplTest {
                 .isInstanceOf(SystemPermissionProtectedException.class)
                 .hasMessage("System permission is protected: " + permissionId);
         verify(permissionRepository, never()).save(any());
+        verifyNoInteractions(permissionAuditEventPublisher);
     }
 
     @Test
@@ -208,6 +295,26 @@ class PermissionServiceImplTest {
     }
 
     @Test
+    void shouldPublishAuditEventWhenDeletingPermission() {
+        UUID permissionId = UUID.randomUUID();
+        Permission permission = createPermission(permissionId, "task:delete", "Delete Tasks", "task", false);
+        when(permissionRepository.findById(permissionId)).thenReturn(Optional.of(permission));
+        when(permissionAuditSnapshotMapper.toJson(permission)).thenReturn("old-permission");
+
+        PermissionServiceImpl service = createService();
+
+        service.deletePermission(permissionId);
+
+        verify(permissionAuditEventPublisher).publishPermissionAudit(
+                eq(AuditAction.DELETE_PERMISSION),
+                eq(permissionId),
+                eq("old-permission"),
+                isNull(),
+                eq("Permission deleted")
+        );
+    }
+
+    @Test
     void shouldRejectSystemPermissionDelete() {
         UUID permissionId = UUID.randomUUID();
         Permission permission = createPermission(permissionId, "admin:delete", "Delete Admin", "admin", true);
@@ -219,6 +326,7 @@ class PermissionServiceImplTest {
                 .isInstanceOf(SystemPermissionProtectedException.class)
                 .hasMessage("System permission is protected: " + permissionId);
         verify(permissionRepository, never()).delete(any());
+        verifyNoInteractions(permissionAuditEventPublisher);
     }
 
     @Test
@@ -256,7 +364,9 @@ class PermissionServiceImplTest {
         return new PermissionServiceImpl(
                 permissionRepository,
                 new PermissionBusinessValidator(permissionRepository),
-                userAuthorizationCacheService
+                userAuthorizationCacheService,
+                permissionAuditSnapshotMapper,
+                permissionAuditEventPublisher
         );
     }
 
