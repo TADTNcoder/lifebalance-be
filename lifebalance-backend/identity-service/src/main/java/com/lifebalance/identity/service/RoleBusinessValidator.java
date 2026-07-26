@@ -2,6 +2,7 @@ package com.lifebalance.identity.service;
 
 import com.lifebalance.identity.dto.CreateRoleRequest;
 import com.lifebalance.identity.dto.UpdateRoleRequest;
+import com.lifebalance.identity.exception.RoleAssignedToUserException;
 import com.lifebalance.identity.exception.RoleCodeAlreadyExistsException;
 import com.lifebalance.identity.exception.RoleNameAlreadyExistsException;
 import com.lifebalance.identity.exception.RoleValidationException;
@@ -58,6 +59,14 @@ public class RoleBusinessValidator {
     }
 
     public void validateDelete(Role role) {
+        requireRole(role);
+        validateSystemRoleIsNotModified(role);
+        if (roleRepository.existsAssignedToActiveUser(role.getId())) {
+            throw new RoleAssignedToUserException(role.getId());
+        }
+    }
+
+    public void validateAssignPermissions(Role role) {
         requireRole(role);
         validateSystemRoleIsNotModified(role);
     }

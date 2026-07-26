@@ -1,7 +1,5 @@
 package com.lifebalance.identity.service.impl;
 
-import static com.lifebalance.identity.config.RbacCacheConfig.USER_AUTHORIZATION_SNAPSHOTS_CACHE;
-
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
@@ -9,8 +7,6 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 
-import org.springframework.cache.Cache;
-import org.springframework.cache.CacheManager;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
@@ -22,6 +18,7 @@ import com.lifebalance.identity.model.User;
 import com.lifebalance.identity.model.enums.AccountStatus;
 import com.lifebalance.identity.repository.UserRepository;
 import com.lifebalance.identity.service.RbacAuthorizationService;
+import com.lifebalance.identity.service.UserAuthorizationCacheService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -30,7 +27,7 @@ import lombok.RequiredArgsConstructor;
 public class RbacAuthorizationServiceImpl implements RbacAuthorizationService {
 
     private final UserRepository userRepository;
-    private final CacheManager cacheManager;
+    private final UserAuthorizationCacheService userAuthorizationCacheService;
 
     @Override
     public boolean hasPermission(UUID userId, String permissionCode) {
@@ -76,18 +73,13 @@ public class RbacAuthorizationServiceImpl implements RbacAuthorizationService {
     public UserAuthorizationSnapshot getAuthorizationSnapshot(UUID userId) {
         validateUserId(userId);
 
-        Cache cache = cacheManager.getCache(USER_AUTHORIZATION_SNAPSHOTS_CACHE);
-        if (cache == null) {
-            return loadAuthorizationSnapshot(userId);
-        }
+        return userAuthorizationCacheService.get(userId)
+                .orElseGet(() -> loadAndCacheAuthorizationSnapshot(userId));
+    }
 
-        UserAuthorizationSnapshot cachedSnapshot = cache.get(userId, UserAuthorizationSnapshot.class);
-        if (cachedSnapshot != null) {
-            return cachedSnapshot;
-        }
-
+    private UserAuthorizationSnapshot loadAndCacheAuthorizationSnapshot(UUID userId) {
         UserAuthorizationSnapshot loadedSnapshot = loadAuthorizationSnapshot(userId);
-        cache.put(userId, loadedSnapshot);
+        userAuthorizationCacheService.put(userId, loadedSnapshot);
 
         return loadedSnapshot;
     }
@@ -110,10 +102,7 @@ public class RbacAuthorizationServiceImpl implements RbacAuthorizationService {
     public void evictUserAuthorization(UUID userId) {
         validateUserId(userId);
 
-        Cache cache = cacheManager.getCache(USER_AUTHORIZATION_SNAPSHOTS_CACHE);
-        if (cache != null) {
-            cache.evict(userId);
-        }
+        userAuthorizationCacheService.evictUser(userId);
     }
 
     private UserAuthorizationSnapshot loadAuthorizationSnapshot(UUID userId) {

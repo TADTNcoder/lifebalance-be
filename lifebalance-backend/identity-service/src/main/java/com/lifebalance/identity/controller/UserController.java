@@ -7,6 +7,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -93,6 +94,7 @@ public class UserController {
             @ApiResponse(responseCode = "404", description = "User not found")
     })
     @GetMapping("/{id}")
+    @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'user:read') || @permissionEvaluationService.isCurrentUser(authentication, #id)")
     public UserResponse getUserById(
             @Parameter(description = "User id in UUID format", required = true)
             @PathVariable UUID id
@@ -109,6 +111,7 @@ public class UserController {
             @ApiResponse(responseCode = "409", description = "Email or username already exists")
     })
     @PatchMapping("/{id}")
+    @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'user:update')")
     public UserResponse updateUser(
             @Parameter(description = "User id in UUID format", required = true)
             @PathVariable UUID id,
@@ -126,6 +129,7 @@ public class UserController {
             @ApiResponse(responseCode = "409", description = "User already active, deleted, or cannot be activated from the current status")
     })
     @PatchMapping("/{id}/activate")
+    @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'user:update')")
     public UserResponse activateUser(
             @Parameter(description = "User id in UUID format", required = true)
             @PathVariable UUID id
@@ -142,6 +146,7 @@ public class UserController {
             @ApiResponse(responseCode = "409", description = "User already disabled or deleted")
     })
     @PatchMapping("/{id}/disable")
+    @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'user:update')")
     public UserResponse disableUser(
             @Parameter(description = "User id in UUID format", required = true)
             @PathVariable UUID id
@@ -158,6 +163,7 @@ public class UserController {
             @ApiResponse(responseCode = "409", description = "User already locked, deleted, or self-lock is not allowed")
     })
     @PatchMapping("/{id}/lock")
+    @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'user:update')")
     public UserResponse lockUser(
             @Parameter(description = "User id in UUID format", required = true)
             @PathVariable UUID id,
@@ -178,6 +184,7 @@ public class UserController {
             @ApiResponse(responseCode = "409", description = "User is not locked or was already deleted")
     })
     @PatchMapping("/{id}/unlock")
+    @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'user:update')")
     public UserResponse unlockUser(
             @Parameter(description = "User id in UUID format", required = true)
             @PathVariable UUID id
@@ -194,6 +201,7 @@ public class UserController {
             @ApiResponse(responseCode = "409", description = "User already deleted")
     })
     @DeleteMapping("/{id}")
+    @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'user:delete')")
     public ResponseEntity<Void> softDeleteUser(
             @Parameter(description = "User id in UUID format", required = true)
             @PathVariable UUID id
@@ -207,6 +215,7 @@ public class UserController {
             @ApiResponse(responseCode = "200", description = "Success")
     })
     @GetMapping
+    @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'user:read')")
     public Page<UserResponse> searchUsers(
             @RequestParam(defaultValue = "") String keyword,
             @RequestParam(defaultValue = "0") int page,
