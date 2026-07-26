@@ -14,6 +14,8 @@ public enum AuditAction {
 
     ASSIGN_PERMISSION,
 
+    ASSIGN_ROLE_PERMISSIONS,
+
     REVOKE_PERMISSION,
 
     CREATE_PERMISSION,
