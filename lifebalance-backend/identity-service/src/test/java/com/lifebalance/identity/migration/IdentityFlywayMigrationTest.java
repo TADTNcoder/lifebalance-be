@@ -6,6 +6,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -14,6 +16,27 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         "eureka.client.enabled=false"
 })
 class IdentityFlywayMigrationTest {
+
+    private static final List<String> DEFAULT_PERMISSION_CODES = List.of(
+            "audit:export",
+            "audit:read",
+            "permission:create",
+            "permission:read",
+            "permission:update",
+            "profile:read",
+            "profile:update",
+            "role:assign",
+            "role:create",
+            "role:delete",
+            "role:read",
+            "role:update",
+            "user:create",
+            "user:delete",
+            "user:lock",
+            "user:read",
+            "user:unlock",
+            "user:update"
+    );
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -52,6 +75,26 @@ class IdentityFlywayMigrationTest {
                 VALUES ('INVALID_ENTITY', 'LOGIN', 'SUCCESS')
                 """))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void flywaySeedsDefaultPermissionsAndRoleMappings() {
+        List<String> permissionCodes = jdbcTemplate.queryForList("""
+                SELECT code
+                FROM identity.permissions
+                WHERE is_system = true
+                  AND deleted_at IS NULL
+                ORDER BY code
+                """, String.class);
+
+        assertThat(permissionCodes).containsExactlyElementsOf(DEFAULT_PERMISSION_CODES);
+
+        List<String> adminPermissionCodes = findPermissionCodesByRoleCode("admin");
+        assertThat(adminPermissionCodes).containsExactlyElementsOf(DEFAULT_PERMISSION_CODES);
+
+        List<String> userPermissionCodes = findPermissionCodesByRoleCode("user");
+        assertThat(userPermissionCodes).containsExactly("profile:read", "profile:update");
+        assertThat(userPermissionCodes).doesNotContain("user:update", "user:delete");
     }
 
     private void assertTableExists(String tableName) {
@@ -98,5 +141,18 @@ class IdentityFlywayMigrationTest {
                 """, Integer.class, constraintName);
 
         assertThat(count).isEqualTo(1);
+    }
+
+    private List<String> findPermissionCodesByRoleCode(String roleCode) {
+        return jdbcTemplate.queryForList("""
+                SELECT permission.code
+                FROM identity.roles role
+                JOIN identity.role_permissions role_permission ON role_permission.role_id = role.id
+                JOIN identity.permissions permission ON permission.id = role_permission.permission_id
+                WHERE lower(role.code) = lower(?)
+                  AND role.deleted_at IS NULL
+                  AND permission.deleted_at IS NULL
+                ORDER BY permission.code
+                """, String.class, roleCode);
     }
 }

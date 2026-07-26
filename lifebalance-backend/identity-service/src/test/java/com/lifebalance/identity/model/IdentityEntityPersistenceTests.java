@@ -71,7 +71,7 @@ class IdentityEntityPersistenceTests {
     @Test
     void persistsPermissionWithNormalizedIdentifiersAndDefaults() {
         Permission permission = Permission.builder()
-                .code("  User:Read  ")
+                .code("  Task:Read  ")
                 .name("Read Users")
                 .module("  User_Management  ")
                 .description("Allows reading user profiles")
@@ -81,7 +81,7 @@ class IdentityEntityPersistenceTests {
         entityManager.flush();
 
         assertThat(permission.getId()).isNotNull();
-        assertThat(permission.getCode()).isEqualTo("user:read");
+        assertThat(permission.getCode()).isEqualTo("task:read");
         assertThat(permission.getName()).isEqualTo("Read Users");
         assertThat(permission.getModule()).isEqualTo("user_management");
         assertThat(permission.getDescription()).isEqualTo("Allows reading user profiles");
@@ -93,7 +93,7 @@ class IdentityEntityPersistenceTests {
     @Test
     void persistsSystemPermissionFlag() {
         Permission permission = Permission.builder()
-                .code("role:assign")
+                .code("custom:assign")
                 .name("Assign Roles")
                 .module("identity")
                 .system(true)
@@ -142,7 +142,7 @@ class IdentityEntityPersistenceTests {
                 .name("Permission Owner")
                 .build();
         Permission permission = Permission.builder()
-                .code("permission:read")
+                .code("custom-permission:read")
                 .name("Read Permissions")
                 .module("identity")
                 .build();
@@ -167,7 +167,7 @@ class IdentityEntityPersistenceTests {
         assertThat(foundRole.getRolePermissions())
                 .hasSize(1)
                 .first()
-                .satisfies(found -> assertThat(found.getPermission().getCode()).isEqualTo("permission:read"));
+                .satisfies(found -> assertThat(found.getPermission().getCode()).isEqualTo("custom-permission:read"));
         assertThat(foundPermission.getRolePermissions())
                 .hasSize(1)
                 .first()
