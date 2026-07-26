@@ -1,6 +1,9 @@
 package com.lifebalance.identity.model;
 
 import com.lifebalance.identity.model.enums.AccountStatus;
+import com.lifebalance.identity.model.enums.AuditAction;
+import com.lifebalance.identity.model.enums.AuditEntityName;
+import com.lifebalance.identity.model.enums.AuditStatus;
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
 import org.junit.jupiter.api.Test;
@@ -68,7 +71,7 @@ class IdentityEntityPersistenceTests {
     @Test
     void persistsPermissionWithNormalizedIdentifiersAndDefaults() {
         Permission permission = Permission.builder()
-                .code("  User:Read  ")
+                .code("  Task:Read  ")
                 .name("Read Users")
                 .module("  User_Management  ")
                 .description("Allows reading user profiles")
@@ -78,7 +81,7 @@ class IdentityEntityPersistenceTests {
         entityManager.flush();
 
         assertThat(permission.getId()).isNotNull();
-        assertThat(permission.getCode()).isEqualTo("user:read");
+        assertThat(permission.getCode()).isEqualTo("task:read");
         assertThat(permission.getName()).isEqualTo("Read Users");
         assertThat(permission.getModule()).isEqualTo("user_management");
         assertThat(permission.getDescription()).isEqualTo("Allows reading user profiles");
@@ -90,7 +93,7 @@ class IdentityEntityPersistenceTests {
     @Test
     void persistsSystemPermissionFlag() {
         Permission permission = Permission.builder()
-                .code("role:assign")
+                .code("custom:assign")
                 .name("Assign Roles")
                 .module("identity")
                 .system(true)
@@ -139,7 +142,7 @@ class IdentityEntityPersistenceTests {
                 .name("Permission Owner")
                 .build();
         Permission permission = Permission.builder()
-                .code("permission:read")
+                .code("custom-permission:read")
                 .name("Read Permissions")
                 .module("identity")
                 .build();
@@ -164,7 +167,7 @@ class IdentityEntityPersistenceTests {
         assertThat(foundRole.getRolePermissions())
                 .hasSize(1)
                 .first()
-                .satisfies(found -> assertThat(found.getPermission().getCode()).isEqualTo("permission:read"));
+                .satisfies(found -> assertThat(found.getPermission().getCode()).isEqualTo("custom-permission:read"));
         assertThat(foundPermission.getRolePermissions())
                 .hasSize(1)
                 .first()
@@ -184,5 +187,51 @@ class IdentityEntityPersistenceTests {
                 .isEqualTo(second)
                 .hasSameHashCodeAs(second)
                 .isNotEqualTo(differentPermission);
+    }
+
+    @Test
+    void persistsAuditLogWithActorTargetAndSnapshotValues() {
+        User actor = User.builder()
+                .email("audit-admin@example.com")
+                .username("audit-admin")
+                .build();
+        entityManager.persist(actor);
+        entityManager.flush();
+
+        UUID roleId = UUID.randomUUID();
+        AuditLog auditLog = AuditLog.builder()
+                .entityName(AuditEntityName.ROLE)
+                .entityId(roleId.toString())
+                .actorId(actor.getId())
+                .actorKeycloakId("kc-audit-admin")
+                .actorUsername("audit-admin")
+                .userId(actor.getId())
+                .keycloakId("kc-audit-admin")
+                .action(AuditAction.UPDATE_ROLE)
+                .status(AuditStatus.SUCCESS)
+                .ipAddress("127.0.0.1")
+                .userAgent("JUnit")
+                .oldValue("{\"name\":\"Old role\"}")
+                .newValue("{\"name\":\"New role\"}")
+                .details("Role updated")
+                .build();
+
+        entityManager.persist(auditLog);
+        entityManager.flush();
+        entityManager.clear();
+
+        AuditLog found = entityManager.find(AuditLog.class, auditLog.getId());
+
+        assertThat(found).isNotNull();
+        assertThat(found.getEntityName()).isEqualTo(AuditEntityName.ROLE);
+        assertThat(found.getEntityId()).isEqualTo(roleId.toString());
+        assertThat(found.getActorId()).isEqualTo(actor.getId());
+        assertThat(found.getActorKeycloakId()).isEqualTo("kc-audit-admin");
+        assertThat(found.getActorUsername()).isEqualTo("audit-admin");
+        assertThat(found.getAction()).isEqualTo(AuditAction.UPDATE_ROLE);
+        assertThat(found.getStatus()).isEqualTo(AuditStatus.SUCCESS);
+        assertThat(found.getOldValue()).isEqualTo("{\"name\":\"Old role\"}");
+        assertThat(found.getNewValue()).isEqualTo("{\"name\":\"New role\"}");
+        assertThat(found.getCreatedAt()).isNotNull();
     }
 }

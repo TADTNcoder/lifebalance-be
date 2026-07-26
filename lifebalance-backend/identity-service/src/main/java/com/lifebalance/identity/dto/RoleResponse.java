@@ -1,6 +1,7 @@
 package com.lifebalance.identity.dto;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 import lombok.Data;
 
@@ -16,6 +17,8 @@ public class RoleResponse {
     private String description;
 
     private Boolean system;
+
+    private List<PermissionResponse> permissions;
 
     private OffsetDateTime createdAt;
 

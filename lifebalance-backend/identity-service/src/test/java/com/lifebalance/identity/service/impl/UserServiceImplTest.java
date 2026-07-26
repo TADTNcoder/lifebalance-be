@@ -35,6 +35,7 @@ import com.lifebalance.identity.exception.UserValidationException;
 import com.lifebalance.identity.model.User;
 import com.lifebalance.identity.model.enums.AccountStatus;
 import com.lifebalance.identity.repository.UserRepository;
+import com.lifebalance.identity.service.UserAuthorizationCacheService;
 import com.lifebalance.identity.service.UserSessionRevocationService;
 
 @ExtendWith(MockitoExtension.class)
@@ -45,6 +46,9 @@ class UserServiceImplTest {
 
     @Mock
     private UserSessionRevocationService userSessionRevocationService;
+
+    @Mock
+    private UserAuthorizationCacheService userAuthorizationCacheService;
 
     @Test
     void shouldReturnUserById() {
@@ -663,7 +667,11 @@ class UserServiceImplTest {
     }
 
     private UserServiceImpl createService() {
-        return new UserServiceImpl(userRepository, userSessionRevocationService);
+        return new UserServiceImpl(
+                userRepository,
+                userSessionRevocationService,
+                userAuthorizationCacheService
+        );
     }
 
     private static LockUserRequest createLockRequest() {

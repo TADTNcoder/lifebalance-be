@@ -26,6 +26,7 @@ import com.lifebalance.identity.exception.UserNotFoundException;
 import com.lifebalance.identity.model.User;
 import com.lifebalance.identity.model.enums.AccountStatus;
 import com.lifebalance.identity.repository.UserRepository;
+import com.lifebalance.identity.service.UserAuthorizationCacheService;
 
 @ExtendWith(MockitoExtension.class)
 class RbacAuthorizationServiceImplTest {
@@ -39,7 +40,9 @@ class RbacAuthorizationServiceImplTest {
     void setUp() {
         CacheManager cacheManager =
                 new ConcurrentMapCacheManager(USER_AUTHORIZATION_SNAPSHOTS_CACHE);
-        service = new RbacAuthorizationServiceImpl(userRepository, cacheManager);
+        UserAuthorizationCacheService userAuthorizationCacheService =
+                new UserAuthorizationCacheService(cacheManager, userRepository);
+        service = new RbacAuthorizationServiceImpl(userRepository, userAuthorizationCacheService);
     }
 
     @Test

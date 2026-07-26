@@ -3,12 +3,16 @@ package com.lifebalance.identity.service.impl;
 import com.lifebalance.identity.dto.CreatePermissionRequest;
 import com.lifebalance.identity.dto.PermissionResponse;
 import com.lifebalance.identity.dto.UpdatePermissionRequest;
+import com.lifebalance.identity.audit.PermissionAuditEventPublisher;
+import com.lifebalance.identity.audit.PermissionAuditSnapshotMapper;
 import com.lifebalance.identity.exception.PermissionNotFoundException;
 import com.lifebalance.identity.exception.PermissionValidationException;
 import com.lifebalance.identity.model.Permission;
+import com.lifebalance.identity.model.enums.AuditAction;
 import com.lifebalance.identity.repository.PermissionRepository;
 import com.lifebalance.identity.service.PermissionBusinessValidator;
 import com.lifebalance.identity.service.PermissionService;
+import com.lifebalance.identity.service.UserAuthorizationCacheService;
 import jakarta.transaction.Transactional;
 import java.util.Collection;
 import java.util.List;
@@ -24,6 +28,9 @@ public class PermissionServiceImpl implements PermissionService {
 
     private final PermissionRepository permissionRepository;
     private final PermissionBusinessValidator permissionBusinessValidator;
+    private final UserAuthorizationCacheService userAuthorizationCacheService;
+    private final PermissionAuditSnapshotMapper permissionAuditSnapshotMapper;
+    private final PermissionAuditEventPublisher permissionAuditEventPublisher;
 
     @Override
     public List<PermissionResponse> getAllPermissions() {
@@ -71,6 +78,15 @@ public class PermissionServiceImpl implements PermissionService {
                 .system(false)
                 .build();
         permission = permissionRepository.save(permission);
+        
+        String newValue = permissionAuditSnapshotMapper.toJson(permission);
+        permissionAuditEventPublisher.publishPermissionAudit(
+                AuditAction.CREATE_PERMISSION,
+                permission.getId(),
+                null,
+                newValue,
+                "Permission created"
+        );
 
         return mapToResponse(permission);
     }
@@ -81,12 +97,24 @@ public class PermissionServiceImpl implements PermissionService {
         Permission permission = permissionRepository.findById(id)
                 .orElseThrow(() -> new PermissionNotFoundException(id));
         permissionBusinessValidator.validateUpdate(permission, request);
+        
+        String oldValue = permissionAuditSnapshotMapper.toJson(permission);
 
         permission.setCode(normalizeKey(request.getCode()));
         permission.setName(trimToNull(request.getName()));
         permission.setModule(normalizeKey(request.getModule()));
         permission.setDescription(trimToNull(request.getDescription()));
         permission = permissionRepository.save(permission);
+        
+        userAuthorizationCacheService.evictUsersByPermissionId(permission.getId());
+        String newValue = permissionAuditSnapshotMapper.toJson(permission);
+        permissionAuditEventPublisher.publishPermissionAudit(
+                AuditAction.UPDATE_PERMISSION,
+                permission.getId(),
+                oldValue,
+                newValue,
+                "Permission updated"
+        );
 
         return mapToResponse(permission);
     }
@@ -97,7 +125,17 @@ public class PermissionServiceImpl implements PermissionService {
         Permission permission = permissionRepository.findById(id)
                 .orElseThrow(() -> new PermissionNotFoundException(id));
         permissionBusinessValidator.validateDelete(permission);
+        
+        String oldValue = permissionAuditSnapshotMapper.toJson(permission);
         permissionRepository.delete(permission);
+        userAuthorizationCacheService.evictUsersByPermissionId(permission.getId());
+        permissionAuditEventPublisher.publishPermissionAudit(
+                AuditAction.DELETE_PERMISSION,
+                permission.getId(),
+                oldValue,
+                null,
+                "Permission deleted"
+        );
     }
 
     @Override
