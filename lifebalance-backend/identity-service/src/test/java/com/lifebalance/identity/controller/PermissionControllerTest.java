@@ -53,6 +53,7 @@ class PermissionControllerTest {
         CreatePermissionRequest request = new CreatePermissionRequest();
         request.setCode("test:read");
         request.setName("Test Read");
+        request.setModule("test");
         when(permissionService.create(any())).thenReturn(new PermissionResponse());
 
         mockMvc.perform(post("/permissions")
@@ -65,7 +66,9 @@ class PermissionControllerTest {
     void shouldUpdatePermission() throws Exception {
         UUID id = UUID.randomUUID();
         UpdatePermissionRequest request = new UpdatePermissionRequest();
+        request.setCode("test:update");
         request.setName("Updated Test");
+        request.setModule("test");
         when(permissionService.update(any(), any())).thenReturn(new PermissionResponse());
 
         mockMvc.perform(put("/permissions/" + id)

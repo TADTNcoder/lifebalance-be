@@ -28,7 +28,10 @@ class KeycloakUserMappingServiceImplTest {
 
     @Test
     void shouldMapJwtToCurrentUserCorrectly() {
-        Jwt jwt = Jwt.withTokenValue("token").header("alg", "none").build();
+        Jwt jwt = Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .claim("sub", "kc-123")
+                .build();
 
         KeycloakUserPrincipal principal = mock(KeycloakUserPrincipal.class);
         when(principal.subject()).thenReturn("kc-123");
