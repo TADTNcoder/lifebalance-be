@@ -13,6 +13,8 @@ import com.lifebalance.identity.model.Permission;
 
 public interface PermissionRepository extends JpaRepository<Permission, UUID> {
 
+    List<Permission> findAllByOrderByModuleAscCodeAsc();
+
     @Query("""
             SELECT permission
             FROM Permission permission
@@ -26,6 +28,17 @@ public interface PermissionRepository extends JpaRepository<Permission, UUID> {
             WHERE lower(permission.code) = lower(trim(:code))
             """)
     boolean existsByCode(@Param("code") String code);
+
+    @Query("""
+            SELECT count(permission) > 0
+            FROM Permission permission
+            WHERE lower(permission.code) = lower(trim(:code))
+              AND permission.id <> :id
+            """)
+    boolean existsByCodeAndIdNot(
+            @Param("code") String code,
+            @Param("id") UUID id
+    );
 
     @Query("""
             SELECT permission
@@ -54,4 +67,13 @@ public interface PermissionRepository extends JpaRepository<Permission, UUID> {
             ORDER BY permission.code
             """)
     List<Permission> findAllByRoleIds(@Param("roleIds") Collection<UUID> roleIds);
+
+    @Query("""
+            SELECT count(rolePermission) > 0
+            FROM RolePermission rolePermission
+            JOIN rolePermission.role role
+            WHERE rolePermission.permission.id = :permissionId
+              AND role.deletedAt IS NULL
+            """)
+    boolean existsAssignedToActiveRole(@Param("permissionId") UUID permissionId);
 }

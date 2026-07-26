@@ -8,6 +8,10 @@ import lombok.Data;
 public class UpdatePermissionRequest {
 
     @NotBlank
+    @Size(max = 150)
+    private String code;
+
+    @NotBlank
     @Size(max = 255)
     private String name;
 
@@ -17,4 +21,5 @@ public class UpdatePermissionRequest {
 
     private String description;
 
+    private Boolean system;
 }
