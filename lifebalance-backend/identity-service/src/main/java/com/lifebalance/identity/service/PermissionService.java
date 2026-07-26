@@ -24,4 +24,24 @@ public interface PermissionService {
     void deletePermission(UUID id);
 
     List<PermissionResponse> getPermissionsByRoleIds(Collection<UUID> roleIds);
+
+    default List<PermissionResponse> getAll() {
+        return getAllPermissions();
+    }
+
+    default PermissionResponse getById(UUID id) {
+        return getPermissionById(id);
+    }
+
+    default PermissionResponse create(CreatePermissionRequest request) {
+        return createPermission(request);
+    }
+
+    default PermissionResponse update(UUID id, UpdatePermissionRequest request) {
+        return updatePermission(id, request);
+    }
+
+    default void delete(UUID id) {
+        deletePermission(id);
+    }
 }

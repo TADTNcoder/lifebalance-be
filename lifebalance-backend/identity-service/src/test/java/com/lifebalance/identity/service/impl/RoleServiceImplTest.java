@@ -3,10 +3,15 @@ package com.lifebalance.identity.service.impl;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.lifebalance.identity.audit.RoleAuditEventPublisher;
+import com.lifebalance.identity.audit.RoleAuditSnapshotMapper;
 import com.lifebalance.identity.dto.CreateRoleRequest;
 import com.lifebalance.identity.dto.RoleResponse;
 import com.lifebalance.identity.dto.UpdateRoleRequest;
@@ -18,6 +23,7 @@ import com.lifebalance.identity.model.Permission;
 import com.lifebalance.identity.model.Role;
 import com.lifebalance.identity.model.RolePermission;
 import com.lifebalance.identity.model.RolePermissionId;
+import com.lifebalance.identity.model.enums.AuditAction;
 import com.lifebalance.identity.repository.PermissionRepository;
 import com.lifebalance.identity.repository.RolePermissionRepository;
 import com.lifebalance.identity.repository.RoleRepository;
@@ -47,6 +53,12 @@ class RoleServiceImplTest {
 
     @Mock
     private UserAuthorizationCacheService userAuthorizationCacheService;
+
+    @Mock
+    private RoleAuditSnapshotMapper roleAuditSnapshotMapper;
+
+    @Mock
+    private RoleAuditEventPublisher roleAuditEventPublisher;
 
     @Test
     void shouldCreateCustomRoleWithPermissions() {
@@ -78,6 +90,34 @@ class RoleServiceImplTest {
         assertThat(response.getName()).isEqualTo("Manager");
         assertThat(response.getSystem()).isFalse();
         assertThat(response.getPermissions()).extracting("id").containsExactly(permissionId);
+    }
+
+    @Test
+    void shouldPublishAuditEventWhenCreatingRole() {
+        UUID roleId = UUID.randomUUID();
+        UUID permissionId = UUID.randomUUID();
+        Permission permission = createPermission(permissionId, "task.read", "Task");
+        CreateRoleRequest request = createRoleRequest(" Manager ", " Manager ", " Operational managers ");
+        request.setPermissionIds(List.of(permissionId));
+        when(roleRepository.save(any(Role.class))).thenAnswer(invocation -> {
+            Role role = invocation.getArgument(0);
+            role.setId(roleId);
+            return role;
+        });
+        when(permissionRepository.findAllById(List.of(permissionId))).thenReturn(List.of(permission));
+        when(roleAuditSnapshotMapper.toJson(any(Role.class), eq(List.of(permission)))).thenReturn("new-role");
+
+        RoleServiceImpl service = createService();
+
+        service.createRole(request);
+
+        verify(roleAuditEventPublisher).publishRoleAudit(
+                eq(AuditAction.CREATE_ROLE),
+                eq(roleId),
+                isNull(),
+                eq("new-role"),
+                eq("Role created")
+        );
     }
 
     @Test
@@ -158,6 +198,36 @@ class RoleServiceImplTest {
     }
 
     @Test
+    void shouldPublishAuditEventWhenUpdatingRole() {
+        UUID roleId = UUID.randomUUID();
+        UUID oldPermissionId = UUID.randomUUID();
+        UUID newPermissionId = UUID.randomUUID();
+        Role role = createRole(roleId, false);
+        Permission oldPermission = createPermission(oldPermissionId, "task.read", "Task");
+        Permission newPermission = createPermission(newPermissionId, "task.write", "Task");
+        UpdateRoleRequest request = updateRoleRequest(" Updated Manager ", " Updated description ");
+        request.setPermissionIds(List.of(newPermissionId));
+        when(roleRepository.findById(roleId)).thenReturn(Optional.of(role));
+        when(permissionRepository.findByRoleId(roleId)).thenReturn(List.of(oldPermission));
+        when(roleRepository.save(role)).thenAnswer(invocation -> invocation.getArgument(0));
+        when(permissionRepository.findAllById(List.of(newPermissionId))).thenReturn(List.of(newPermission));
+        when(roleAuditSnapshotMapper.toJson(any(Role.class), any()))
+                .thenReturn("old-role", "new-role");
+
+        RoleServiceImpl service = createService();
+
+        service.updateRole(roleId, request);
+
+        verify(roleAuditEventPublisher).publishRoleAudit(
+                eq(AuditAction.UPDATE_ROLE),
+                eq(roleId),
+                eq("old-role"),
+                eq("new-role"),
+                eq("Role updated")
+        );
+    }
+
+    @Test
     void shouldKeepPermissionsWhenUpdateRequestDoesNotContainPermissionIds() {
         UUID roleId = UUID.randomUUID();
         UUID permissionId = UUID.randomUUID();
@@ -189,6 +259,7 @@ class RoleServiceImplTest {
                 .isInstanceOf(SystemRoleProtectedException.class)
                 .hasMessage("System role is protected: " + roleId);
         verify(roleRepository, never()).save(any());
+        verifyNoInteractions(roleAuditEventPublisher);
     }
 
     @Test
@@ -202,6 +273,29 @@ class RoleServiceImplTest {
         service.deleteRole(roleId);
 
         verify(roleRepository).delete(role);
+    }
+
+    @Test
+    void shouldPublishAuditEventWhenDeletingRole() {
+        UUID roleId = UUID.randomUUID();
+        UUID permissionId = UUID.randomUUID();
+        Role role = createRole(roleId, false);
+        Permission permission = createPermission(permissionId, "task.read", "Task");
+        when(roleRepository.findById(roleId)).thenReturn(Optional.of(role));
+        when(permissionRepository.findByRoleId(roleId)).thenReturn(List.of(permission));
+        when(roleAuditSnapshotMapper.toJson(role, List.of(permission))).thenReturn("old-role");
+
+        RoleServiceImpl service = createService();
+
+        service.deleteRole(roleId);
+
+        verify(roleAuditEventPublisher).publishRoleAudit(
+                eq(AuditAction.DELETE_ROLE),
+                eq(roleId),
+                eq("old-role"),
+                isNull(),
+                eq("Role deleted")
+        );
     }
 
     @Test
@@ -249,6 +343,33 @@ class RoleServiceImplTest {
         verify(rolePermissionRepository).deleteByRoleId(roleId);
         verify(rolePermissionRepository).saveAll(any());
         assertThat(response.getPermissions()).extracting("id").containsExactly(permissionId);
+    }
+
+    @Test
+    void shouldPublishAuditEventWhenAssigningRolePermissions() {
+        UUID roleId = UUID.randomUUID();
+        UUID oldPermissionId = UUID.randomUUID();
+        UUID newPermissionId = UUID.randomUUID();
+        Role role = createRole(roleId, false);
+        Permission oldPermission = createPermission(oldPermissionId, "task.read", "Task");
+        Permission newPermission = createPermission(newPermissionId, "finance.read", "Finance");
+        when(roleRepository.findById(roleId)).thenReturn(Optional.of(role));
+        when(permissionRepository.findByRoleId(roleId)).thenReturn(List.of(oldPermission));
+        when(permissionRepository.findAllById(List.of(newPermissionId))).thenReturn(List.of(newPermission));
+        when(roleAuditSnapshotMapper.toJson(any(Role.class), any()))
+                .thenReturn("old-role", "new-role");
+
+        RoleServiceImpl service = createService();
+
+        service.assignPermissionsToRole(roleId, List.of(newPermissionId));
+
+        verify(roleAuditEventPublisher).publishRoleAudit(
+                eq(AuditAction.ASSIGN_ROLE_PERMISSIONS),
+                eq(roleId),
+                eq("old-role"),
+                eq("new-role"),
+                eq("Role permissions changed")
+        );
     }
 
     @Test
@@ -303,7 +424,9 @@ class RoleServiceImplTest {
                 new RoleBusinessValidator(roleRepository),
                 permissionRepository,
                 rolePermissionRepository,
-                userAuthorizationCacheService
+                userAuthorizationCacheService,
+                roleAuditSnapshotMapper,
+                roleAuditEventPublisher
         );
     }
 

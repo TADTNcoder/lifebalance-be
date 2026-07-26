@@ -14,6 +14,8 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
+import com.lifebalance.identity.audit.RoleAuditEventPublisher;
+import com.lifebalance.identity.audit.RoleAuditSnapshotMapper;
 import com.lifebalance.identity.dto.CreateRoleRequest;
 import com.lifebalance.identity.dto.PermissionResponse;
 import com.lifebalance.identity.dto.RoleResponse;
@@ -31,6 +33,7 @@ import com.lifebalance.identity.repository.RoleRepository;
 import com.lifebalance.identity.service.RoleBusinessValidator;
 import com.lifebalance.identity.service.RoleService;
 import com.lifebalance.identity.service.UserAuthorizationCacheService;
+import com.lifebalance.identity.model.enums.AuditAction;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -44,6 +47,8 @@ public class RoleServiceImpl implements RoleService {
     private final PermissionRepository permissionRepository;
     private final RolePermissionRepository rolePermissionRepository;
     private final UserAuthorizationCacheService userAuthorizationCacheService;
+    private final RoleAuditSnapshotMapper roleAuditSnapshotMapper;
+    private final RoleAuditEventPublisher roleAuditEventPublisher;
 
     @Transactional
     @Override
@@ -58,6 +63,14 @@ public class RoleServiceImpl implements RoleService {
                 .build();
         role = roleRepository.save(role);
         List<Permission> permissions = replaceRolePermissions(role, request.getPermissionIds());
+        String newValue = roleAuditSnapshotMapper.toJson(role, permissions);
+        roleAuditEventPublisher.publishRoleAudit(
+                AuditAction.CREATE_ROLE,
+                role.getId(),
+                null,
+                newValue,
+                "Role created"
+        );
 
         return mapToResponse(role, permissions);
     }
@@ -97,16 +110,26 @@ public class RoleServiceImpl implements RoleService {
         Role role = roleRepository.findById(id)
                 .orElseThrow(() -> new RoleNotFoundException(id));
         roleBusinessValidator.validateUpdate(role, request);
+        List<Permission> oldPermissions = permissionRepository.findByRoleId(role.getId());
+        String oldValue = roleAuditSnapshotMapper.toJson(role, oldPermissions);
 
         role.setName(trimToNull(request.getName()));
         role.setDescription(trimToNull(request.getDescription()));
         role = roleRepository.save(role);
         List<Permission> permissions = request.getPermissionIds() == null
-                ? permissionRepository.findByRoleId(role.getId())
+                ? oldPermissions
                 : replaceRolePermissions(role, request.getPermissionIds());
         if (request.getPermissionIds() != null) {
             userAuthorizationCacheService.evictUsersByRoleId(role.getId());
         }
+        String newValue = roleAuditSnapshotMapper.toJson(role, permissions);
+        roleAuditEventPublisher.publishRoleAudit(
+                AuditAction.UPDATE_ROLE,
+                role.getId(),
+                oldValue,
+                newValue,
+                "Role updated"
+        );
 
         return mapToResponse(role, permissions);
     }
@@ -117,8 +140,17 @@ public class RoleServiceImpl implements RoleService {
         Role role = roleRepository.findById(id)
                 .orElseThrow(() -> new RoleNotFoundException(id));
         roleBusinessValidator.validateDelete(role);
+        List<Permission> permissions = permissionRepository.findByRoleId(role.getId());
+        String oldValue = roleAuditSnapshotMapper.toJson(role, permissions);
         roleRepository.delete(role);
         userAuthorizationCacheService.evictUsersByRoleId(role.getId());
+        roleAuditEventPublisher.publishRoleAudit(
+                AuditAction.DELETE_ROLE,
+                role.getId(),
+                oldValue,
+                null,
+                "Role deleted"
+        );
     }
 
     @Transactional
@@ -127,9 +159,19 @@ public class RoleServiceImpl implements RoleService {
         Role role = roleRepository.findById(roleId)
                 .orElseThrow(() -> new RoleNotFoundException(roleId));
         roleBusinessValidator.validateAssignPermissions(role);
+        List<Permission> oldPermissions = permissionRepository.findByRoleId(role.getId());
+        String oldValue = roleAuditSnapshotMapper.toJson(role, oldPermissions);
 
         List<Permission> permissions = replaceRolePermissions(role, permissionIds);
         userAuthorizationCacheService.evictUsersByRoleId(role.getId());
+        String newValue = roleAuditSnapshotMapper.toJson(role, permissions);
+        roleAuditEventPublisher.publishRoleAudit(
+                AuditAction.ASSIGN_ROLE_PERMISSIONS,
+                role.getId(),
+                oldValue,
+                newValue,
+                "Role permissions changed"
+        );
 
         return mapToResponse(role, permissions);
     }

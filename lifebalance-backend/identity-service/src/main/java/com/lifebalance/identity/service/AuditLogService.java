@@ -13,4 +13,6 @@ public interface AuditLogService {
             String ipAddress,
             String userAgent,
             String details);
+
+    void saveAudit(AuditLogCommand command);
 }
