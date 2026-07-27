@@ -3,6 +3,7 @@ package com.lifebalance.identity.service.impl;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -11,6 +12,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -21,16 +23,36 @@ import com.lifebalance.identity.exception.UserEmailAlreadyExistsException;
 import com.lifebalance.identity.exception.UserInactiveException;
 import com.lifebalance.identity.exception.UserUsernameAlreadyExistsException;
 import com.lifebalance.identity.exception.UserValidationException;
+import com.lifebalance.identity.model.Role;
 import com.lifebalance.identity.model.User;
+import com.lifebalance.identity.model.UserRole;
 import com.lifebalance.identity.model.enums.AccountStatus;
+import com.lifebalance.identity.repository.RoleRepository;
 import com.lifebalance.identity.repository.UserRepository;
+import com.lifebalance.identity.repository.UserRoleRepository;
 import com.lifebalance.identity.security.CurrentUser;
+import com.lifebalance.identity.service.UserAuthorizationCacheService;
 
 @ExtendWith(MockitoExtension.class)
 class InternalUserServiceImplTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private RoleRepository roleRepository;
+
+    @Mock
+    private UserRoleRepository userRoleRepository;
+
+    @Mock
+    private UserAuthorizationCacheService userAuthorizationCacheService;
+
+    @BeforeEach
+    void setUp() {
+        lenient().when(roleRepository.findByCodesIgnoreCase(any())).thenReturn(List.of());
+        lenient().when(userRoleRepository.findByUserId(any())).thenReturn(List.of());
+    }
 
     @Test
     void shouldReturnExistingActiveUser() {
@@ -39,7 +61,7 @@ class InternalUserServiceImplTest {
 
         when(userRepository.findByKeycloakId("kc-user-1")).thenReturn(Optional.of(user));
 
-        InternalUserServiceImpl service = new InternalUserServiceImpl(userRepository);
+        InternalUserServiceImpl service = createService();
 
         assertThat(service.findOrCreate(currentUser)).isSameAs(user);
         verify(userRepository, never()).save(any());
@@ -55,7 +77,7 @@ class InternalUserServiceImplTest {
         when(userRepository.existsByUsername("alice")).thenReturn(false);
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        InternalUserServiceImpl service = new InternalUserServiceImpl(userRepository);
+        InternalUserServiceImpl service = createService();
 
         User user = service.findOrCreate(currentUser);
 
@@ -79,7 +101,7 @@ class InternalUserServiceImplTest {
                 .thenReturn(false);
         when(userRepository.save(user)).thenReturn(user);
 
-        InternalUserServiceImpl service = new InternalUserServiceImpl(userRepository);
+        InternalUserServiceImpl service = createService();
 
         User result = service.findOrCreate(currentUser);
 
@@ -97,7 +119,7 @@ class InternalUserServiceImplTest {
         when(userRepository.existsDeletedByKeycloakId("kc-user-1")).thenReturn(false);
         when(userRepository.existsByEmail("alice@example.com")).thenReturn(true);
 
-        InternalUserServiceImpl service = new InternalUserServiceImpl(userRepository);
+        InternalUserServiceImpl service = createService();
 
         assertThatThrownBy(() -> service.findOrCreate(currentUser))
                 .isInstanceOf(UserEmailAlreadyExistsException.class)
@@ -114,7 +136,7 @@ class InternalUserServiceImplTest {
         when(userRepository.existsByUsernameAndIdNot("taken", user.getId()))
                 .thenReturn(true);
 
-        InternalUserServiceImpl service = new InternalUserServiceImpl(userRepository);
+        InternalUserServiceImpl service = createService();
 
         assertThatThrownBy(() -> service.findOrCreate(currentUser))
                 .isInstanceOf(UserUsernameAlreadyExistsException.class)
@@ -126,7 +148,7 @@ class InternalUserServiceImplTest {
     void shouldRejectMissingEmailClaim() {
         CurrentUser currentUser = createCurrentUser("kc-user-1", "alice", null);
 
-        InternalUserServiceImpl service = new InternalUserServiceImpl(userRepository);
+        InternalUserServiceImpl service = createService();
 
         assertThatThrownBy(() -> service.findOrCreate(currentUser))
                 .isInstanceOf(UserValidationException.class)
@@ -141,7 +163,7 @@ class InternalUserServiceImplTest {
 
         when(userRepository.findByKeycloakId("kc-user-1")).thenReturn(Optional.of(user));
 
-        InternalUserServiceImpl service = new InternalUserServiceImpl(userRepository);
+        InternalUserServiceImpl service = createService();
 
         assertThatThrownBy(() -> service.findOrCreate(currentUser))
                 .isInstanceOf(UserInactiveException.class)
@@ -156,7 +178,7 @@ class InternalUserServiceImplTest {
         when(userRepository.findByKeycloakId("kc-user-1")).thenReturn(Optional.empty());
         when(userRepository.existsDeletedByKeycloakId("kc-user-1")).thenReturn(true);
 
-        InternalUserServiceImpl service = new InternalUserServiceImpl(userRepository);
+        InternalUserServiceImpl service = createService();
 
         assertThatThrownBy(() -> service.findOrCreate(currentUser))
                 .isInstanceOf(UserInactiveException.class)
@@ -164,16 +186,87 @@ class InternalUserServiceImplTest {
         verify(userRepository, never()).save(any());
     }
 
+    @Test
+    void shouldAssignKnownKeycloakRolesWhenCreatingUserFromToken() {
+        UUID userId = UUID.randomUUID();
+        UUID roleId = UUID.randomUUID();
+        CurrentUser currentUser = createCurrentUser("kc-user-1", "alice", "alice@example.com", List.of("USER", "offline_access"));
+        Role userRole = createRole(roleId, "USER");
+
+        when(userRepository.findByKeycloakId("kc-user-1")).thenReturn(Optional.empty());
+        when(userRepository.existsDeletedByKeycloakId("kc-user-1")).thenReturn(false);
+        when(userRepository.existsByEmail("alice@example.com")).thenReturn(false);
+        when(userRepository.existsByUsername("alice")).thenReturn(false);
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+            User user = invocation.getArgument(0);
+            user.setId(userId);
+            return user;
+        });
+        when(roleRepository.findByCodesIgnoreCase(any())).thenReturn(List.of(userRole));
+
+        User user = createService().findOrCreate(currentUser);
+
+        ArgumentCaptor<List<UserRole>> userRolesCaptor = ArgumentCaptor.forClass(List.class);
+        verify(userRoleRepository).saveAll(userRolesCaptor.capture());
+        UserRole assignedRole = userRolesCaptor.getValue().getFirst();
+        assertThat(user.getId()).isEqualTo(userId);
+        assertThat(assignedRole.getId().getUserId()).isEqualTo(userId);
+        assertThat(assignedRole.getId().getRoleId()).isEqualTo(roleId);
+        assertThat(assignedRole.getRole()).isSameAs(userRole);
+        verify(userAuthorizationCacheService).evictUser(userId);
+    }
+
+    @Test
+    void shouldRemoveRolesMissingFromKeycloakTokenForExistingUser() {
+        UUID userId = UUID.randomUUID();
+        UUID staleRoleId = UUID.randomUUID();
+        CurrentUser currentUser = createCurrentUser("kc-user-1", "alice", "alice@example.com", List.of("offline_access"));
+        User user = createUser(AccountStatus.ACTIVE);
+        user.setId(userId);
+        Role staleRole = createRole(staleRoleId, "MANAGER");
+
+        when(userRepository.findByKeycloakId("kc-user-1")).thenReturn(Optional.of(user));
+        when(roleRepository.findByCodesIgnoreCase(any())).thenReturn(List.of());
+        when(userRoleRepository.findByUserId(userId)).thenReturn(List.of(UserRole.builder()
+                .role(staleRole)
+                .user(user)
+                .id(new com.lifebalance.identity.model.UserRoleId(userId, staleRoleId))
+                .build()));
+
+        createService().findOrCreate(currentUser);
+
+        verify(userRoleRepository).deleteByUserIdAndRoleIds(userId, List.of(staleRoleId));
+        verify(userAuthorizationCacheService).evictUser(userId);
+    }
+
     private static CurrentUser createCurrentUser() {
         return createCurrentUser("kc-user-1", "alice", "alice@example.com");
     }
 
     private static CurrentUser createCurrentUser(String userId, String username, String email) {
+        return createCurrentUser(userId, username, email, List.of("user"));
+    }
+
+    private static CurrentUser createCurrentUser(
+            String userId,
+            String username,
+            String email,
+            List<String> roles
+    ) {
         return new CurrentUser(
                 userId,
                 username,
                 email,
-                List.of("user")
+                roles
+        );
+    }
+
+    private InternalUserServiceImpl createService() {
+        return new InternalUserServiceImpl(
+                userRepository,
+                roleRepository,
+                userRoleRepository,
+                userAuthorizationCacheService
         );
     }
 
@@ -186,5 +279,14 @@ class InternalUserServiceImplTest {
         user.setStatus(status);
 
         return user;
+    }
+
+    private static Role createRole(UUID roleId, String code) {
+        Role role = new Role();
+        role.setId(roleId);
+        role.setCode(code);
+        role.setName(code);
+        role.setSystem(false);
+        return role;
     }
 }

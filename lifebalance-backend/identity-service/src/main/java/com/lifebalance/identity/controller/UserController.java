@@ -165,7 +165,7 @@ public class UserController {
                         @ApiResponse(responseCode = "409", description = "User already locked, deleted, or self-lock is not allowed")
         })
         @PatchMapping("/{id}/lock")
-        @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'user:update')")
+        @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'user:lock')")
         public UserResponse lockUser(
                         @Parameter(description = "User id in UUID format", required = true) @PathVariable UUID id,
                         @AuthenticationPrincipal Jwt jwt,
@@ -184,7 +184,7 @@ public class UserController {
                         @ApiResponse(responseCode = "409", description = "User is not locked or was already deleted")
         })
         @PatchMapping("/{id}/unlock")
-        @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'user:update')")
+        @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'user:unlock')")
         public UserResponse unlockUser(
                         @Parameter(description = "User id in UUID format", required = true) @PathVariable UUID id) {
                 return userService.unlockUser(id);

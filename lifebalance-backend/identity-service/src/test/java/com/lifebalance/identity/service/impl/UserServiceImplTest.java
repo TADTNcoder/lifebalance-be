@@ -32,6 +32,7 @@ import com.lifebalance.identity.exception.UserNotLockedException;
 import com.lifebalance.identity.exception.UserSelfLockNotAllowedException;
 import com.lifebalance.identity.exception.UserUsernameAlreadyExistsException;
 import com.lifebalance.identity.exception.UserValidationException;
+import com.lifebalance.identity.audit.UserAuditEventPublisher;
 import com.lifebalance.identity.model.User;
 import com.lifebalance.identity.model.enums.AccountStatus;
 import com.lifebalance.identity.repository.UserRepository;
@@ -49,6 +50,9 @@ class UserServiceImplTest {
 
     @Mock
     private UserAuthorizationCacheService userAuthorizationCacheService;
+
+    @Mock
+    private UserAuditEventPublisher userAuditEventPublisher;
 
     @Test
     void shouldReturnUserById() {
@@ -670,7 +674,8 @@ class UserServiceImplTest {
         return new UserServiceImpl(
                 userRepository,
                 userSessionRevocationService,
-                userAuthorizationCacheService
+                userAuthorizationCacheService,
+                userAuditEventPublisher
         );
     }
 

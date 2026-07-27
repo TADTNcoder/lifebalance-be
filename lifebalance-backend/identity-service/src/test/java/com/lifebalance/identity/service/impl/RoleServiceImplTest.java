@@ -14,6 +14,7 @@ import com.lifebalance.identity.audit.RoleAuditEventPublisher;
 import com.lifebalance.identity.audit.RoleAuditSnapshotMapper;
 import com.lifebalance.identity.dto.CreateRoleRequest;
 import com.lifebalance.identity.dto.RoleResponse;
+import com.lifebalance.identity.dto.RoleSyncResponse;
 import com.lifebalance.identity.dto.UpdateRoleRequest;
 import com.lifebalance.identity.exception.PermissionNotFoundException;
 import com.lifebalance.identity.exception.RoleAssignedToUserException;
@@ -174,6 +175,23 @@ class RoleServiceImplTest {
         assertThat(responses).extracting(RoleResponse::getCode).containsExactly("manager", "user");
         assertThat(responses.getFirst().getPermissions()).extracting("id").containsExactly(permissionId);
         assertThat(responses.get(1).getPermissions()).isEmpty();
+    }
+
+    @Test
+    void shouldSyncAllRolesToKeycloak() {
+        Role managerRole = createRole(UUID.randomUUID(), false);
+        Role userRole = createRole(UUID.randomUUID(), false);
+        userRole.setCode("user");
+        List<Role> roles = List.of(managerRole, userRole);
+        when(roleRepository.findAll()).thenReturn(roles);
+        when(roleSyncService.syncAllRoles(roles)).thenReturn(2);
+
+        RoleServiceImpl service = createService();
+
+        RoleSyncResponse response = service.syncAllRolesToKeycloak();
+
+        assertThat(response.syncedRoles()).isEqualTo(2);
+        verify(roleSyncService).syncAllRoles(roles);
     }
 
     @Test
