@@ -28,6 +28,7 @@ import com.lifebalance.identity.repository.PermissionRepository;
 import com.lifebalance.identity.repository.RolePermissionRepository;
 import com.lifebalance.identity.repository.RoleRepository;
 import com.lifebalance.identity.service.RoleBusinessValidator;
+import com.lifebalance.identity.service.RoleSyncService;
 import com.lifebalance.identity.service.UserAuthorizationCacheService;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -60,6 +61,9 @@ class RoleServiceImplTest {
     @Mock
     private RoleAuditEventPublisher roleAuditEventPublisher;
 
+    @Mock
+    private RoleSyncService roleSyncService;
+
     @Test
     void shouldCreateCustomRoleWithPermissions() {
         UUID permissionId = UUID.randomUUID();
@@ -81,6 +85,7 @@ class RoleServiceImplTest {
         verify(roleRepository).save(roleCaptor.capture());
         verify(rolePermissionRepository).deleteByRoleId(roleCaptor.getValue().getId());
         verify(rolePermissionRepository).saveAll(any());
+        verify(roleSyncService).syncCreatedRole(roleCaptor.getValue());
 
         assertThat(roleCaptor.getValue().getCode()).isEqualTo("manager");
         assertThat(roleCaptor.getValue().getName()).isEqualTo("Manager");
@@ -225,6 +230,7 @@ class RoleServiceImplTest {
                 eq("new-role"),
                 eq("Role updated")
         );
+        verify(roleSyncService).syncUpdatedRole(role);
     }
 
     @Test
@@ -273,6 +279,7 @@ class RoleServiceImplTest {
         service.deleteRole(roleId);
 
         verify(roleRepository).delete(role);
+        verify(roleSyncService).syncDeletedRole(role);
     }
 
     @Test
@@ -426,7 +433,8 @@ class RoleServiceImplTest {
                 rolePermissionRepository,
                 userAuthorizationCacheService,
                 roleAuditSnapshotMapper,
-                roleAuditEventPublisher
+                roleAuditEventPublisher,
+                roleSyncService
         );
     }
 

@@ -32,6 +32,7 @@ import com.lifebalance.identity.repository.RolePermissionRepository;
 import com.lifebalance.identity.repository.RoleRepository;
 import com.lifebalance.identity.service.RoleBusinessValidator;
 import com.lifebalance.identity.service.RoleService;
+import com.lifebalance.identity.service.RoleSyncService;
 import com.lifebalance.identity.service.UserAuthorizationCacheService;
 import com.lifebalance.identity.model.enums.AuditAction;
 
@@ -49,6 +50,7 @@ public class RoleServiceImpl implements RoleService {
     private final UserAuthorizationCacheService userAuthorizationCacheService;
     private final RoleAuditSnapshotMapper roleAuditSnapshotMapper;
     private final RoleAuditEventPublisher roleAuditEventPublisher;
+    private final RoleSyncService roleSyncService;
 
     @Transactional
     @Override
@@ -63,6 +65,7 @@ public class RoleServiceImpl implements RoleService {
                 .build();
         role = roleRepository.save(role);
         List<Permission> permissions = replaceRolePermissions(role, request.getPermissionIds());
+        roleSyncService.syncCreatedRole(role);
         String newValue = roleAuditSnapshotMapper.toJson(role, permissions);
         roleAuditEventPublisher.publishRoleAudit(
                 AuditAction.CREATE_ROLE,
@@ -119,6 +122,7 @@ public class RoleServiceImpl implements RoleService {
         List<Permission> permissions = request.getPermissionIds() == null
                 ? oldPermissions
                 : replaceRolePermissions(role, request.getPermissionIds());
+        roleSyncService.syncUpdatedRole(role);
         if (request.getPermissionIds() != null) {
             userAuthorizationCacheService.evictUsersByRoleId(role.getId());
         }
@@ -142,6 +146,7 @@ public class RoleServiceImpl implements RoleService {
         roleBusinessValidator.validateDelete(role);
         List<Permission> permissions = permissionRepository.findByRoleId(role.getId());
         String oldValue = roleAuditSnapshotMapper.toJson(role, permissions);
+        roleSyncService.syncDeletedRole(role);
         roleRepository.delete(role);
         userAuthorizationCacheService.evictUsersByRoleId(role.getId());
         roleAuditEventPublisher.publishRoleAudit(
