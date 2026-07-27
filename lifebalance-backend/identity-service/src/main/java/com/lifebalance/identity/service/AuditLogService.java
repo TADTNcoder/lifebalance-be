@@ -6,9 +6,10 @@ import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import com.lifebalance.identity.dto.AuditResponse;
+import com.lifebalance.identity.model.enums.AuditAction;
 import com.lifebalance.identity.model.AuditLog;
 import com.lifebalance.identity.model.User;
-import com.lifebalance.identity.model.enums.AuditAction;
 import com.lifebalance.identity.model.enums.AuditStatus;
 
 public interface AuditLogService {
@@ -23,9 +24,13 @@ public interface AuditLogService {
 
     void saveAudit(AuditLogCommand command);
 
-    List<AuditLog> getByUser(UUID userId);
-
-    List<AuditLog> getByAction(AuditAction action);
-
     Page<AuditLog> getAll(Pageable pageable);
+
+    Page<AuditLog> getByUser(
+            UUID userId,
+            Pageable pageable);
+
+    Page<AuditLog> getByAction(
+            AuditAction action,
+            Pageable pageable);
 }

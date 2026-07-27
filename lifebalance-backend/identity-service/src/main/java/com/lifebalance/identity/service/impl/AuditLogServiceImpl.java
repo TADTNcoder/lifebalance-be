@@ -77,17 +77,27 @@ public class AuditLogServiceImpl implements AuditLogService {
     }
 
     @Override
-    public List<AuditLog> getByUser(UUID userId) {
-        return auditLogRepository.findByUserId(userId);
-    }
-
-    @Override
-    public List<AuditLog> getByAction(AuditAction action) {
-        return auditLogRepository.findByAction(action);
-    }
-
-    @Override
     public Page<AuditLog> getAll(Pageable pageable) {
         return auditLogRepository.findAll(pageable);
+    }
+
+    @Override
+    public Page<AuditLog> getByUser(
+            UUID userId,
+            Pageable pageable) {
+
+        return auditLogRepository.findByUserId(
+                userId,
+                pageable);
+    }
+
+    @Override
+    public Page<AuditLog> getByAction(
+            AuditAction action,
+            Pageable pageable) {
+
+        return auditLogRepository.findByAction(
+                action,
+                pageable);
     }
 }

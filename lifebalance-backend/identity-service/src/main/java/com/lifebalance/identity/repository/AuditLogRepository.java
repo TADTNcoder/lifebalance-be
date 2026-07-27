@@ -1,6 +1,5 @@
 package com.lifebalance.identity.repository;
 
-import java.util.List;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.domain.Page;
@@ -11,9 +10,9 @@ import com.lifebalance.identity.model.enums.AuditAction;
 
 public interface AuditLogRepository extends JpaRepository<AuditLog, UUID> {
 
-    List<AuditLog> findByUserId(UUID userId);
-
-    List<AuditLog> findByAction(AuditAction action);
-
     Page<AuditLog> findAll(Pageable pageable);
+
+    Page<AuditLog> findByUserId(UUID userId, Pageable pageable);
+
+    Page<AuditLog> findByAction(AuditAction action, Pageable pageable);
 }
