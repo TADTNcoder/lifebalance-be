@@ -19,6 +19,7 @@ import com.lifebalance.identity.audit.RoleAuditSnapshotMapper;
 import com.lifebalance.identity.dto.CreateRoleRequest;
 import com.lifebalance.identity.dto.PermissionResponse;
 import com.lifebalance.identity.dto.RoleResponse;
+import com.lifebalance.identity.dto.RoleSyncResponse;
 import com.lifebalance.identity.dto.UpdateRoleRequest;
 import com.lifebalance.identity.exception.PermissionNotFoundException;
 import com.lifebalance.identity.exception.RoleNotFoundException;
@@ -179,6 +180,12 @@ public class RoleServiceImpl implements RoleService {
         );
 
         return mapToResponse(role, permissions);
+    }
+
+    @Override
+    public RoleSyncResponse syncAllRolesToKeycloak() {
+        int syncedRoles = roleSyncService.syncAllRoles(roleRepository.findAll());
+        return new RoleSyncResponse(syncedRoles);
     }
 
     private RoleResponse mapToResponse(Role role, List<Permission> permissions) {

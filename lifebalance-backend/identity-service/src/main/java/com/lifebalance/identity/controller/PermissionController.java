@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import com.lifebalance.identity.dto.CreatePermissionRequest;
 import com.lifebalance.identity.dto.PermissionResponse;
@@ -29,6 +30,7 @@ public class PermissionController {
             @ApiResponse(responseCode = "200", description = "Success")
     })
     @GetMapping
+    @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'permission:read')")
     public List<PermissionResponse> getAll() {
         return permissionService.getAll();
     }
@@ -39,6 +41,7 @@ public class PermissionController {
             @ApiResponse(responseCode = "404", description = "Permission not found")
     })
     @GetMapping("/{id}")
+    @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'permission:read')")
     public PermissionResponse getById(@PathVariable UUID id) {
         return permissionService.getById(id);
     }
@@ -49,6 +52,7 @@ public class PermissionController {
             @ApiResponse(responseCode = "400", description = "Validation failed")
     })
     @PostMapping
+    @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'permission:create')")
     public PermissionResponse create(
             @Valid @RequestBody CreatePermissionRequest request) {
 
@@ -61,6 +65,7 @@ public class PermissionController {
             @ApiResponse(responseCode = "404", description = "Permission not found")
     })
     @PutMapping("/{id}")
+    @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'permission:update')")
     public PermissionResponse update(
             @PathVariable UUID id,
             @Valid @RequestBody UpdatePermissionRequest request) {
@@ -74,6 +79,7 @@ public class PermissionController {
             @ApiResponse(responseCode = "404", description = "Permission not found")
     })
     @DeleteMapping("/{id}")
+    @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'permission:delete')")
     public void delete(@PathVariable UUID id) {
 
         permissionService.delete(id);

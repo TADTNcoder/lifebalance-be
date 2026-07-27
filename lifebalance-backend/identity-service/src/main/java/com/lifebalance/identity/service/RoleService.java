@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.UUID;
 import com.lifebalance.identity.dto.CreateRoleRequest;
 import com.lifebalance.identity.dto.RoleResponse;
+import com.lifebalance.identity.dto.RoleSyncResponse;
 import com.lifebalance.identity.dto.UpdateRoleRequest;
 
 public interface RoleService {
@@ -22,6 +23,8 @@ public interface RoleService {
     void deleteRole(UUID id);
 
     RoleResponse assignPermissionsToRole(UUID roleId, Collection<UUID> permissionIds);
+
+    RoleSyncResponse syncAllRolesToKeycloak();
 
     default RoleResponse create(CreateRoleRequest request) {
         return createRole(request);
