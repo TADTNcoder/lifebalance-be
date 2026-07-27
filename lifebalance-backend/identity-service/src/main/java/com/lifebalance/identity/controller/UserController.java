@@ -78,9 +78,17 @@ public class UserController {
         @PutMapping("/me")
         public UserResponse updateCurrentUser(
                         @AuthenticationPrincipal Jwt jwt,
+                        HttpServletRequest request,
                         @Valid @RequestBody UpdateUserRequest requestBody) {
                 CurrentUser currentUser = keycloakUserMappingService.map(jwt);
                 User user = internalUserService.updateCurrentUser(currentUser, requestBody);
+                auditLogService.saveAudit(
+                                user,
+                                AuditAction.UPDATE_USER,
+                                AuditStatus.SUCCESS,
+                                request.getRemoteAddr(),
+                                request.getHeader("User-Agent"),
+                                "User updated profile");
                 return toResponse(user);
         }
 
@@ -111,6 +119,7 @@ public class UserController {
         public UserResponse updateUser(
                         @Parameter(description = "User id in UUID format", required = true) @PathVariable UUID id,
                         @Valid @RequestBody UpdateUserRequest request) {
+
                 return userService.updateUser(id, request);
         }
 
@@ -198,6 +207,7 @@ public class UserController {
         @ApiResponses({
                         @ApiResponse(responseCode = "200", description = "Success")
         })
+
         @GetMapping
         @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'user:read')")
         public Page<UserResponse> searchUsers(
