@@ -1,24 +1,30 @@
 package com.lifebalance.identity.service.impl;
 
+import java.time.OffsetDateTime;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Service;
 
+import com.lifebalance.identity.dto.LockUserRequest;
 import com.lifebalance.identity.dto.UpdateUserRequest;
 import com.lifebalance.identity.dto.UserResponse;
 import com.lifebalance.identity.exception.UserActivationNotAllowedException;
 import com.lifebalance.identity.exception.UserAlreadyActiveException;
 import com.lifebalance.identity.exception.UserAlreadyDeletedException;
 import com.lifebalance.identity.exception.UserAlreadyDisabledException;
+import com.lifebalance.identity.exception.UserAlreadyLockedException;
 import com.lifebalance.identity.exception.UserEmailAlreadyExistsException;
 import com.lifebalance.identity.exception.UserNotFoundException;
+import com.lifebalance.identity.exception.UserNotLockedException;
+import com.lifebalance.identity.exception.UserSelfLockNotAllowedException;
 import com.lifebalance.identity.exception.UserUsernameAlreadyExistsException;
 import com.lifebalance.identity.exception.UserValidationException;
 import com.lifebalance.identity.model.User;
 import com.lifebalance.identity.model.enums.AccountStatus;
 import com.lifebalance.identity.repository.UserRepository;
+import com.lifebalance.identity.service.UserAuthorizationCacheService;
 import com.lifebalance.identity.service.UserSessionRevocationService;
 import com.lifebalance.identity.service.UserService;
 
@@ -39,6 +45,7 @@ public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
     private final UserSessionRevocationService userSessionRevocationService;
+    private final UserAuthorizationCacheService userAuthorizationCacheService;
 
     @Override
     public UserResponse getUserById(UUID id) {
@@ -80,7 +87,10 @@ public class UserServiceImpl implements UserService {
 
         user.setStatus(AccountStatus.ACTIVE);
 
-        return toResponse(userRepository.save(user));
+        User activatedUser = userRepository.save(user);
+        userAuthorizationCacheService.evictUser(activatedUser.getId());
+
+        return toResponse(activatedUser);
     }
 
     @Override
@@ -95,8 +105,65 @@ public class UserServiceImpl implements UserService {
         user.setStatus(AccountStatus.DISABLED);
         User disabledUser = userRepository.save(user);
         userSessionRevocationService.revokeSessions(disabledUser, "USER_DISABLED");
+        userAuthorizationCacheService.evictUser(disabledUser.getId());
 
         return toResponse(disabledUser);
+    }
+
+    @Override
+    @Transactional
+    public UserResponse lockUser(UUID id, String actorKeycloakId, LockUserRequest request) {
+        validateUserId(id);
+        String normalizedActorKeycloakId = validateActorKeycloakId(actorKeycloakId);
+        validateLockRequest(request);
+
+        User user = userRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> resolveMissingUserException(id));
+
+        if (user.getStatus() == AccountStatus.LOCKED) {
+            throw new UserAlreadyLockedException(id);
+        }
+        if (normalizedActorKeycloakId.equals(normalize(user.getKeycloakId()))) {
+            throw new UserSelfLockNotAllowedException(id);
+        }
+
+        OffsetDateTime lockedAt = OffsetDateTime.now();
+        user.setStatus(AccountStatus.LOCKED);
+        user.setLockReason(request.getReason().trim());
+        user.setLockedAt(lockedAt);
+        user.setLockedUntil(request.getLockedUntil());
+        user.setLockedByKeycloakId(normalizedActorKeycloakId);
+        user.setTokenValidAfter(lockedAt);
+
+        User lockedUser = userRepository.save(user);
+        userSessionRevocationService.revokeSessions(lockedUser, "USER_LOCKED");
+        userAuthorizationCacheService.evictUser(lockedUser.getId());
+
+        return toResponse(lockedUser);
+    }
+
+    @Override
+    @Transactional
+    public UserResponse unlockUser(UUID id) {
+        validateUserId(id);
+
+        User user = userRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> resolveMissingUserException(id));
+
+        if (user.getStatus() != AccountStatus.LOCKED) {
+            throw new UserNotLockedException(id);
+        }
+
+        user.setStatus(AccountStatus.ACTIVE);
+        user.setLockReason(null);
+        user.setLockedAt(null);
+        user.setLockedUntil(null);
+        user.setLockedByKeycloakId(null);
+
+        User unlockedUser = userRepository.save(user);
+        userAuthorizationCacheService.evictUser(unlockedUser.getId());
+
+        return toResponse(unlockedUser);
     }
 
     @Override
@@ -106,6 +173,7 @@ public class UserServiceImpl implements UserService {
 
         userRepository.delete(user);
         userSessionRevocationService.revokeSessions(user, "USER_DELETED");
+        userAuthorizationCacheService.evictUser(user.getId());
     }
 
     private User findExistingUser(UUID id) {
@@ -176,6 +244,28 @@ public class UserServiceImpl implements UserService {
         validateDisplayName(request.getDisplayName());
     }
 
+    private static String validateActorKeycloakId(String actorKeycloakId) {
+        String normalizedActorKeycloakId = normalize(actorKeycloakId);
+        if (normalizedActorKeycloakId == null) {
+            throw new UserValidationException("Actor keycloak id is required");
+        }
+
+        return normalizedActorKeycloakId;
+    }
+
+    private static void validateLockRequest(LockUserRequest request) {
+        if (request == null) {
+            throw new UserValidationException("Lock request is required");
+        }
+        if (normalize(request.getReason()) == null) {
+            throw new UserValidationException("Lock reason is required");
+        }
+        if (request.getLockedUntil() != null
+                && !request.getLockedUntil().isAfter(OffsetDateTime.now())) {
+            throw new UserValidationException("Locked until must be in the future");
+        }
+    }
+
     private static void validateEmail(String email) {
         if (email == null) {
             return;
@@ -230,6 +320,9 @@ public class UserServiceImpl implements UserService {
         response.setStatus(user.getStatus());
         response.setRegisteredAt(user.getRegisteredAt());
         response.setLastLoginAt(user.getLastLoginAt());
+        response.setLockReason(user.getLockReason());
+        response.setLockedAt(user.getLockedAt());
+        response.setLockedUntil(user.getLockedUntil());
 
         return response;
     }

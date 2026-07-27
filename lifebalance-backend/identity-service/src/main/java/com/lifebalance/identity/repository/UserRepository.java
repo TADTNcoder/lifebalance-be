@@ -6,24 +6,15 @@ import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.lifebalance.identity.model.User;
 
+import jakarta.persistence.LockModeType;
+
 public interface UserRepository extends JpaRepository<User, UUID> {
-
-  Optional<User> findByKeycloakId(String keycloakId);
-
-  @Query(value = """
-      SELECT DISTINCT role.code
-      FROM identity.user_roles user_role
-      JOIN identity.roles role ON role.id = user_role.role_id
-      WHERE user_role.user_id = :userId
-        AND role.deleted_at IS NULL
-      ORDER BY role.code
-      """, nativeQuery = true)
-  List<String> findRoleCodesByUserId(@Param("userId") UUID userId);
 
   @Query("""
       SELECT user
@@ -38,6 +29,16 @@ public interface UserRepository extends JpaRepository<User, UUID> {
       WHERE lower(user.username) = lower(:username)
       """)
   Optional<User> findByUsername(@Param("username") String username);
+
+  Optional<User> findByKeycloakId(String keycloakId);
+
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @Query("""
+      SELECT user
+      FROM User user
+      WHERE user.id = :id
+      """)
+  Optional<User> findByIdForUpdate(@Param("id") UUID id);
 
   @Query(value = """
       SELECT count(*) > 0
@@ -105,6 +106,26 @@ public interface UserRepository extends JpaRepository<User, UUID> {
       ORDER BY role.code
       """, nativeQuery = true)
   List<String> findPermissionCodesByUserId(@Param("userId") UUID userId);
+
+  @Query(value = """
+      SELECT DISTINCT user_role.user_id
+      FROM identity.user_roles user_role
+      JOIN identity.users user_account ON user_account.id = user_role.user_id
+      WHERE user_role.role_id = :roleId
+        AND user_account.deleted_at IS NULL
+      """, nativeQuery = true)
+  List<UUID> findUserIdsByRoleId(@Param("roleId") UUID roleId);
+
+  @Query(value = """
+      SELECT DISTINCT user_role.user_id
+      FROM identity.user_roles user_role
+      JOIN identity.users user_account ON user_account.id = user_role.user_id
+      JOIN identity.role_permissions role_permission
+        ON role_permission.role_id = user_role.role_id
+      WHERE role_permission.permission_id = :permissionId
+        AND user_account.deleted_at IS NULL
+      """, nativeQuery = true)
+  List<UUID> findUserIdsByPermissionId(@Param("permissionId") UUID permissionId);
 
   Page<User> findByUsernameContainingIgnoreCaseOrEmailContainingIgnoreCase(
       String username,

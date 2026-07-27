@@ -34,6 +34,12 @@ public class LifebalanceSecurityAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    public AuthorizationFailureLogger authorizationFailureLogger() {
+        return new AuthorizationFailureLogger();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     public LifebalanceAuthenticationEntryPoint lifebalanceAuthenticationEntryPoint(
             ObjectMapper objectMapper,
             AuthenticationFailureLogger authenticationFailureLogger
@@ -44,9 +50,10 @@ public class LifebalanceSecurityAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public LifebalanceAccessDeniedHandler lifebalanceAccessDeniedHandler(
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            AuthorizationFailureLogger authorizationFailureLogger
     ) {
-        return new LifebalanceAccessDeniedHandler(objectMapper);
+        return new LifebalanceAccessDeniedHandler(objectMapper, authorizationFailureLogger);
     }
 
     @Bean
@@ -73,7 +80,10 @@ public class LifebalanceSecurityAutoConfiguration {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/actuator/health/**",
-                                "/actuator/info"
+                                "/actuator/info",
+                                "/v3/api-docs/**",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html"
                         ).permitAll()
                         .requestMatchers(
                                 HttpMethod.GET,

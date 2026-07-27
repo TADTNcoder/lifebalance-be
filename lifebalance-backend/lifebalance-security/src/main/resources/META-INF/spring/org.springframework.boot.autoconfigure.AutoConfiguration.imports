@@ -1,1 +1,2 @@
 com.lifebalance.security.keycloak.LifebalanceSecurityAutoConfiguration
+com.lifebalance.security.method.LifebalanceMethodSecurityAutoConfiguration

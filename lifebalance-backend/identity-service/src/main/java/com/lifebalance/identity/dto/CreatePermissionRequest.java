@@ -21,4 +21,5 @@ public class CreatePermissionRequest {
 
     private String description;
 
+    private Boolean system = false;
 }
