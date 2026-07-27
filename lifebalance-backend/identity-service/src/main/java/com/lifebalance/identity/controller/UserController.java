@@ -94,7 +94,7 @@ public class UserController {
             @ApiResponse(responseCode = "404", description = "User not found")
     })
     @GetMapping("/{id}")
-    @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'user:read') || @permissionEvaluationService.isCurrentUser(authentication, #id)")
+    @PreAuthorize("hasPermission(#id, 'User', 'READ')")
     public UserResponse getUserById(
             @Parameter(description = "User id in UUID format", required = true)
             @PathVariable UUID id
@@ -111,7 +111,7 @@ public class UserController {
             @ApiResponse(responseCode = "409", description = "Email or username already exists")
     })
     @PatchMapping("/{id}")
-    @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'user:update')")
+    @PreAuthorize("hasPermission(#id, 'User', 'UPDATE')")
     public UserResponse updateUser(
             @Parameter(description = "User id in UUID format", required = true)
             @PathVariable UUID id,

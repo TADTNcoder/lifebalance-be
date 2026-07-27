@@ -15,9 +15,11 @@ import java.util.UUID;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lifebalance.common.error.AuthErrorCode;
+import com.lifebalance.identity.config.MethodSecurityConfig;
 import com.lifebalance.identity.config.SecurityConfig;
 import com.lifebalance.identity.dto.UserResponse;
 import com.lifebalance.identity.model.enums.AccountStatus;
+import com.lifebalance.identity.security.CustomPermissionEvaluator;
 import com.lifebalance.identity.service.AuditLogService;
 import com.lifebalance.identity.service.InternalUserService;
 import com.lifebalance.identity.service.KeycloakUserMappingService;
@@ -43,6 +45,8 @@ import org.springframework.test.web.servlet.MockMvc;
 @WebMvcTest(UserController.class)
 @Import({
         SecurityConfig.class,
+        MethodSecurityConfig.class,
+        CustomPermissionEvaluator.class,
         LifebalanceMethodSecurityAutoConfiguration.class,
         UserControllerMethodSecurityIntegrationTest.TestSecuritySupport.class
 })
@@ -72,7 +76,11 @@ class UserControllerMethodSecurityIntegrationTest {
     void shouldAllowAuthenticatedUserWithRequiredPermission() throws Exception {
         UserResponse response = createUserResponse(USER_ID);
 
-        when(permissionEvaluationService.hasPermission(any(Authentication.class), eq("user:read")))
+        when(permissionEvaluationService.hasPermission(
+                any(Authentication.class),
+                eq("user"),
+                eq("read")
+        ))
                 .thenReturn(true);
         when(userService.getUserById(USER_ID)).thenReturn(response);
 
@@ -88,7 +96,11 @@ class UserControllerMethodSecurityIntegrationTest {
 
     @Test
     void shouldReturnForbiddenWhenAuthenticatedUserLacksRequiredPermission() throws Exception {
-        when(permissionEvaluationService.hasPermission(any(Authentication.class), eq("user:read")))
+        when(permissionEvaluationService.hasPermission(
+                any(Authentication.class),
+                eq("user"),
+                eq("read")
+        ))
                 .thenReturn(false);
         when(permissionEvaluationService.isCurrentUser(any(Authentication.class), eq(USER_ID)))
                 .thenReturn(false);
@@ -103,6 +115,28 @@ class UserControllerMethodSecurityIntegrationTest {
                 .andExpect(jsonPath("$.timestamp").isNotEmpty());
 
         verify(userService, never()).getUserById(any());
+    }
+
+    @Test
+    void shouldAllowCurrentUserWhenReadPermissionIsMissing() throws Exception {
+        UserResponse response = createUserResponse(USER_ID);
+
+        when(permissionEvaluationService.hasPermission(
+                any(Authentication.class),
+                eq("user"),
+                eq("read")
+        ))
+                .thenReturn(false);
+        when(permissionEvaluationService.isCurrentUser(any(Authentication.class), eq(USER_ID)))
+                .thenReturn(true);
+        when(userService.getUserById(USER_ID)).thenReturn(response);
+
+        mockMvc.perform(get("/users/{id}", USER_ID)
+                        .with(jwt().jwt(jwt -> jwt.subject("kc-user-1"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(USER_ID.toString()));
+
+        verify(userService).getUserById(USER_ID);
     }
 
     @Test
