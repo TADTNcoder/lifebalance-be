@@ -14,13 +14,11 @@ import com.lifebalance.identity.service.PermissionBusinessValidator;
 import com.lifebalance.identity.service.PermissionService;
 import com.lifebalance.identity.service.UserAuthorizationCacheService;
 import jakarta.transaction.Transactional;
-
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
-
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -80,14 +78,15 @@ public class PermissionServiceImpl implements PermissionService {
                 .system(false)
                 .build();
         permission = permissionRepository.save(permission);
-
+        
         String newValue = permissionAuditSnapshotMapper.toJson(permission);
         permissionAuditEventPublisher.publishPermissionAudit(
                 AuditAction.CREATE_PERMISSION,
                 permission.getId(),
                 null,
                 newValue,
-                "Permission created");
+                "Permission created"
+        );
 
         return mapToResponse(permission);
     }
@@ -98,7 +97,7 @@ public class PermissionServiceImpl implements PermissionService {
         Permission permission = permissionRepository.findById(id)
                 .orElseThrow(() -> new PermissionNotFoundException(id));
         permissionBusinessValidator.validateUpdate(permission, request);
-
+        
         String oldValue = permissionAuditSnapshotMapper.toJson(permission);
 
         permission.setCode(normalizeKey(request.getCode()));
@@ -106,7 +105,7 @@ public class PermissionServiceImpl implements PermissionService {
         permission.setModule(normalizeKey(request.getModule()));
         permission.setDescription(trimToNull(request.getDescription()));
         permission = permissionRepository.save(permission);
-
+        
         userAuthorizationCacheService.evictUsersByPermissionId(permission.getId());
         String newValue = permissionAuditSnapshotMapper.toJson(permission);
         permissionAuditEventPublisher.publishPermissionAudit(
@@ -114,7 +113,8 @@ public class PermissionServiceImpl implements PermissionService {
                 permission.getId(),
                 oldValue,
                 newValue,
-                "Permission updated");
+                "Permission updated"
+        );
 
         return mapToResponse(permission);
     }
@@ -125,7 +125,7 @@ public class PermissionServiceImpl implements PermissionService {
         Permission permission = permissionRepository.findById(id)
                 .orElseThrow(() -> new PermissionNotFoundException(id));
         permissionBusinessValidator.validateDelete(permission);
-
+        
         String oldValue = permissionAuditSnapshotMapper.toJson(permission);
         permissionRepository.delete(permission);
         userAuthorizationCacheService.evictUsersByPermissionId(permission.getId());
@@ -134,7 +134,8 @@ public class PermissionServiceImpl implements PermissionService {
                 permission.getId(),
                 oldValue,
                 null,
-                "Permission deleted");
+                "Permission deleted"
+        );
     }
 
     @Override

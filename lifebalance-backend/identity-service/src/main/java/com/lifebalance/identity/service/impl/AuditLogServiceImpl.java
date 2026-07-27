@@ -14,11 +14,6 @@ import com.lifebalance.identity.service.AuditLogCommand;
 import com.lifebalance.identity.service.AuditLogService;
 
 import lombok.RequiredArgsConstructor;
-import java.util.List;
-import java.util.UUID;
-
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 
 @Service
 @RequiredArgsConstructor
@@ -76,28 +71,4 @@ public class AuditLogServiceImpl implements AuditLogService {
         auditLogRepository.save(auditLog);
     }
 
-    @Override
-    public Page<AuditLog> getAll(Pageable pageable) {
-        return auditLogRepository.findAll(pageable);
-    }
-
-    @Override
-    public Page<AuditLog> getByUser(
-            UUID userId,
-            Pageable pageable) {
-
-        return auditLogRepository.findByUserId(
-                userId,
-                pageable);
-    }
-
-    @Override
-    public Page<AuditLog> getByAction(
-            AuditAction action,
-            Pageable pageable) {
-
-        return auditLogRepository.findByAction(
-                action,
-                pageable);
-    }
 }
