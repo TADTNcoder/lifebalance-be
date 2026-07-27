@@ -38,6 +38,12 @@ public enum AuditAction {
 
     ASSIGN_ROLE,
 
-    REVOKE_ROLE
+    REVOKE_ROLE,
+
+    CREATE_USER,
+
+    REMOVE_ROLE,
+
+    REMOVE_PERMISSION
 
 }
