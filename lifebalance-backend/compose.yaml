@@ -203,6 +203,10 @@ services:
       KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:-}
       KEYCLOAK_ADMIN_USERNAME: ${KEYCLOAK_ADMIN}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KEYCLOAK_JWK_SET_URI: ${KEYCLOAK_JWK_SET_URI_INTERNAL:-http://keycloak:8080/realms/lifebalance/protocol/openid-connect/certs}
+      KEYCLOAK_ALLOWED_ISSUERS: ${KEYCLOAK_ALLOWED_ISSUERS:-http://localhost:8080/realms/lifebalance,http://localhost:8082/realms/lifebalance,http://keycloak:8080/realms/lifebalance}
+      LIFEBALANCE_SECURITY_KEYCLOAK_JWT_JWK_SET_URI: ${KEYCLOAK_JWK_SET_URI_INTERNAL:-http://keycloak:8080/realms/lifebalance/protocol/openid-connect/certs}
+      LIFEBALANCE_SECURITY_KEYCLOAK_JWT_ALLOWED_ISSUERS: ${KEYCLOAK_ALLOWED_ISSUERS:-http://localhost:8080/realms/lifebalance,http://localhost:8082/realms/lifebalance,http://keycloak:8080/realms/lifebalance}
     expose:
       - "8080"
     volumes:
