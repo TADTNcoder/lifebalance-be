@@ -1,8 +1,17 @@
 package com.lifebalance.identity.service.impl;
 
 import java.util.Locale;
+import java.time.OffsetDateTime;
+import java.util.Collection;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.data.domain.Page;
@@ -14,10 +23,16 @@ import com.lifebalance.identity.exception.UserInactiveException;
 import com.lifebalance.identity.exception.UserUsernameAlreadyExistsException;
 import com.lifebalance.identity.exception.UserValidationException;
 import com.lifebalance.identity.model.User;
+import com.lifebalance.identity.model.Role;
+import com.lifebalance.identity.model.UserRole;
+import com.lifebalance.identity.model.UserRoleId;
 import com.lifebalance.identity.model.enums.AccountStatus;
+import com.lifebalance.identity.repository.RoleRepository;
 import com.lifebalance.identity.repository.UserRepository;
+import com.lifebalance.identity.repository.UserRoleRepository;
 import com.lifebalance.identity.security.CurrentUser;
 import com.lifebalance.identity.service.InternalUserService;
+import com.lifebalance.identity.service.UserAuthorizationCacheService;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +42,9 @@ import lombok.RequiredArgsConstructor;
 public class InternalUserServiceImpl implements InternalUserService {
 
     private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
+    private final UserRoleRepository userRoleRepository;
+    private final UserAuthorizationCacheService userAuthorizationCacheService;
 
     @Transactional
     @Override
@@ -38,7 +56,9 @@ public class InternalUserServiceImpl implements InternalUserService {
 
         if (optionalUser.isPresent()) {
             User user = requireActive(optionalUser.get());
-            return syncIdentityClaims(user, currentUser);
+            user = syncIdentityClaims(user, currentUser);
+            syncRolesFromToken(user, currentUser.getRoles());
+            return user;
         }
         if (userRepository.existsDeletedByKeycloakId(keycloakId)) {
             throw new UserInactiveException(AccountStatus.DELETED);
@@ -57,7 +77,9 @@ public class InternalUserServiceImpl implements InternalUserService {
         user.setKeycloakId(keycloakId);
         user.setUsername(username);
         user.setEmail(email);
-        return userRepository.save(user);
+        user = userRepository.save(user);
+        syncRolesFromToken(user, currentUser.getRoles());
+        return user;
     }
 
     @Override
@@ -138,6 +160,63 @@ public class InternalUserServiceImpl implements InternalUserService {
         }
 
         return changed ? userRepository.save(user) : user;
+    }
+
+    private void syncRolesFromToken(User user, Collection<String> tokenRoles) {
+        if (user.getId() == null) {
+            return;
+        }
+
+        Set<String> normalizedTokenRoles = normalizeRoles(tokenRoles);
+        if (normalizedTokenRoles.isEmpty()) {
+            return;
+        }
+
+        List<Role> matchedRoles = roleRepository.findByCodesIgnoreCase(normalizedTokenRoles);
+        Map<UUID, Role> targetRolesById = matchedRoles.stream()
+                .collect(Collectors.toMap(Role::getId, Function.identity()));
+        List<UserRole> existingUserRoles = userRoleRepository.findByUserId(user.getId());
+        Set<UUID> existingRoleIds = existingUserRoles.stream()
+                .map(userRole -> userRole.getRole().getId())
+                .collect(Collectors.toSet());
+
+        List<UUID> staleRoleIds = existingUserRoles.stream()
+                .filter(userRole -> !targetRolesById.containsKey(userRole.getRole().getId()))
+                .map(userRole -> userRole.getRole().getId())
+                .toList();
+        if (!staleRoleIds.isEmpty()) {
+            userRoleRepository.deleteByUserIdAndRoleIds(user.getId(), staleRoleIds);
+        }
+
+        OffsetDateTime assignedAt = OffsetDateTime.now();
+        List<UserRole> missingUserRoles = targetRolesById.values().stream()
+                .filter(role -> !existingRoleIds.contains(role.getId()))
+                .map(role -> UserRole.builder()
+                        .id(new UserRoleId(user.getId(), role.getId()))
+                        .user(user)
+                        .role(role)
+                        .assignedAt(assignedAt)
+                        .build())
+                .toList();
+        if (!missingUserRoles.isEmpty()) {
+            userRoleRepository.saveAll(missingUserRoles);
+        }
+
+        if (!staleRoleIds.isEmpty() || !missingUserRoles.isEmpty()) {
+            userAuthorizationCacheService.evictUser(user.getId());
+        }
+    }
+
+    private static Set<String> normalizeRoles(Collection<String> roles) {
+        if (roles == null || roles.isEmpty()) {
+            return Set.of();
+        }
+
+        return roles.stream()
+                .map(InternalUserServiceImpl::normalize)
+                .filter(Objects::nonNull)
+                .map(value -> value.toLowerCase(Locale.ROOT))
+                .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
     private static void validateCurrentUser(CurrentUser currentUser) {
