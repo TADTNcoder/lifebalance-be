@@ -112,8 +112,8 @@ class IdentityEntityPersistenceTests {
     @Test
     void softDeletesPermissionInsteadOfRemovingRow() {
         Permission permission = Permission.builder()
-                .code("permission:delete")
-                .name("Delete Permissions")
+                .code("permission:archive")
+                .name("Archive Permissions")
                 .module("identity")
                 .build();
 

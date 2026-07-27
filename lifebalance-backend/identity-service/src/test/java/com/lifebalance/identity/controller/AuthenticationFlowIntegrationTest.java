@@ -42,13 +42,17 @@ class AuthenticationFlowIntegrationTest {
     void shouldAcceptAuthenticatedRequestWithValidJwtToken() throws Exception {
         // Tạo một object JWT giả lập hợp lệ
         Jwt mockJwt = new Jwt("fake-token", Instant.now(), Instant.now().plusSeconds(3600),
-                Map.of("alg", "RS256"), Map.of("preferred_username", "testuser"));
+                Map.of("alg", "RS256"), Map.of(
+                "sub", "kc-test-user",
+                "preferred_username", "testuser",
+                "email", "testuser@example.com"
+        ));
 
         // Khi hệ thống đòi giải mã, trả về cái token giả này
         when(jwtDecoder.decode(anyString())).thenReturn(mockJwt);
 
         // Kịch bản 2: Có truyền Header Authorization -> Đi qua màng lọc, trả về 200 OK
-        mockMvc.perform(get("/roles")
+        mockMvc.perform(get("/auth/check-permission")
                         .header("Authorization", "Bearer fake-token"))
                 .andExpect(status().isOk());
     }

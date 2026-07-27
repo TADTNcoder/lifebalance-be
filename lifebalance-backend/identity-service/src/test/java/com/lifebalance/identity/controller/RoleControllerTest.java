@@ -19,6 +19,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lifebalance.identity.dto.CreateRoleRequest;
 import com.lifebalance.identity.dto.RoleResponse;
+import com.lifebalance.identity.dto.RoleSyncResponse;
 import com.lifebalance.identity.dto.UpdateRoleRequest;
 import com.lifebalance.identity.service.RoleService;
 
@@ -59,6 +60,13 @@ class RoleControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void shouldSyncAllRolesToKeycloak() throws Exception {
+        when(roleService.syncAllRolesToKeycloak()).thenReturn(new RoleSyncResponse(3));
+
+        mockMvc.perform(post("/roles/sync/keycloak")).andExpect(status().isOk());
     }
 
     @Test

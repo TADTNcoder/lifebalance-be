@@ -21,6 +21,7 @@ class IdentityFlywayMigrationTest {
             "audit:export",
             "audit:read",
             "permission:create",
+            "permission:delete",
             "permission:read",
             "permission:update",
             "profile:read",
