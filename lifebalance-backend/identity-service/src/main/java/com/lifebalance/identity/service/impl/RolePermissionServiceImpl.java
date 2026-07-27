@@ -80,6 +80,26 @@ public class RolePermissionServiceImpl implements RolePermissionService {
 
     @Override
     public List<PermissionResponse> getPermissions(UUID roleId) {
-        return List.of();
+
+        return rolePermissionRepository.findByIdRoleId(roleId)
+                .stream()
+                .map(RolePermission::getPermission)
+                .map(this::mapToResponse)
+                .toList();
+    }
+
+    private PermissionResponse mapToResponse(Permission permission) {
+
+        PermissionResponse response = new PermissionResponse();
+
+        response.setId(permission.getId());
+        response.setCode(permission.getCode());
+        response.setName(permission.getName());
+        response.setModule(permission.getModule());
+        response.setDescription(permission.getDescription());
+        response.setCreatedAt(permission.getCreatedAt());
+        response.setUpdatedAt(permission.getUpdatedAt());
+
+        return response;
     }
 }
