@@ -66,10 +66,6 @@ public class UserController {
 
                 return response;
 
-        private final InternalUserService internalUserService;
-        private final KeycloakUserMappingService keycloakUserMappingService;
-        private final UserService userService;
-        private final AuditLogService auditLogService;
 
         @Operation(summary = "Get user by id", description = "Returns detail information for the requested user")
         @ApiResponses({

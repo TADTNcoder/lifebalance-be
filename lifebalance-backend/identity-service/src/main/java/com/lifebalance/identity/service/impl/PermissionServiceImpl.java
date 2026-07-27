@@ -13,7 +13,6 @@ import com.lifebalance.identity.repository.PermissionRepository;
 import com.lifebalance.identity.service.PermissionService;
 
 import jakarta.transaction.Transactional;
-import jakarta.validation.OverridesAttribute;
 import lombok.RequiredArgsConstructor;
 
 @Service
