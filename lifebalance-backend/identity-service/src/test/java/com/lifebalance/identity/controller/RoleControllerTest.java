@@ -1,6 +1,8 @@
 package com.lifebalance.identity.controller;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -24,7 +26,7 @@ import com.lifebalance.identity.dto.UpdateRoleRequest;
 import com.lifebalance.identity.service.RoleService;
 
 @WebMvcTest(RoleController.class)
-@AutoConfigureMockMvc(addFilters = false)
+@AutoConfigureMockMvc(addFilters = false) // Tắt filter bảo mật để test đúng nghiệp vụ Controller
 class RoleControllerTest {
 
     @Autowired
@@ -38,15 +40,29 @@ class RoleControllerTest {
 
     @Test
     void shouldGetAllRoles() throws Exception {
-        when(roleService.getAll()).thenReturn(List.of(new RoleResponse()));
+        // Sửa lại thành getAllRoles() cho khớp với RoleService
+        when(roleService.getAllRoles()).thenReturn(List.of(new RoleResponse()));
+
         mockMvc.perform(get("/roles")).andExpect(status().isOk());
     }
 
     @Test
     void shouldGetRoleById() throws Exception {
         UUID id = UUID.randomUUID();
-        when(roleService.getById(id)).thenReturn(new RoleResponse());
-        mockMvc.perform(get("/roles/" + id)).andExpect(status().isOk());
+
+        // Sửa lại thành getRoleById()
+        when(roleService.getRoleById(id)).thenReturn(new RoleResponse());
+
+        mockMvc.perform(get("/roles/{id}", id)).andExpect(status().isOk());
+    }
+
+    // BỔ SUNG: Test cho API lấy Role theo Code
+    @Test
+    void shouldGetRoleByCode() throws Exception {
+        String code = "ADMIN";
+        when(roleService.getRoleByCode(code)).thenReturn(new RoleResponse());
+
+        mockMvc.perform(get("/roles/code/{code}", code)).andExpect(status().isOk());
     }
 
     @Test
@@ -54,7 +70,9 @@ class RoleControllerTest {
         CreateRoleRequest request = new CreateRoleRequest();
         request.setCode("admin");
         request.setName("Admin Role");
-        when(roleService.create(any())).thenReturn(new RoleResponse());
+
+        // Sửa lại thành createRole()
+        when(roleService.createRole(any(CreateRoleRequest.class))).thenReturn(new RoleResponse());
 
         mockMvc.perform(post("/roles")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -74,16 +92,37 @@ class RoleControllerTest {
         UUID id = UUID.randomUUID();
         UpdateRoleRequest request = new UpdateRoleRequest();
         request.setName("Updated Role");
-        when(roleService.update(any(), any())).thenReturn(new RoleResponse());
 
-        mockMvc.perform(put("/roles/" + id)
+        // Sửa lại thành updateRole()
+        when(roleService.updateRole(eq(id), any(UpdateRoleRequest.class))).thenReturn(new RoleResponse());
+
+        mockMvc.perform(put("/roles/{id}", id)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk());
     }
 
+    // BỔ SUNG: Test cho API gán Permission vào Role
+    @Test
+    void shouldAssignPermissions() throws Exception {
+        UUID id = UUID.randomUUID();
+        List<UUID> permissionIds = List.of(UUID.randomUUID(), UUID.randomUUID());
+
+        when(roleService.assignPermissionsToRole(eq(id), any())).thenReturn(new RoleResponse());
+
+        mockMvc.perform(put("/roles/{id}/permissions", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(permissionIds)))
+                .andExpect(status().isOk());
+    }
+
     @Test
     void shouldDeleteRole() throws Exception {
-        mockMvc.perform(delete("/roles/" + UUID.randomUUID())).andExpect(status().isOk());
+        UUID id = UUID.randomUUID();
+
+        // Sửa lại thành deleteRole()
+        doNothing().when(roleService).deleteRole(id);
+
+        mockMvc.perform(delete("/roles/{id}", id)).andExpect(status().isOk());
     }
 }
