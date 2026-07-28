@@ -55,10 +55,7 @@ public class PermissionController {
     })
     @GetMapping("/{id}")
     @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'permission:read')")
-    public PermissionResponse getById(
-            @Parameter(description = "Permission id in UUID format", required = true)
-            @PathVariable UUID id
-    ) {
+    public PermissionResponse getById(@PathVariable UUID id) {
         return permissionService.getById(id);
     }
 

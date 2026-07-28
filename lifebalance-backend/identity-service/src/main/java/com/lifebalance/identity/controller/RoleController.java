@@ -6,6 +6,7 @@ import java.util.UUID;
 import com.lifebalance.identity.config.OpenApiConfig;
 import com.lifebalance.identity.dto.CreateRoleRequest;
 import com.lifebalance.identity.dto.RoleResponse;
+import com.lifebalance.identity.dto.RoleSyncResponse;
 import com.lifebalance.identity.dto.UpdateRoleRequest;
 import com.lifebalance.identity.service.RoleService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -61,6 +62,18 @@ public class RoleController {
     @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'role:create')")
     public RoleResponse create(@Valid @RequestBody CreateRoleRequest request) {
         return roleService.createRole(request);
+    }
+
+    @Operation(summary = "Synchronize all roles to Keycloak")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Synchronized successfully"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "403", description = "Forbidden")
+    })
+    @PostMapping("/sync/keycloak")
+    @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'role:update')")
+    public RoleSyncResponse syncAllToKeycloak() {
+        return roleService.syncAllRolesToKeycloak();
     }
 
     @Operation(summary = "Get role by id")

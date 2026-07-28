@@ -1,9 +1,10 @@
 package com.lifebalance.identity.repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.List;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -65,6 +66,13 @@ public interface RoleRepository extends JpaRepository<Role, UUID> {
         List<Role> findBySystemTrueOrderByCodeAsc();
 
         List<Role> findBySystemFalseOrderByCodeAsc();
+
+        @Query("""
+                        SELECT role
+                        FROM Role role
+                        WHERE lower(role.code) IN :codes
+                        """)
+        List<Role> findByCodesIgnoreCase(@Param("codes") Collection<String> codes);
 
         @Query("""
                         SELECT count(userRole) > 0

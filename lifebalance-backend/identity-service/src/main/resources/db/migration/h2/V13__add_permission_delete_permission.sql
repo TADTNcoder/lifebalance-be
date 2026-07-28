@@ -1,21 +1,21 @@
 -- H2 test migration equivalent for the missing permission delete grant.
-
 MERGE INTO identity.permissions (
     code,
     name,
     module,
     description,
     is_system,
+    created_at,
     updated_at,
     deleted_at
-)
-KEY (code)
+) KEY (code)
 VALUES (
     'permission:delete',
     'Delete Permissions',
     'permission_management',
     'Allows deleting permissions.',
     true,
+    CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP,
     NULL
 );

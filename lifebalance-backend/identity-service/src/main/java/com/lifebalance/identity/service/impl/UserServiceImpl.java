@@ -7,6 +7,7 @@ import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Service;
 
+import com.lifebalance.identity.audit.UserAuditEventPublisher;
 import com.lifebalance.identity.dto.LockUserRequest;
 import com.lifebalance.identity.dto.UpdateUserRequest;
 import com.lifebalance.identity.dto.UserResponse;
@@ -23,6 +24,7 @@ import com.lifebalance.identity.exception.UserUsernameAlreadyExistsException;
 import com.lifebalance.identity.exception.UserValidationException;
 import com.lifebalance.identity.model.User;
 import com.lifebalance.identity.model.enums.AccountStatus;
+import com.lifebalance.identity.model.enums.AuditAction;
 import com.lifebalance.identity.repository.UserRepository;
 import com.lifebalance.identity.service.UserAuthorizationCacheService;
 import com.lifebalance.identity.service.UserSessionRevocationService;
@@ -46,6 +48,7 @@ public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final UserSessionRevocationService userSessionRevocationService;
     private final UserAuthorizationCacheService userAuthorizationCacheService;
+    private final UserAuditEventPublisher userAuditEventPublisher;
 
     @Override
     public UserResponse getUserById(UUID id) {
@@ -64,12 +67,21 @@ public class UserServiceImpl implements UserService {
 
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new UserNotFoundException(id));
+        User oldUser = auditCopy(user);
 
         applyEmailUpdate(user, request.getEmail());
         applyUsernameUpdate(user, request.getUsername());
         applyDisplayNameUpdate(user, request.getDisplayName());
 
-        return toResponse(userRepository.save(user));
+        User updatedUser = userRepository.save(user);
+        userAuditEventPublisher.publishUserAudit(
+                AuditAction.UPDATE_USER,
+                oldUser,
+                updatedUser,
+                "User updated"
+        );
+
+        return toResponse(updatedUser);
     }
 
     @Override
@@ -85,10 +97,17 @@ public class UserServiceImpl implements UserService {
             throw new UserActivationNotAllowedException(id, user.getStatus());
         }
 
+        User oldUser = auditCopy(user);
         user.setStatus(AccountStatus.ACTIVE);
 
         User activatedUser = userRepository.save(user);
         userAuthorizationCacheService.evictUser(activatedUser.getId());
+        userAuditEventPublisher.publishUserAudit(
+                AuditAction.ACTIVATE_USER,
+                oldUser,
+                activatedUser,
+                "User activated"
+        );
 
         return toResponse(activatedUser);
     }
@@ -102,10 +121,17 @@ public class UserServiceImpl implements UserService {
             throw new UserAlreadyDisabledException(id);
         }
 
+        User oldUser = auditCopy(user);
         user.setStatus(AccountStatus.DISABLED);
         User disabledUser = userRepository.save(user);
         userSessionRevocationService.revokeSessions(disabledUser, "USER_DISABLED");
         userAuthorizationCacheService.evictUser(disabledUser.getId());
+        userAuditEventPublisher.publishUserAudit(
+                AuditAction.DISABLE_USER,
+                oldUser,
+                disabledUser,
+                "User disabled and sessions revoked"
+        );
 
         return toResponse(disabledUser);
     }
@@ -127,6 +153,7 @@ public class UserServiceImpl implements UserService {
             throw new UserSelfLockNotAllowedException(id);
         }
 
+        User oldUser = auditCopy(user);
         OffsetDateTime lockedAt = OffsetDateTime.now();
         user.setStatus(AccountStatus.LOCKED);
         user.setLockReason(request.getReason().trim());
@@ -138,6 +165,12 @@ public class UserServiceImpl implements UserService {
         User lockedUser = userRepository.save(user);
         userSessionRevocationService.revokeSessions(lockedUser, "USER_LOCKED");
         userAuthorizationCacheService.evictUser(lockedUser.getId());
+        userAuditEventPublisher.publishUserAudit(
+                AuditAction.LOCK_USER,
+                oldUser,
+                lockedUser,
+                "User locked and sessions revoked"
+        );
 
         return toResponse(lockedUser);
     }
@@ -154,6 +187,7 @@ public class UserServiceImpl implements UserService {
             throw new UserNotLockedException(id);
         }
 
+        User oldUser = auditCopy(user);
         user.setStatus(AccountStatus.ACTIVE);
         user.setLockReason(null);
         user.setLockedAt(null);
@@ -162,6 +196,12 @@ public class UserServiceImpl implements UserService {
 
         User unlockedUser = userRepository.save(user);
         userAuthorizationCacheService.evictUser(unlockedUser.getId());
+        userAuditEventPublisher.publishUserAudit(
+                AuditAction.UNLOCK_USER,
+                oldUser,
+                unlockedUser,
+                "User unlocked"
+        );
 
         return toResponse(unlockedUser);
     }
@@ -170,10 +210,17 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public void softDeleteUser(UUID id) {
         User user = findExistingUser(id);
+        User oldUser = auditCopy(user);
 
         userRepository.delete(user);
         userSessionRevocationService.revokeSessions(user, "USER_DELETED");
         userAuthorizationCacheService.evictUser(user.getId());
+        userAuditEventPublisher.publishUserAudit(
+                AuditAction.DELETE_USER,
+                oldUser,
+                null,
+                "User deleted and sessions revoked"
+        );
     }
 
     private User findExistingUser(UUID id) {
@@ -325,6 +372,28 @@ public class UserServiceImpl implements UserService {
         response.setLockedUntil(user.getLockedUntil());
 
         return response;
+    }
+
+    private static User auditCopy(User user) {
+        if (user == null) {
+            return null;
+        }
+
+        User copy = new User();
+        copy.setId(user.getId());
+        copy.setKeycloakId(user.getKeycloakId());
+        copy.setEmail(user.getEmail());
+        copy.setUsername(user.getUsername());
+        copy.setDisplayName(user.getDisplayName());
+        copy.setStatus(user.getStatus());
+        copy.setRegisteredAt(user.getRegisteredAt());
+        copy.setLastLoginAt(user.getLastLoginAt());
+        copy.setLockReason(user.getLockReason());
+        copy.setLockedAt(user.getLockedAt());
+        copy.setLockedUntil(user.getLockedUntil());
+        copy.setLockedByKeycloakId(user.getLockedByKeycloakId());
+        copy.setTokenValidAfter(user.getTokenValidAfter());
+        return copy;
     }
 
     private static String normalize(String value) {
