@@ -15,6 +15,8 @@ import io.swagger.v3.oas.models.security.SecurityScheme;
 @Configuration
 public class OpenApiConfig {
 
+        public static final String BEARER_AUTH = "Bearer Authentication";
+
         @Bean
         public OpenAPI identityOpenAPI() {
                 return new OpenAPI()
@@ -29,11 +31,11 @@ public class OpenApiConfig {
                                                 .license(new License()
                                                                 .name("LifeBalance")))
 
-                                .addSecurityItem(new SecurityRequirement().addList("Bearer Authentication"))
+                                .addSecurityItem(new SecurityRequirement().addList(BEARER_AUTH))
 
                                 .components(new Components()
                                                 .addSecuritySchemes(
-                                                                "Bearer Authentication",
+                                                                BEARER_AUTH,
                                                                 new SecurityScheme()
                                                                                 .name("Authorization")
                                                                                 .type(SecurityScheme.Type.HTTP)
