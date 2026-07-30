@@ -17,6 +17,9 @@ services:
   timeline-service:
     ports: []
 
+  resource-capital-service:
+    ports: []
+
   finance-service:
     ports: []
 

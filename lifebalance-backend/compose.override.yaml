@@ -11,6 +11,10 @@ services:
     ports:
       - "${TIMELINE_DEBUG_HOST_PORT:-8096}:8080"
 
+  resource-capital-service:
+    ports:
+      - "${RESOURCE_CAPITAL_DEBUG_HOST_PORT:-8099}:8080"
+
   finance-service:
     ports:
       - "${FINANCE_DEBUG_HOST_PORT:-8093}:8080"
