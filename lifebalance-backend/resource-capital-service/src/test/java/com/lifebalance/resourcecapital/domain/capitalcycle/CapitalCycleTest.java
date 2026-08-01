@@ -23,11 +23,26 @@ class CapitalCycleTest {
         CapitalCycle cycle = createDaily();
 
         assertThat(cycle.getOwnerId()).isEqualTo(OWNER_ID);
-        assertThat(cycle.getCycleType()).isEqualTo(CapitalCycleType.DAILY);
+        assertThat(cycle.getType()).isEqualTo(CapitalCycleType.DAILY);
         assertThat(cycle.getStartDate()).isEqualTo(LocalDate.of(2026, 8, 1));
         assertThat(cycle.getEndDate()).isEqualTo(LocalDate.of(2026, 8, 1));
         assertThat(cycle.isDraft()).isTrue();
         assertThat(cycle.isOverAllocationAllowed()).isFalse();
+    }
+
+    @Test
+    void createsCycleWithoutName() {
+        CapitalCycle cycle = CapitalCycle.create(
+                OWNER_ID,
+                " ",
+                "Daily resource cycle",
+                CapitalCycleType.DAILY,
+                LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 8, 1)
+        );
+
+        assertThat(cycle.getName()).isNull();
+        assertThat(cycle.isDraft()).isTrue();
     }
 
     @Test
@@ -201,7 +216,7 @@ class CapitalCycleTest {
 
         assertThat(cycle.getName()).isEqualTo("August Week 1");
         assertThat(cycle.getDescription()).isEqualTo("Updated description");
-        assertThat(cycle.getCycleType()).isEqualTo(CapitalCycleType.WEEKLY);
+        assertThat(cycle.getType()).isEqualTo(CapitalCycleType.WEEKLY);
         assertThat(cycle.getEndDate()).isEqualTo(LocalDate.of(2026, 8, 7));
     }
 
