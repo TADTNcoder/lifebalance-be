@@ -46,6 +46,9 @@ services:
       TIMELINE_DB: ${TIMELINE_DB}
       TIMELINE_DB_USER: ${TIMELINE_DB_USER}
       TIMELINE_DB_PASSWORD: ${TIMELINE_DB_PASSWORD}
+      RESOURCE_CAPITAL_DB: ${RESOURCE_CAPITAL_DB}
+      RESOURCE_CAPITAL_DB_USER: ${RESOURCE_CAPITAL_DB_USER}
+      RESOURCE_CAPITAL_DB_PASSWORD: ${RESOURCE_CAPITAL_DB_PASSWORD}
       FINANCE_DB: ${FINANCE_DB}
       FINANCE_DB_USER: ${FINANCE_DB_USER}
       FINANCE_DB_PASSWORD: ${FINANCE_DB_PASSWORD}
@@ -270,6 +273,35 @@ services:
       - "8080"
     volumes:
       - ./logs/timeline:/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+
+  resource-capital-service:
+    <<: *spring-service
+    image: lifebalance/resource-capital-service:${APP_VERSION:-dev}
+    container_name: lifebalance-resource-capital-service
+    build:
+      context: .
+      dockerfile: docker/spring/Dockerfile
+      args:
+        MODULE_NAME: resource-capital-service
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      RESOURCE_CAPITAL_SERVICE_PORT: 8080
+      EUREKA_DEFAULT_ZONE: ${EUREKA_DEFAULT_ZONE:-http://discovery-server:8080/eureka}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${RESOURCE_CAPITAL_DB}
+      SPRING_DATASOURCE_USERNAME: ${RESOURCE_CAPITAL_DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${RESOURCE_CAPITAL_DB_PASSWORD}
+      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_ISSUER_URI_INTERNAL}
+    expose:
+      - "8080"
+    volumes:
+      - ./logs/resource-capital:/logs
     depends_on:
       postgres:
         condition: service_healthy

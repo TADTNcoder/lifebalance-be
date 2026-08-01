@@ -1,0 +1,27 @@
+server:
+  port: ${RESOURCE_CAPITAL_SERVICE_PORT:8098}
+
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI}
+
+eureka:
+  instance:
+    hostname: ${EUREKA_INSTANCE_HOSTNAME:resource-capital-service}
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 30
+    lease-expiration-duration-in-seconds: 90
+
+  client:
+    register-with-eureka: true
+    fetch-registry: true
+    service-url:
+      defaultZone: ${EUREKA_DEFAULT_ZONE}
+
+management:
+  endpoint:
+    health:
+      show-details: never

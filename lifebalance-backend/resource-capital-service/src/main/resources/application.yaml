@@ -1,0 +1,56 @@
+server:
+  shutdown: graceful
+  forward-headers-strategy: framework
+
+spring:
+  profiles:
+    default: local
+
+  application:
+    name: resource-capital-service
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        default_schema: resourcecapital
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration/postgresql
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+lifebalance:
+  security:
+    keycloak:
+      client-id: ${KEYCLOAK_CLIENT_ID:lifebalance-api}
+
+info:
+  app:
+    name: LifeBalance Resource Capital Service
+    version: 1.0.0
+    description: Resource capital cycle and allocation foundation API
+
+logging:
+  level:
+    root: INFO
+    com.lifebalance.resourcecapital: INFO
+    org.springframework.security: INFO
+    org.springframework.web: INFO
+
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger - %msg%n"

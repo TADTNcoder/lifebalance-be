@@ -30,6 +30,7 @@
         <module>identity-service</module>
         <module>task-service</module>
         <module>timeline-service</module>
+        <module>resource-capital-service</module>
         <module>finance-service</module>
         <module>notification-service</module>
         <module>analytics-service</module>
