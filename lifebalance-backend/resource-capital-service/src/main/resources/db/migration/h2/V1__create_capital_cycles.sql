@@ -3,7 +3,7 @@ CREATE SCHEMA IF NOT EXISTS resourcecapital;
 CREATE TABLE resourcecapital.capital_cycles (
     id UUID DEFAULT RANDOM_UUID() PRIMARY KEY,
     owner_id UUID NOT NULL,
-    name VARCHAR(255) NOT NULL,
+    name VARCHAR(255),
     description VARCHAR(2000),
     cycle_type VARCHAR(32) NOT NULL,
     start_date DATE NOT NULL,
@@ -26,5 +26,5 @@ CREATE TABLE resourcecapital.capital_cycles (
 CREATE INDEX idx_capital_cycle_owner_status
     ON resourcecapital.capital_cycles (owner_id, status);
 
-CREATE INDEX idx_capital_cycle_owner_period
-    ON resourcecapital.capital_cycles (owner_id, start_date, end_date);
+CREATE INDEX idx_capital_cycle_owner_type_period
+    ON resourcecapital.capital_cycles (owner_id, cycle_type, start_date, end_date);
