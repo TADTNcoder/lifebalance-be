@@ -202,6 +202,20 @@ public class CapitalCycle {
         }
     }
 
+    /**
+     * Money capital can be initialized only while the cycle still accepts initial capital setup.
+     */
+    public void ensureMoneyCapitalCanBeInitialized() {
+        if (!canInitializeCapital()) {
+            throw new InvalidCapitalCycleStateException(
+                    id,
+                    status,
+                    "initialize money capital",
+                    "money capital initialization is allowed only while the cycle accepts initial capital setup"
+            );
+        }
+    }
+
     public boolean canInitializeCapital() {
         return status == CapitalCycleStatus.DRAFT || status == CapitalCycleStatus.REOPENED;
     }
