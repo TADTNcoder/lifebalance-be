@@ -14,7 +14,6 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
@@ -29,7 +28,7 @@ import java.util.UUID;
         name = "capital_cycles",
         indexes = {
                 @Index(name = "idx_capital_cycle_owner_status", columnList = "owner_id,status"),
-                @Index(name = "idx_capital_cycle_owner_period", columnList = "owner_id,start_date,end_date")
+                @Index(name = "idx_capital_cycle_owner_type_period", columnList = "owner_id,cycle_type,start_date,end_date")
         }
 )
 public class CapitalCycle {
@@ -46,9 +45,8 @@ public class CapitalCycle {
     @Column(name = "owner_id", nullable = false)
     private UUID ownerId;
 
-    @NotBlank
     @Size(max = NAME_MAX_LENGTH)
-    @Column(nullable = false, length = NAME_MAX_LENGTH)
+    @Column(length = NAME_MAX_LENGTH)
     private String name;
 
     @Size(max = DESCRIPTION_MAX_LENGTH)
@@ -58,7 +56,7 @@ public class CapitalCycle {
     @NotNull
     @Enumerated(EnumType.STRING)
     @Column(name = "cycle_type", nullable = false, length = 32)
-    private CapitalCycleType cycleType;
+    private CapitalCycleType type;
 
     @NotNull
     @Column(name = "start_date", nullable = false)
@@ -110,11 +108,11 @@ public class CapitalCycle {
             UUID ownerId,
             String name,
             String description,
-            CapitalCycleType cycleType,
+            CapitalCycleType type,
             LocalDate startDate,
             LocalDate endDate
     ) {
-        setCoreInformation(ownerId, name, description, cycleType, startDate, endDate);
+        setCoreInformation(ownerId, name, description, type, startDate, endDate);
         this.status = CapitalCycleStatus.DRAFT;
         this.overAllocationAllowed = false;
     }
@@ -126,11 +124,11 @@ public class CapitalCycle {
             UUID ownerId,
             String name,
             String description,
-            CapitalCycleType cycleType,
+            CapitalCycleType type,
             LocalDate startDate,
             LocalDate endDate
     ) {
-        return new CapitalCycle(ownerId, name, description, cycleType, startDate, endDate);
+        return new CapitalCycle(ownerId, name, description, type, startDate, endDate);
     }
 
     /**
@@ -139,12 +137,12 @@ public class CapitalCycle {
     public void updateInformation(
             String name,
             String description,
-            CapitalCycleType cycleType,
+            CapitalCycleType type,
             LocalDate startDate,
             LocalDate endDate
     ) {
         ensureStatusAllows("update information", CapitalCycleStatus.DRAFT, CapitalCycleStatus.REOPENED);
-        setCoreInformation(ownerId, name, description, cycleType, startDate, endDate);
+        setCoreInformation(ownerId, name, description, type, startDate, endDate);
     }
 
     /**
@@ -188,6 +186,38 @@ public class CapitalCycle {
      */
     public void disallowOverAllocation() {
         this.overAllocationAllowed = false;
+    }
+
+    /**
+     * Time capital can be initialized only while the cycle still accepts initial capital setup.
+     */
+    public void ensureTimeCapitalCanBeInitialized() {
+        if (!canInitializeCapital()) {
+            throw new InvalidCapitalCycleStateException(
+                    id,
+                    status,
+                    "initialize time capital",
+                    "time capital initialization is allowed only while the cycle accepts initial capital setup"
+            );
+        }
+    }
+
+    /**
+     * Money capital can be initialized only while the cycle still accepts initial capital setup.
+     */
+    public void ensureMoneyCapitalCanBeInitialized() {
+        if (!canInitializeCapital()) {
+            throw new InvalidCapitalCycleStateException(
+                    id,
+                    status,
+                    "initialize money capital",
+                    "money capital initialization is allowed only while the cycle accepts initial capital setup"
+            );
+        }
+    }
+
+    public boolean canInitializeCapital() {
+        return status == CapitalCycleStatus.DRAFT || status == CapitalCycleStatus.REOPENED;
     }
 
     public boolean contains(LocalDate date) {
@@ -245,26 +275,26 @@ public class CapitalCycle {
             UUID ownerId,
             String name,
             String description,
-            CapitalCycleType cycleType,
+            CapitalCycleType type,
             LocalDate startDate,
             LocalDate endDate
     ) {
         UUID validatedOwnerId = requireOwner(ownerId);
-        String validatedName = requireText(name, "name", NAME_MAX_LENGTH);
+        String validatedName = optionalText(name, "name", NAME_MAX_LENGTH);
         String validatedDescription = optionalText(description, "description", DESCRIPTION_MAX_LENGTH);
-        CapitalCycleType validatedCycleType = requireCycleType(cycleType);
-        validatePeriod(validatedCycleType, startDate, endDate);
+        CapitalCycleType validatedType = requireType(type);
+        validatePeriod(validatedType, startDate, endDate);
         this.ownerId = validatedOwnerId;
         this.name = validatedName;
         this.description = validatedDescription;
-        this.cycleType = validatedCycleType;
+        this.type = validatedType;
         this.startDate = startDate;
         this.endDate = endDate;
     }
 
-    private void validatePeriod(CapitalCycleType cycleType, LocalDate startDate, LocalDate endDate) {
+    private void validatePeriod(CapitalCycleType type, LocalDate startDate, LocalDate endDate) {
         validateDateRange(startDate, endDate, "capital cycle period");
-        switch (cycleType) {
+        switch (type) {
             case DAILY -> validateDaily(startDate, endDate);
             case WEEKLY -> validateWeekly(startDate, endDate);
             case MONTHLY -> validateMonthly(startDate, endDate);
@@ -335,11 +365,11 @@ public class CapitalCycle {
         return ownerId;
     }
 
-    private CapitalCycleType requireCycleType(CapitalCycleType cycleType) {
-        if (cycleType == null) {
-            throw new InvalidCapitalCyclePeriodException("Capital cycle " + cycleRef() + " cycleType is required.");
+    private CapitalCycleType requireType(CapitalCycleType type) {
+        if (type == null) {
+            throw new InvalidCapitalCyclePeriodException("Capital cycle " + cycleRef() + " type is required.");
         }
-        return cycleType;
+        return type;
     }
 
     private String requireText(String value, String fieldName, int maxLength) {
@@ -397,8 +427,8 @@ public class CapitalCycle {
         return description;
     }
 
-    public CapitalCycleType getCycleType() {
-        return cycleType;
+    public CapitalCycleType getType() {
+        return type;
     }
 
     public LocalDate getStartDate() {
