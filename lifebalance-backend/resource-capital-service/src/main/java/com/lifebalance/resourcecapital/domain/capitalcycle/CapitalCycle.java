@@ -188,6 +188,24 @@ public class CapitalCycle {
         this.overAllocationAllowed = false;
     }
 
+    /**
+     * Time capital can be initialized only while the cycle still accepts initial capital setup.
+     */
+    public void ensureTimeCapitalCanBeInitialized() {
+        if (!canInitializeCapital()) {
+            throw new InvalidCapitalCycleStateException(
+                    id,
+                    status,
+                    "initialize time capital",
+                    "time capital initialization is allowed only while the cycle accepts initial capital setup"
+            );
+        }
+    }
+
+    public boolean canInitializeCapital() {
+        return status == CapitalCycleStatus.DRAFT || status == CapitalCycleStatus.REOPENED;
+    }
+
     public boolean contains(LocalDate date) {
         if (date == null) {
             return false;
