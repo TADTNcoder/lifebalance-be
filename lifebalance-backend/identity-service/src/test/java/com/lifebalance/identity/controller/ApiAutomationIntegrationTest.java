@@ -8,7 +8,10 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 // ... các import khác
 
-@SpringBootTest // Chạy full context, không dùng @WebMvcTest
+@SpringBootTest(properties = {
+        "spring.profiles.active=test",
+        "eureka.client.enabled=false"
+}) // Chạy full context, không dùng @WebMvcTest
 @AutoConfigureMockMvc
 class ApiAutomationIntegrationTest {
 
