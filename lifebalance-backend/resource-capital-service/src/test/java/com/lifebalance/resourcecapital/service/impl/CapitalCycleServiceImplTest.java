@@ -13,6 +13,7 @@ import com.lifebalance.resourcecapital.dto.CreateCapitalCycleRequest;
 import com.lifebalance.resourcecapital.dto.ReopenCapitalCycleRequest;
 import com.lifebalance.resourcecapital.dto.UpdateCapitalCycleRequest;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalCycleRepository;
+import com.lifebalance.resourcecapital.service.CapitalCycleBusinessValidator;
 import com.lifebalance.resourcecapital.service.mapper.CapitalCycleMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,13 +26,14 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -48,6 +50,9 @@ class CapitalCycleServiceImplTest {
 
     @Mock
     private CapitalCycleRepository capitalCycleRepository;
+
+    @Mock
+    private CapitalCycleBusinessValidator capitalCycleBusinessValidator;
 
     @Test
     void createCycleCreatesDraftCycleWhenPeriodDoesNotOverlap() {
@@ -202,20 +207,17 @@ class CapitalCycleServiceImplTest {
         CapitalCycle cycle = dailyCycle();
         setField(cycle, "id", CYCLE_ID);
         when(capitalCycleRepository.findByIdAndOwnerId(CYCLE_ID, OWNER_ID)).thenReturn(Optional.of(cycle));
-        when(capitalCycleRepository.findByOwnerIdAndTypeForUpdate(OWNER_ID, CapitalCycleType.DAILY))
-                .thenReturn(List.of(cycle));
-        when(capitalCycleRepository.existsByOwnerIdAndTypeAndStatusAndIdNot(
-                OWNER_ID,
-                CapitalCycleType.DAILY,
-                CapitalCycleStatus.ACTIVE,
-                CYCLE_ID
-        )).thenReturn(false);
+        doAnswer(invocation -> {
+            assertThat(cycle.getStatus()).isEqualTo(CapitalCycleStatus.DRAFT);
+            return null;
+        }).when(capitalCycleBusinessValidator)
+                .validateActivationAllowed(OWNER_ID, CapitalCycleType.DAILY, CYCLE_ID);
 
         CapitalCycleResponse response = createService().activateCycle(OWNER_ID, CYCLE_ID);
 
         assertThat(response.getStatus()).isEqualTo(CapitalCycleStatus.ACTIVE);
         assertThat(response.getActivatedAt()).isEqualTo(NOW);
-        verify(capitalCycleRepository).findByOwnerIdAndTypeForUpdate(OWNER_ID, CapitalCycleType.DAILY);
+        verify(capitalCycleBusinessValidator).validateActivationAllowed(OWNER_ID, CapitalCycleType.DAILY, CYCLE_ID);
     }
 
     @Test
@@ -224,13 +226,12 @@ class CapitalCycleServiceImplTest {
         setField(cycle, "id", CYCLE_ID);
         cycle.reopen("Need correction", NOW.minusSeconds(60));
         when(capitalCycleRepository.findByIdAndOwnerId(CYCLE_ID, OWNER_ID)).thenReturn(Optional.of(cycle));
-        when(capitalCycleRepository.findByOwnerIdAndTypeForUpdate(OWNER_ID, CapitalCycleType.DAILY))
-                .thenReturn(List.of(cycle));
 
         CapitalCycleResponse response = createService().activateCycle(OWNER_ID, CYCLE_ID);
 
         assertThat(response.getStatus()).isEqualTo(CapitalCycleStatus.ACTIVE);
         assertThat(response.getActivatedAt()).isEqualTo(NOW);
+        verify(capitalCycleBusinessValidator).validateActivationAllowed(OWNER_ID, CapitalCycleType.DAILY, CYCLE_ID);
     }
 
     @Test
@@ -239,13 +240,12 @@ class CapitalCycleServiceImplTest {
         setField(cycle, "id", CYCLE_ID);
         cycle.activate(NOW.minusSeconds(60));
         when(capitalCycleRepository.findByIdAndOwnerId(CYCLE_ID, OWNER_ID)).thenReturn(Optional.of(cycle));
-        when(capitalCycleRepository.findByOwnerIdAndTypeForUpdate(OWNER_ID, CapitalCycleType.DAILY))
-                .thenReturn(List.of(cycle));
 
         assertThatThrownBy(() -> createService().activateCycle(OWNER_ID, CYCLE_ID))
                 .isInstanceOf(InvalidCapitalCycleStateException.class)
                 .hasMessageContaining("ACTIVE")
                 .hasMessageContaining("activate");
+        verify(capitalCycleBusinessValidator).validateActivationAllowed(OWNER_ID, CapitalCycleType.DAILY, CYCLE_ID);
     }
 
     @Test
@@ -253,24 +253,11 @@ class CapitalCycleServiceImplTest {
         CapitalCycle cycle = dailyCycle();
         setField(cycle, "id", CYCLE_ID);
         when(capitalCycleRepository.findByIdAndOwnerId(CYCLE_ID, OWNER_ID)).thenReturn(Optional.of(cycle));
-        when(capitalCycleRepository.findByOwnerIdAndTypeForUpdate(OWNER_ID, CapitalCycleType.DAILY))
-                .thenReturn(List.of(cycle));
-        when(capitalCycleRepository.existsByOwnerIdAndTypeAndStatusAndIdNot(
-                OWNER_ID,
-                CapitalCycleType.DAILY,
-                CapitalCycleStatus.ACTIVE,
-                CYCLE_ID
-        )).thenReturn(false);
 
         CapitalCycleResponse response = createService().activateCycle(OWNER_ID, CYCLE_ID);
 
         assertThat(response.getStatus()).isEqualTo(CapitalCycleStatus.ACTIVE);
-        verify(capitalCycleRepository, never()).existsByOwnerIdAndTypeAndStatusAndIdNot(
-                OWNER_ID,
-                CapitalCycleType.WEEKLY,
-                CapitalCycleStatus.ACTIVE,
-                CYCLE_ID
-        );
+        verify(capitalCycleBusinessValidator).validateActivationAllowed(OWNER_ID, CapitalCycleType.DAILY, CYCLE_ID);
     }
 
     @Test
@@ -278,14 +265,9 @@ class CapitalCycleServiceImplTest {
         CapitalCycle cycle = dailyCycle();
         setField(cycle, "id", CYCLE_ID);
         when(capitalCycleRepository.findByIdAndOwnerId(CYCLE_ID, OWNER_ID)).thenReturn(Optional.of(cycle));
-        when(capitalCycleRepository.findByOwnerIdAndTypeForUpdate(OWNER_ID, CapitalCycleType.DAILY))
-                .thenReturn(List.of(cycle));
-        when(capitalCycleRepository.existsByOwnerIdAndTypeAndStatusAndIdNot(
-                OWNER_ID,
-                CapitalCycleType.DAILY,
-                CapitalCycleStatus.ACTIVE,
-                CYCLE_ID
-        )).thenReturn(true);
+        doThrow(new ActiveCapitalCycleAlreadyExistsException(OWNER_ID, CapitalCycleType.DAILY))
+                .when(capitalCycleBusinessValidator)
+                .validateActivationAllowed(OWNER_ID, CapitalCycleType.DAILY, CYCLE_ID);
 
         assertThatThrownBy(() -> createService().activateCycle(OWNER_ID, CYCLE_ID))
                 .isInstanceOf(ActiveCapitalCycleAlreadyExistsException.class);
@@ -357,13 +339,14 @@ class CapitalCycleServiceImplTest {
                 .isInstanceOf(CapitalCycleNotFoundException.class)
                 .hasMessageContaining(CYCLE_ID.toString())
                 .hasMessageContaining(OTHER_OWNER_ID.toString());
-        verify(capitalCycleRepository, never()).findByOwnerIdAndTypeForUpdate(any(), any());
+        verify(capitalCycleBusinessValidator, never()).validateActivationAllowed(any(), any(), any());
     }
 
     private CapitalCycleServiceImpl createService() {
         return new CapitalCycleServiceImpl(
                 capitalCycleRepository,
                 new CapitalCycleMapper(),
+                capitalCycleBusinessValidator,
                 CLOCK
         );
     }

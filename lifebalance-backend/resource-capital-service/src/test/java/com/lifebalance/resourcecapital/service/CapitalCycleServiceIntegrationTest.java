@@ -69,6 +69,17 @@ class CapitalCycleServiceIntegrationTest {
 
         assertThatThrownBy(() -> capitalCycleService.activateCycle(OWNER_ID, second.getId()))
                 .isInstanceOf(ActiveCapitalCycleAlreadyExistsException.class);
+
+        entityManager.flush();
+        entityManager.clear();
+
+        CapitalCycle persistedFirst = capitalCycleRepository.findById(first.getId()).orElseThrow();
+        CapitalCycle persistedSecond = capitalCycleRepository.findById(second.getId()).orElseThrow();
+
+        assertThat(persistedFirst.getStatus()).isEqualTo(CapitalCycleStatus.ACTIVE);
+        assertThat(persistedFirst.getClosedAt()).isNull();
+        assertThat(persistedSecond.getStatus()).isEqualTo(CapitalCycleStatus.DRAFT);
+        assertThat(persistedSecond.getActivatedAt()).isNull();
     }
 
     @Test
