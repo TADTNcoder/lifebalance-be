@@ -3,6 +3,7 @@ package com.lifebalance.resourcecapital.domain.capitalcycle;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.InvalidCapitalCyclePeriodException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.InvalidCapitalCycleStateException;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
 
 import jakarta.persistence.Version;
 import java.lang.reflect.Field;
@@ -154,6 +155,24 @@ class CapitalCycleTest {
     }
 
     @Test
+    void invalidTransitionUsesBusinessErrorCodeAndBadRequestStatus() {
+        CapitalCycle cycle = createDaily();
+
+        assertThatThrownBy(() -> cycle.close("Finished", NOW))
+                .isInstanceOf(InvalidCapitalCycleStateException.class)
+                .satisfies(exception -> {
+                    InvalidCapitalCycleStateException stateException =
+                            (InvalidCapitalCycleStateException) exception;
+                    assertThat(stateException.getCode())
+                            .isEqualTo(InvalidCapitalCycleStateException.ERROR_CODE);
+                    assertThat(stateException.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+                    assertThat(stateException.getCurrentStatus()).isEqualTo(CapitalCycleStatus.DRAFT);
+                    assertThat(stateException.getRequestedStatus()).isEqualTo(CapitalCycleStatus.CLOSED);
+                    assertThat(stateException.getAction()).isEqualTo("close");
+                });
+    }
+
+    @Test
     void closedCycleCanReopen() {
         CapitalCycle cycle = createClosedCycle();
 
@@ -162,6 +181,18 @@ class CapitalCycleTest {
         assertThat(cycle.isReopened()).isTrue();
         assertThat(cycle.getReopenReason()).isEqualTo("Need correction");
         assertThat(cycle.getReopenedAt()).isEqualTo(NOW.plusSeconds(120));
+    }
+
+    @Test
+    void reopenedCycleCanCloseAgain() {
+        CapitalCycle cycle = createClosedCycle();
+        cycle.reopen("Need correction", NOW.plusSeconds(120));
+
+        cycle.close("Finished after correction", NOW.plusSeconds(180));
+
+        assertThat(cycle.isClosed()).isTrue();
+        assertThat(cycle.getCloseReason()).isEqualTo("Finished after correction");
+        assertThat(cycle.getClosedAt()).isEqualTo(NOW.plusSeconds(180));
     }
 
     @Test
@@ -199,7 +230,25 @@ class CapitalCycleTest {
                 LocalDate.of(2026, 8, 7)
         )).isInstanceOf(InvalidCapitalCycleStateException.class)
                 .hasMessageContaining("ACTIVE")
-                .hasMessageContaining("update information");
+                .hasMessageContaining("update structural information");
+    }
+
+    @Test
+    void activeCycleCanUpdateNameAndDescriptionWhenStructuralFieldsDoNotChange() {
+        CapitalCycle cycle = createDaily();
+        cycle.activate(NOW);
+
+        cycle.updateInformation(
+                "August 1 active",
+                "Active cycle description",
+                CapitalCycleType.DAILY,
+                LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 8, 1)
+        );
+
+        assertThat(cycle.getName()).isEqualTo("August 1 active");
+        assertThat(cycle.getDescription()).isEqualTo("Active cycle description");
+        assertThat(cycle.getStatus()).isEqualTo(CapitalCycleStatus.ACTIVE);
     }
 
     @Test

@@ -141,6 +141,12 @@ public class CapitalCycle {
             LocalDate startDate,
             LocalDate endDate
     ) {
+        if (status == CapitalCycleStatus.ACTIVE) {
+            ensureStructuralInformationUnchanged(type, startDate, endDate);
+            setEditableInformation(name, description);
+            return;
+        }
+
         ensureStatusAllows("update information", CapitalCycleStatus.DRAFT, CapitalCycleStatus.REOPENED);
         setCoreInformation(ownerId, name, description, type, startDate, endDate);
     }
@@ -149,18 +155,21 @@ public class CapitalCycle {
      * Activates a DRAFT or REOPENED cycle. The one-active-cycle rule belongs to the application service.
      */
     public void activate(Instant activatedAt) {
-        ensureStatusAllows("activate", CapitalCycleStatus.DRAFT, CapitalCycleStatus.REOPENED);
-        this.activatedAt = requireTimestamp(activatedAt, "activatedAt");
+        ensureCanTransitionTo(CapitalCycleStatus.ACTIVE, "activate");
+        Instant validatedActivatedAt = requireTimestamp(activatedAt, "activatedAt");
+        this.activatedAt = validatedActivatedAt;
         this.status = CapitalCycleStatus.ACTIVE;
     }
 
     /**
-     * Closes an ACTIVE cycle with an explicit business reason.
+     * Closes an ACTIVE or REOPENED cycle with an explicit business reason.
      */
     public void close(String reason, Instant closedAt) {
-        ensureStatusAllows("close", CapitalCycleStatus.ACTIVE);
-        this.closeReason = requireReason(reason, "close reason");
-        this.closedAt = requireTimestamp(closedAt, "closedAt");
+        ensureCanTransitionTo(CapitalCycleStatus.CLOSED, "close");
+        String validatedReason = requireReason(reason, "close reason");
+        Instant validatedClosedAt = requireTimestamp(closedAt, "closedAt");
+        this.closeReason = validatedReason;
+        this.closedAt = validatedClosedAt;
         this.status = CapitalCycleStatus.CLOSED;
     }
 
@@ -168,9 +177,11 @@ public class CapitalCycle {
      * Reopens a CLOSED cycle with an explicit business reason.
      */
     public void reopen(String reason, Instant reopenedAt) {
-        ensureStatusAllows("reopen", CapitalCycleStatus.CLOSED);
-        this.reopenReason = requireReason(reason, "reopen reason");
-        this.reopenedAt = requireTimestamp(reopenedAt, "reopenedAt");
+        ensureCanTransitionTo(CapitalCycleStatus.REOPENED, "reopen");
+        String validatedReason = requireReason(reason, "reopen reason");
+        Instant validatedReopenedAt = requireTimestamp(reopenedAt, "reopenedAt");
+        this.reopenReason = validatedReason;
+        this.reopenedAt = validatedReopenedAt;
         this.status = CapitalCycleStatus.REOPENED;
     }
 
@@ -292,6 +303,31 @@ public class CapitalCycle {
         this.endDate = endDate;
     }
 
+    private void setEditableInformation(String name, String description) {
+        this.name = optionalText(name, "name", NAME_MAX_LENGTH);
+        this.description = optionalText(description, "description", DESCRIPTION_MAX_LENGTH);
+    }
+
+    private void ensureStructuralInformationUnchanged(
+            CapitalCycleType type,
+            LocalDate startDate,
+            LocalDate endDate
+    ) {
+        requireType(type);
+        validateDateRange(startDate, endDate, "capital cycle period");
+
+        if (!Objects.equals(this.type, type)
+                || !Objects.equals(this.startDate, startDate)
+                || !Objects.equals(this.endDate, endDate)) {
+            throw new InvalidCapitalCycleStateException(
+                    id,
+                    status,
+                    "update structural information",
+                    "type, startDate, and endDate cannot be changed while the cycle is active"
+            );
+        }
+    }
+
     private void validatePeriod(CapitalCycleType type, LocalDate startDate, LocalDate endDate) {
         validateDateRange(startDate, endDate, "capital cycle period");
         switch (type) {
@@ -344,6 +380,14 @@ public class CapitalCycle {
                 action,
                 "allowed statuses are " + java.util.Arrays.toString(allowedStatuses)
         );
+    }
+
+    private void ensureCanTransitionTo(CapitalCycleStatus targetStatus, String action) {
+        if (status.canTransitionTo(targetStatus)) {
+            return;
+        }
+
+        throw new InvalidCapitalCycleStateException(id, status, targetStatus, action);
     }
 
     private void validateDateRange(LocalDate startDate, LocalDate endDate, String fieldName) {

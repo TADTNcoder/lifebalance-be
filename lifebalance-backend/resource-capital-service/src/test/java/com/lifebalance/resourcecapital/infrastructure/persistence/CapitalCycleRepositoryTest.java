@@ -131,6 +131,11 @@ class CapitalCycleRepositoryTest {
                 "Active daily",
                 LocalDate.of(2026, 8, 4)
         )));
+        capitalCycleRepository.save(dailyCycle(
+                OWNER_ID,
+                "Draft daily",
+                LocalDate.of(2026, 8, 5)
+        ));
         capitalCycleRepository.save(active(weeklyCycle(
                 OWNER_ID,
                 "Active weekly",
@@ -154,9 +159,19 @@ class CapitalCycleRepositoryTest {
                 .isEqualTo(activeDaily.getId());
 
         assertThat(capitalCycleRepository.findByOwnerIdAndTypeAndStatus(
+                OTHER_OWNER_ID,
+                CapitalCycleType.WEEKLY,
+                CapitalCycleStatus.ACTIVE
+        )).isEmpty();
+        assertThat(capitalCycleRepository.findByOwnerIdAndTypeAndStatus(
                 OWNER_ID,
                 CapitalCycleType.MONTHLY,
                 CapitalCycleStatus.ACTIVE
+        )).isEmpty();
+        assertThat(capitalCycleRepository.findByOwnerIdAndTypeAndStatus(
+                OWNER_ID,
+                CapitalCycleType.DAILY,
+                CapitalCycleStatus.REOPENED
         )).isEmpty();
     }
 
@@ -196,9 +211,19 @@ class CapitalCycleRepositoryTest {
                 CapitalCycleStatus.ACTIVE
         )).isTrue();
         assertThat(capitalCycleRepository.existsByOwnerIdAndTypeAndStatus(
+                OTHER_OWNER_ID,
+                CapitalCycleType.DAILY,
+                CapitalCycleStatus.ACTIVE
+        )).isFalse();
+        assertThat(capitalCycleRepository.existsByOwnerIdAndTypeAndStatus(
                 OWNER_ID,
                 CapitalCycleType.WEEKLY,
                 CapitalCycleStatus.ACTIVE
+        )).isFalse();
+        assertThat(capitalCycleRepository.existsByOwnerIdAndTypeAndStatus(
+                OWNER_ID,
+                CapitalCycleType.DAILY,
+                CapitalCycleStatus.REOPENED
         )).isFalse();
         assertThat(capitalCycleRepository.existsByOwnerIdAndTypeAndStatusAndIdNot(
                 OWNER_ID,
@@ -211,6 +236,39 @@ class CapitalCycleRepositoryTest {
                 CapitalCycleType.DAILY,
                 CapitalCycleStatus.ACTIVE,
                 UUID.fromString("33333333-3333-3333-3333-333333333333")
+        )).isTrue();
+    }
+
+    @Test
+    void detectsActiveCycleExcludingCurrentIdOnlyWhenAnotherMatchingCycleExists() {
+        CapitalCycle activeDaily = capitalCycleRepository.save(active(dailyCycle(
+                OWNER_ID,
+                "Active daily",
+                LocalDate.of(2026, 8, 8)
+        )));
+        capitalCycleRepository.save(active(dailyCycle(
+                OWNER_ID,
+                "Second active daily",
+                LocalDate.of(2026, 8, 9)
+        )));
+        capitalCycleRepository.save(active(dailyCycle(
+                OTHER_OWNER_ID,
+                "Other owner active daily",
+                LocalDate.of(2026, 8, 8)
+        )));
+        capitalCycleRepository.save(active(weeklyCycle(
+                OWNER_ID,
+                "Active weekly",
+                LocalDate.of(2026, 8, 8)
+        )));
+        capitalCycleRepository.flush();
+        entityManager.clear();
+
+        assertThat(capitalCycleRepository.existsByOwnerIdAndTypeAndStatusAndIdNot(
+                OWNER_ID,
+                CapitalCycleType.DAILY,
+                CapitalCycleStatus.ACTIVE,
+                activeDaily.getId()
         )).isTrue();
     }
 
@@ -229,6 +287,101 @@ class CapitalCycleRepositoryTest {
         assertThat(overlapsWeekly(OWNER_ID, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 7))).isTrue();
         assertThat(overlapsWeekly(OWNER_ID, LocalDate.of(2026, 8, 7), LocalDate.of(2026, 8, 13))).isTrue();
         assertThat(overlapsWeekly(OWNER_ID, LocalDate.of(2026, 8, 8), LocalDate.of(2026, 8, 14))).isFalse();
+    }
+
+    @Test
+    void detectsCompleteOverlapWhenRequestedPeriodIsInsideExistingPeriod() {
+        insertCycleRow(
+                UUID.fromString("44444444-4444-4444-4444-444444444441"),
+                OWNER_ID,
+                CapitalCycleType.MONTHLY,
+                LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 8, 31)
+        );
+
+        assertThat(capitalCycleRepository.existsOverlappingCycle(
+                OWNER_ID,
+                CapitalCycleType.MONTHLY,
+                LocalDate.of(2026, 8, 10),
+                LocalDate.of(2026, 8, 20),
+                null
+        )).isTrue();
+    }
+
+    @Test
+    void detectsContainingOverlapWhenRequestedPeriodWrapsExistingPeriod() {
+        insertCycleRow(
+                UUID.fromString("44444444-4444-4444-4444-444444444442"),
+                OWNER_ID,
+                CapitalCycleType.MONTHLY,
+                LocalDate.of(2026, 8, 10),
+                LocalDate.of(2026, 8, 20)
+        );
+
+        assertThat(capitalCycleRepository.existsOverlappingCycle(
+                OWNER_ID,
+                CapitalCycleType.MONTHLY,
+                LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 8, 31),
+                null
+        )).isTrue();
+    }
+
+    @Test
+    void detectsLeadingBoundaryOverlapInclusively() {
+        insertCycleRow(
+                UUID.fromString("44444444-4444-4444-4444-444444444443"),
+                OWNER_ID,
+                CapitalCycleType.MONTHLY,
+                LocalDate.of(2026, 8, 10),
+                LocalDate.of(2026, 8, 20)
+        );
+
+        assertThat(capitalCycleRepository.existsOverlappingCycle(
+                OWNER_ID,
+                CapitalCycleType.MONTHLY,
+                LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 8, 10),
+                null
+        )).isTrue();
+    }
+
+    @Test
+    void detectsTrailingBoundaryOverlapInclusively() {
+        insertCycleRow(
+                UUID.fromString("44444444-4444-4444-4444-444444444444"),
+                OWNER_ID,
+                CapitalCycleType.MONTHLY,
+                LocalDate.of(2026, 8, 10),
+                LocalDate.of(2026, 8, 20)
+        );
+
+        assertThat(capitalCycleRepository.existsOverlappingCycle(
+                OWNER_ID,
+                CapitalCycleType.MONTHLY,
+                LocalDate.of(2026, 8, 20),
+                LocalDate.of(2026, 8, 30),
+                null
+        )).isTrue();
+    }
+
+    @Test
+    void returnsFalseWhenRequestedPeriodDoesNotOverlapExistingPeriod() {
+        insertCycleRow(
+                UUID.fromString("44444444-4444-4444-4444-444444444445"),
+                OWNER_ID,
+                CapitalCycleType.MONTHLY,
+                LocalDate.of(2026, 8, 10),
+                LocalDate.of(2026, 8, 20)
+        );
+
+        assertThat(capitalCycleRepository.existsOverlappingCycle(
+                OWNER_ID,
+                CapitalCycleType.MONTHLY,
+                LocalDate.of(2026, 8, 21),
+                LocalDate.of(2026, 8, 31),
+                null
+        )).isFalse();
     }
 
     @Test
@@ -275,6 +428,29 @@ class CapitalCycleRepositoryTest {
         )).isTrue();
     }
 
+    @Test
+    void detectsOverlapWhenExcludedCycleIsNotTheOnlyConflict() {
+        CapitalCycle excludedCycle = capitalCycleRepository.save(weeklyCycle(
+                OWNER_ID,
+                "August week 3",
+                LocalDate.of(2026, 8, 15)
+        ));
+        capitalCycleRepository.saveAndFlush(weeklyCycle(
+                OWNER_ID,
+                "Conflicting August week 3",
+                LocalDate.of(2026, 8, 16)
+        ));
+        entityManager.clear();
+
+        assertThat(capitalCycleRepository.existsOverlappingCycle(
+                OWNER_ID,
+                CapitalCycleType.WEEKLY,
+                LocalDate.of(2026, 8, 15),
+                LocalDate.of(2026, 8, 21),
+                excludedCycle.getId()
+        )).isTrue();
+    }
+
     private boolean overlapsWeekly(UUID ownerId, LocalDate startDate, LocalDate endDate) {
         return capitalCycleRepository.existsOverlappingCycle(
                 ownerId,
@@ -283,6 +459,55 @@ class CapitalCycleRepositoryTest {
                 endDate,
                 null
         );
+    }
+
+    private void insertCycleRow(
+            UUID id,
+            UUID ownerId,
+            CapitalCycleType type,
+            LocalDate startDate,
+            LocalDate endDate
+    ) {
+        entityManager.createNativeQuery("""
+                        insert into resourcecapital.capital_cycles (
+                            id,
+                            owner_id,
+                            name,
+                            description,
+                            cycle_type,
+                            start_date,
+                            end_date,
+                            status,
+                            over_allocation_allowed,
+                            created_at,
+                            updated_at,
+                            version
+                        ) values (
+                            :id,
+                            :ownerId,
+                            :name,
+                            :description,
+                            :type,
+                            :startDate,
+                            :endDate,
+                            :status,
+                            false,
+                            current_timestamp,
+                            current_timestamp,
+                            0
+                        )
+                        """)
+                .setParameter("id", id)
+                .setParameter("ownerId", ownerId)
+                .setParameter("name", "Inserted overlap fixture")
+                .setParameter("description", "Repository overlap query fixture")
+                .setParameter("type", type.name())
+                .setParameter("startDate", startDate)
+                .setParameter("endDate", endDate)
+                .setParameter("status", CapitalCycleStatus.DRAFT.name())
+                .executeUpdate();
+        entityManager.flush();
+        entityManager.clear();
     }
 
     private CapitalCycle dailyCycle(UUID ownerId, String name, LocalDate date) {
