@@ -1,9 +1,7 @@
 package com.lifebalance.resourcecapital.service.impl;
 
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
-import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleStatus;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleType;
-import com.lifebalance.resourcecapital.domain.capitalcycle.exception.ActiveCapitalCycleAlreadyExistsException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.CapitalCycleNotFoundException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.CapitalCycleOverlapException;
 import com.lifebalance.resourcecapital.dto.CapitalCycleResponse;
@@ -12,6 +10,7 @@ import com.lifebalance.resourcecapital.dto.CreateCapitalCycleRequest;
 import com.lifebalance.resourcecapital.dto.ReopenCapitalCycleRequest;
 import com.lifebalance.resourcecapital.dto.UpdateCapitalCycleRequest;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalCycleRepository;
+import com.lifebalance.resourcecapital.service.CapitalCycleBusinessValidator;
 import com.lifebalance.resourcecapital.service.CapitalCycleService;
 import com.lifebalance.resourcecapital.service.mapper.CapitalCycleMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,23 +27,27 @@ public class CapitalCycleServiceImpl implements CapitalCycleService {
 
     private final CapitalCycleRepository capitalCycleRepository;
     private final CapitalCycleMapper capitalCycleMapper;
+    private final CapitalCycleBusinessValidator capitalCycleBusinessValidator;
     private final Clock clock;
 
     @Autowired
     public CapitalCycleServiceImpl(
             CapitalCycleRepository capitalCycleRepository,
-            CapitalCycleMapper capitalCycleMapper
+            CapitalCycleMapper capitalCycleMapper,
+            CapitalCycleBusinessValidator capitalCycleBusinessValidator
     ) {
-        this(capitalCycleRepository, capitalCycleMapper, Clock.systemUTC());
+        this(capitalCycleRepository, capitalCycleMapper, capitalCycleBusinessValidator, Clock.systemUTC());
     }
 
     CapitalCycleServiceImpl(
             CapitalCycleRepository capitalCycleRepository,
             CapitalCycleMapper capitalCycleMapper,
+            CapitalCycleBusinessValidator capitalCycleBusinessValidator,
             Clock clock
     ) {
         this.capitalCycleRepository = capitalCycleRepository;
         this.capitalCycleMapper = capitalCycleMapper;
+        this.capitalCycleBusinessValidator = capitalCycleBusinessValidator;
         this.clock = clock;
     }
 
@@ -99,8 +102,7 @@ public class CapitalCycleServiceImpl implements CapitalCycleService {
     @Override
     public CapitalCycleResponse activateCycle(UUID ownerId, UUID cycleId) {
         CapitalCycle cycle = findOwnedCycle(ownerId, cycleId);
-        lockOwnerTypeCycles(ownerId, cycle.getType());
-        ensureNoOtherActiveCycle(ownerId, cycle.getType(), cycle.getId());
+        capitalCycleBusinessValidator.validateActivationAllowed(ownerId, cycle.getType(), cycle.getId());
 
         cycle.activate(clock.instant());
 
@@ -146,18 +148,4 @@ public class CapitalCycleServiceImpl implements CapitalCycleService {
         }
     }
 
-    private void lockOwnerTypeCycles(UUID ownerId, CapitalCycleType type) {
-        capitalCycleRepository.findByOwnerIdAndTypeForUpdate(ownerId, type);
-    }
-
-    private void ensureNoOtherActiveCycle(UUID ownerId, CapitalCycleType type, UUID cycleId) {
-        if (capitalCycleRepository.existsByOwnerIdAndTypeAndStatusAndIdNot(
-                ownerId,
-                type,
-                CapitalCycleStatus.ACTIVE,
-                cycleId
-        )) {
-            throw new ActiveCapitalCycleAlreadyExistsException(ownerId);
-        }
-    }
 }
