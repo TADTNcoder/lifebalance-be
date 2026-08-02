@@ -4,8 +4,12 @@ import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleStatus;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleType;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.ActiveCapitalCycleAlreadyExistsException;
+import com.lifebalance.resourcecapital.domain.capitalcycle.exception.InvalidCapitalCycleStateException;
 import com.lifebalance.resourcecapital.dto.CapitalCycleResponse;
+import com.lifebalance.resourcecapital.dto.CloseCapitalCycleRequest;
 import com.lifebalance.resourcecapital.dto.CreateCapitalCycleRequest;
+import com.lifebalance.resourcecapital.dto.ReopenCapitalCycleRequest;
+import com.lifebalance.resourcecapital.dto.UpdateCapitalCycleRequest;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalCycleRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
@@ -100,6 +104,124 @@ class CapitalCycleServiceIntegrationTest {
         assertThat(activeWeekly.getStatus()).isEqualTo(CapitalCycleStatus.ACTIVE);
     }
 
+    @Test
+    void activateClosedCycleIsRejectedWithoutChangingPersistedState() {
+        CapitalCycleResponse created = capitalCycleService.createCycle(
+                OWNER_ID,
+                createRequest("August 4", CapitalCycleType.DAILY, LocalDate.of(2026, 8, 4))
+        );
+        capitalCycleService.activateCycle(OWNER_ID, created.getId());
+        capitalCycleService.closeCycle(OWNER_ID, created.getId(), closeRequest("Finished"));
+
+        assertThatThrownBy(() -> capitalCycleService.activateCycle(OWNER_ID, created.getId()))
+                .isInstanceOf(InvalidCapitalCycleStateException.class)
+                .satisfies(exception -> {
+                    InvalidCapitalCycleStateException stateException =
+                            (InvalidCapitalCycleStateException) exception;
+                    assertThat(stateException.getCurrentStatus()).isEqualTo(CapitalCycleStatus.CLOSED);
+                    assertThat(stateException.getRequestedStatus()).isEqualTo(CapitalCycleStatus.ACTIVE);
+                });
+
+        entityManager.flush();
+        entityManager.clear();
+
+        CapitalCycle persisted = capitalCycleRepository.findById(created.getId()).orElseThrow();
+
+        assertThat(persisted.getStatus()).isEqualTo(CapitalCycleStatus.CLOSED);
+        assertThat(persisted.getReopenedAt()).isNull();
+    }
+
+    @Test
+    void reopenCyclePersistsReopenedState() {
+        CapitalCycleResponse created = capitalCycleService.createCycle(
+                OWNER_ID,
+                createRequest("August 5", CapitalCycleType.DAILY, LocalDate.of(2026, 8, 5))
+        );
+        capitalCycleService.activateCycle(OWNER_ID, created.getId());
+        capitalCycleService.closeCycle(OWNER_ID, created.getId(), closeRequest("Finished"));
+
+        CapitalCycleResponse reopened = capitalCycleService.reopenCycle(
+                OWNER_ID,
+                created.getId(),
+                reopenRequest("Need correction")
+        );
+
+        entityManager.flush();
+        entityManager.clear();
+
+        CapitalCycle persisted = capitalCycleRepository.findById(created.getId()).orElseThrow();
+
+        assertThat(reopened.getStatus()).isEqualTo(CapitalCycleStatus.REOPENED);
+        assertThat(persisted.getStatus()).isEqualTo(CapitalCycleStatus.REOPENED);
+        assertThat(persisted.getReopenedAt()).isNotNull();
+        assertThat(persisted.getReopenReason()).isEqualTo("Need correction");
+    }
+
+    @Test
+    void updateActiveCyclePersistsOnlyTextChangesWhenStructuralFieldsAreUnchanged() {
+        CapitalCycleResponse created = capitalCycleService.createCycle(
+                OWNER_ID,
+                createRequest("August 6", CapitalCycleType.DAILY, LocalDate.of(2026, 8, 6))
+        );
+        capitalCycleService.activateCycle(OWNER_ID, created.getId());
+
+        CapitalCycleResponse updated = capitalCycleService.updateCycle(
+                OWNER_ID,
+                created.getId(),
+                updateRequest(
+                        "August 6 active",
+                        "Active description",
+                        CapitalCycleType.DAILY,
+                        LocalDate.of(2026, 8, 6),
+                        LocalDate.of(2026, 8, 6)
+                )
+        );
+
+        entityManager.flush();
+        entityManager.clear();
+
+        CapitalCycle persisted = capitalCycleRepository.findById(created.getId()).orElseThrow();
+
+        assertThat(updated.getStatus()).isEqualTo(CapitalCycleStatus.ACTIVE);
+        assertThat(persisted.getName()).isEqualTo("August 6 active");
+        assertThat(persisted.getDescription()).isEqualTo("Active description");
+        assertThat(persisted.getType()).isEqualTo(CapitalCycleType.DAILY);
+        assertThat(persisted.getStartDate()).isEqualTo(LocalDate.of(2026, 8, 6));
+        assertThat(persisted.getEndDate()).isEqualTo(LocalDate.of(2026, 8, 6));
+    }
+
+    @Test
+    void updateActiveCycleRejectsStructuralChangesWithoutChangingPersistedState() {
+        CapitalCycleResponse created = capitalCycleService.createCycle(
+                OWNER_ID,
+                createRequest("August 7", CapitalCycleType.DAILY, LocalDate.of(2026, 8, 7))
+        );
+        capitalCycleService.activateCycle(OWNER_ID, created.getId());
+
+        assertThatThrownBy(() -> capitalCycleService.updateCycle(
+                OWNER_ID,
+                created.getId(),
+                updateRequest(
+                        "August week active",
+                        "Active description",
+                        CapitalCycleType.WEEKLY,
+                        LocalDate.of(2026, 8, 3),
+                        LocalDate.of(2026, 8, 9)
+                )
+        )).isInstanceOf(InvalidCapitalCycleStateException.class);
+
+        entityManager.flush();
+        entityManager.clear();
+
+        CapitalCycle persisted = capitalCycleRepository.findById(created.getId()).orElseThrow();
+
+        assertThat(persisted.getStatus()).isEqualTo(CapitalCycleStatus.ACTIVE);
+        assertThat(persisted.getName()).isEqualTo("August 7");
+        assertThat(persisted.getType()).isEqualTo(CapitalCycleType.DAILY);
+        assertThat(persisted.getStartDate()).isEqualTo(LocalDate.of(2026, 8, 7));
+        assertThat(persisted.getEndDate()).isEqualTo(LocalDate.of(2026, 8, 7));
+    }
+
     private CreateCapitalCycleRequest createRequest(String name, CapitalCycleType type, LocalDate startDate) {
         CreateCapitalCycleRequest request = new CreateCapitalCycleRequest();
         request.setName(name);
@@ -107,6 +229,34 @@ class CapitalCycleServiceIntegrationTest {
         request.setType(type);
         request.setStartDate(startDate);
         request.setEndDate(endDate(type, startDate));
+        return request;
+    }
+
+    private UpdateCapitalCycleRequest updateRequest(
+            String name,
+            String description,
+            CapitalCycleType type,
+            LocalDate startDate,
+            LocalDate endDate
+    ) {
+        UpdateCapitalCycleRequest request = new UpdateCapitalCycleRequest();
+        request.setName(name);
+        request.setDescription(description);
+        request.setType(type);
+        request.setStartDate(startDate);
+        request.setEndDate(endDate);
+        return request;
+    }
+
+    private CloseCapitalCycleRequest closeRequest(String reason) {
+        CloseCapitalCycleRequest request = new CloseCapitalCycleRequest();
+        request.setReason(reason);
+        return request;
+    }
+
+    private ReopenCapitalCycleRequest reopenRequest(String reason) {
+        ReopenCapitalCycleRequest request = new ReopenCapitalCycleRequest();
+        request.setReason(reason);
         return request;
     }
 

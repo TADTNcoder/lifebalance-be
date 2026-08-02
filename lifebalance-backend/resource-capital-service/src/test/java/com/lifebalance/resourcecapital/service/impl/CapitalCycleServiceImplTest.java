@@ -158,17 +158,50 @@ class CapitalCycleServiceImplTest {
     }
 
     @Test
-    void updateCycleRejectsActiveCycle() throws Exception {
+    void updateCycleAllowsActiveCycleToUpdateNameAndDescriptionOnly() throws Exception {
         CapitalCycle cycle = dailyCycle();
         setField(cycle, "id", CYCLE_ID);
         cycle.activate(NOW.minusSeconds(60));
-        UpdateCapitalCycleRequest request = dailyUpdateRequest();
+        UpdateCapitalCycleRequest request = updateRequest(
+                "August 1 active update",
+                "Active cycle description update",
+                CapitalCycleType.DAILY,
+                LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 8, 1)
+        );
+        when(capitalCycleRepository.findByIdAndOwnerId(CYCLE_ID, OWNER_ID)).thenReturn(Optional.of(cycle));
+
+        CapitalCycleResponse response = createService().updateCycle(OWNER_ID, CYCLE_ID, request);
+
+        assertThat(response.getStatus()).isEqualTo(CapitalCycleStatus.ACTIVE);
+        assertThat(response.getName()).isEqualTo("August 1 active update");
+        assertThat(response.getDescription()).isEqualTo("Active cycle description update");
+        assertThat(response.getType()).isEqualTo(CapitalCycleType.DAILY);
+        verify(capitalCycleRepository, never()).existsOverlappingCycle(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void updateCycleRejectsActiveCycleStructuralChanges() throws Exception {
+        CapitalCycle cycle = dailyCycle();
+        setField(cycle, "id", CYCLE_ID);
+        cycle.activate(NOW.minusSeconds(60));
+        UpdateCapitalCycleRequest request = updateRequest(
+                "August week",
+                "Active cycle description update",
+                CapitalCycleType.WEEKLY,
+                LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 8, 7)
+        );
         when(capitalCycleRepository.findByIdAndOwnerId(CYCLE_ID, OWNER_ID)).thenReturn(Optional.of(cycle));
 
         assertThatThrownBy(() -> createService().updateCycle(OWNER_ID, CYCLE_ID, request))
                 .isInstanceOf(InvalidCapitalCycleStateException.class)
                 .hasMessageContaining("ACTIVE")
-                .hasMessageContaining("update information");
+                .hasMessageContaining("update structural information");
+        assertThat(cycle.getType()).isEqualTo(CapitalCycleType.DAILY);
+        assertThat(cycle.getStartDate()).isEqualTo(LocalDate.of(2026, 8, 1));
+        assertThat(cycle.getEndDate()).isEqualTo(LocalDate.of(2026, 8, 1));
+        verify(capitalCycleRepository, never()).existsOverlappingCycle(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -245,7 +278,7 @@ class CapitalCycleServiceImplTest {
                 .isInstanceOf(InvalidCapitalCycleStateException.class)
                 .hasMessageContaining("ACTIVE")
                 .hasMessageContaining("activate");
-        verify(capitalCycleBusinessValidator).validateActivationAllowed(OWNER_ID, CapitalCycleType.DAILY, CYCLE_ID);
+        verify(capitalCycleBusinessValidator, never()).validateActivationAllowed(any(), any(), any());
     }
 
     @Test
@@ -299,6 +332,21 @@ class CapitalCycleServiceImplTest {
                 .isInstanceOf(InvalidCapitalCycleStateException.class)
                 .hasMessageContaining("DRAFT")
                 .hasMessageContaining("close");
+    }
+
+    @Test
+    void closeCycleClosesReopenedCycleWithReasonAndTimestamp() throws Exception {
+        CapitalCycle cycle = closedCycle();
+        setField(cycle, "id", CYCLE_ID);
+        cycle.reopen("Need correction", NOW.minusSeconds(60));
+        CloseCapitalCycleRequest request = closeRequest("Finished after correction");
+        when(capitalCycleRepository.findByIdAndOwnerId(CYCLE_ID, OWNER_ID)).thenReturn(Optional.of(cycle));
+
+        CapitalCycleResponse response = createService().closeCycle(OWNER_ID, CYCLE_ID, request);
+
+        assertThat(response.getStatus()).isEqualTo(CapitalCycleStatus.CLOSED);
+        assertThat(response.getCloseReason()).isEqualTo("Finished after correction");
+        assertThat(response.getClosedAt()).isEqualTo(NOW);
     }
 
     @Test
