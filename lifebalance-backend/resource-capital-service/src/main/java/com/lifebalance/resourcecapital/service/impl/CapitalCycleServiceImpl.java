@@ -1,9 +1,11 @@
 package com.lifebalance.resourcecapital.service.impl;
 
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
+import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleStatus;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleType;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.CapitalCycleNotFoundException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.CapitalCycleOverlapException;
+import com.lifebalance.resourcecapital.domain.capitalcycle.exception.InvalidCapitalCycleStateException;
 import com.lifebalance.resourcecapital.dto.CapitalCycleResponse;
 import com.lifebalance.resourcecapital.dto.CloseCapitalCycleRequest;
 import com.lifebalance.resourcecapital.dto.CreateCapitalCycleRequest;
@@ -79,13 +81,16 @@ public class CapitalCycleServiceImpl implements CapitalCycleService {
     public CapitalCycleResponse updateCycle(UUID ownerId, UUID cycleId, UpdateCapitalCycleRequest request) {
         Objects.requireNonNull(request, "Update capital cycle request is required.");
         CapitalCycle cycle = findOwnedCycle(ownerId, cycleId);
-        ensureNoOverlappingCycle(
-                ownerId,
-                request.getType(),
-                request.getStartDate(),
-                request.getEndDate(),
-                cycleId
-        );
+
+        if (!cycle.isActive()) {
+            ensureNoOverlappingCycle(
+                    ownerId,
+                    request.getType(),
+                    request.getStartDate(),
+                    request.getEndDate(),
+                    cycleId
+            );
+        }
 
         cycle.updateInformation(
                 request.getName(),
@@ -102,6 +107,7 @@ public class CapitalCycleServiceImpl implements CapitalCycleService {
     @Override
     public CapitalCycleResponse activateCycle(UUID ownerId, UUID cycleId) {
         CapitalCycle cycle = findOwnedCycle(ownerId, cycleId);
+        ensureTransitionAllowed(cycle, CapitalCycleStatus.ACTIVE, "activate");
         capitalCycleBusinessValidator.validateActivationAllowed(ownerId, cycle.getType(), cycle.getId());
 
         cycle.activate(clock.instant());
@@ -145,6 +151,12 @@ public class CapitalCycleServiceImpl implements CapitalCycleService {
     ) {
         if (capitalCycleRepository.existsOverlappingCycle(ownerId, type, startDate, endDate, excludedCycleId)) {
             throw new CapitalCycleOverlapException(ownerId, startDate, endDate);
+        }
+    }
+
+    private void ensureTransitionAllowed(CapitalCycle cycle, CapitalCycleStatus targetStatus, String action) {
+        if (!cycle.getStatus().canTransitionTo(targetStatus)) {
+            throw new InvalidCapitalCycleStateException(cycle.getId(), cycle.getStatus(), targetStatus, action);
         }
     }
 
