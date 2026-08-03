@@ -3,6 +3,7 @@ package com.lifebalance.resourcecapital.service.impl;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleStatus;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleType;
+import com.lifebalance.resourcecapital.domain.capitalcycle.exception.ActiveCapitalCycleAlreadyExistsException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.CapitalCycleNotFoundException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.CapitalCycleOverlapException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.InvalidCapitalCycleStateException;
@@ -16,6 +17,7 @@ import com.lifebalance.resourcecapital.service.CapitalCycleBusinessValidator;
 import com.lifebalance.resourcecapital.service.CapitalCycleService;
 import com.lifebalance.resourcecapital.service.mapper.CapitalCycleMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +28,8 @@ import java.util.UUID;
 
 @Service
 public class CapitalCycleServiceImpl implements CapitalCycleService {
+
+    private static final String ACTIVE_CYCLE_UNIQUE_INDEX = "uq_capital_cycles_owner_type_active";
 
     private final CapitalCycleRepository capitalCycleRepository;
     private final CapitalCycleMapper capitalCycleMapper;
@@ -110,7 +114,15 @@ public class CapitalCycleServiceImpl implements CapitalCycleService {
         ensureTransitionAllowed(cycle, CapitalCycleStatus.ACTIVE, "activate");
         capitalCycleBusinessValidator.validateActivationAllowed(ownerId, cycle.getType(), cycle.getId());
 
-        cycle.activate(clock.instant());
+        try {
+            cycle.activate(clock.instant());
+            capitalCycleRepository.saveAndFlush(cycle);
+        } catch (DataIntegrityViolationException exception) {
+            if (isActiveCycleUniqueViolation(exception)) {
+                throw new ActiveCapitalCycleAlreadyExistsException(ownerId, cycle.getType());
+            }
+            throw exception;
+        }
 
         return capitalCycleMapper.toResponse(cycle);
     }
@@ -158,6 +170,12 @@ public class CapitalCycleServiceImpl implements CapitalCycleService {
         if (!cycle.getStatus().canTransitionTo(targetStatus)) {
             throw new InvalidCapitalCycleStateException(cycle.getId(), cycle.getStatus(), targetStatus, action);
         }
+    }
+
+    private boolean isActiveCycleUniqueViolation(DataIntegrityViolationException exception) {
+        Throwable mostSpecificCause = exception.getMostSpecificCause();
+        String message = mostSpecificCause.getMessage();
+        return message != null && message.contains(ACTIVE_CYCLE_UNIQUE_INDEX);
     }
 
 }
