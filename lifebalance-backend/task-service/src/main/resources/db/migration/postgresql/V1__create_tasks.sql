@@ -1,3 +1,5 @@
+CREATE SCHEMA IF NOT EXISTS task;
+
 CREATE TABLE task.tasks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 
@@ -21,9 +23,13 @@ CREATE TABLE task.tasks (
 
     note TEXT,
 
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE,
-
     deleted_at TIMESTAMP WITH TIME ZONE
 );
+
+CREATE INDEX idx_task_status
+ON task.tasks(status);
+
+CREATE INDEX idx_task_priority
+ON task.tasks(priority_level);
