@@ -2,6 +2,11 @@ server:
   port: ${RESOURCE_CAPITAL_SERVICE_PORT:8098}
 
 spring:
+  flyway:
+    locations:
+      - classpath:db/migration/postgresql
+      - classpath:db/seed/postgresql
+
   security:
     oauth2:
       resourceserver:
