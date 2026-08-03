@@ -8,7 +8,7 @@ import jakarta.transaction.Transactional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.dao.IncorrectResultSizeDataAccessException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 
@@ -176,24 +176,18 @@ class CapitalCycleRepositoryTest {
     }
 
     @Test
-    void activeLookupFailsWhenMultipleMatchingCyclesExist() {
+    void rejectsTwoActiveCyclesForSameOwnerAndType() {
         capitalCycleRepository.save(active(dailyCycle(
                 OWNER_ID,
                 "Active daily August 5",
                 LocalDate.of(2026, 8, 5)
         )));
-        capitalCycleRepository.saveAndFlush(active(dailyCycle(
+
+        assertThatThrownBy(() -> capitalCycleRepository.saveAndFlush(active(dailyCycle(
                 OWNER_ID,
                 "Active daily August 6",
                 LocalDate.of(2026, 8, 6)
-        )));
-        entityManager.clear();
-
-        assertThatThrownBy(() -> capitalCycleRepository.findByOwnerIdAndTypeAndStatus(
-                OWNER_ID,
-                CapitalCycleType.DAILY,
-                CapitalCycleStatus.ACTIVE
-        )).isInstanceOf(IncorrectResultSizeDataAccessException.class);
+        )))).isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test
@@ -240,16 +234,11 @@ class CapitalCycleRepositoryTest {
     }
 
     @Test
-    void detectsActiveCycleExcludingCurrentIdOnlyWhenAnotherMatchingCycleExists() {
+    void detectsActiveCycleExcludingCurrentIdIgnoresDifferentOwnerOrType() {
         CapitalCycle activeDaily = capitalCycleRepository.save(active(dailyCycle(
                 OWNER_ID,
                 "Active daily",
                 LocalDate.of(2026, 8, 8)
-        )));
-        capitalCycleRepository.save(active(dailyCycle(
-                OWNER_ID,
-                "Second active daily",
-                LocalDate.of(2026, 8, 9)
         )));
         capitalCycleRepository.save(active(dailyCycle(
                 OTHER_OWNER_ID,
@@ -269,7 +258,7 @@ class CapitalCycleRepositoryTest {
                 CapitalCycleType.DAILY,
                 CapitalCycleStatus.ACTIVE,
                 activeDaily.getId()
-        )).isTrue();
+        )).isFalse();
     }
 
     @Test

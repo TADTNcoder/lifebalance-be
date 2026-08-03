@@ -1,0 +1,8 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:resourcecapital_seed_test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1
+
+  flyway:
+    locations:
+      - classpath:db/migration/h2
+      - classpath:db/seed/h2
