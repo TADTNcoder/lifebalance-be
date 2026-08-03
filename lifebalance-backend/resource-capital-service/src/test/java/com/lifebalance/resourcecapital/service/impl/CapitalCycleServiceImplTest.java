@@ -20,6 +20,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.lang.reflect.Field;
 import java.time.Clock;
@@ -305,6 +306,24 @@ class CapitalCycleServiceImplTest {
         assertThatThrownBy(() -> createService().activateCycle(OWNER_ID, CYCLE_ID))
                 .isInstanceOf(ActiveCapitalCycleAlreadyExistsException.class);
         assertThat(cycle.getStatus()).isEqualTo(CapitalCycleStatus.DRAFT);
+    }
+
+    @Test
+    void activateCycleConvertsDatabaseActiveCycleUniqueViolationToConflict() throws Exception {
+        CapitalCycle cycle = dailyCycle();
+        setField(cycle, "id", CYCLE_ID);
+        when(capitalCycleRepository.findByIdAndOwnerId(CYCLE_ID, OWNER_ID)).thenReturn(Optional.of(cycle));
+        doThrow(new DataIntegrityViolationException(
+                "duplicate key value violates unique constraint \"uq_capital_cycles_owner_type_active\""
+        )).when(capitalCycleRepository).saveAndFlush(cycle);
+
+        assertThatThrownBy(() -> createService().activateCycle(OWNER_ID, CYCLE_ID))
+                .isInstanceOf(ActiveCapitalCycleAlreadyExistsException.class)
+                .satisfies(exception -> {
+                    ActiveCapitalCycleAlreadyExistsException appException =
+                            (ActiveCapitalCycleAlreadyExistsException) exception;
+                    assertThat(appException.getCode()).isEqualTo(ActiveCapitalCycleAlreadyExistsException.ERROR_CODE);
+                });
     }
 
     @Test
