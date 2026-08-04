@@ -9,6 +9,8 @@ import java.util.UUID;
 import com.lifebalance.task.dto.request.UpdateTaskRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 @RestController
 @RequestMapping("/api/tasks")
@@ -28,6 +30,14 @@ public class TaskController {
         return taskService.create(request);
     }
 
+    @GetMapping
+    public Page<TaskResponse> search(
+            @RequestParam(defaultValue = "") String keyword,
+            Pageable pageable) {
+
+        return taskService.search(keyword, pageable);
+    }
+
     @PutMapping("/{id}")
     public TaskResponse update(
             @PathVariable UUID id,
@@ -35,4 +45,5 @@ public class TaskController {
 
         return taskService.update(id, request);
     }
+
 }

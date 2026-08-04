@@ -12,6 +12,8 @@ import com.lifebalance.task.service.TaskService;
 import java.util.UUID;
 import com.lifebalance.task.dto.request.UpdateTaskRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 @Service
 @RequiredArgsConstructor
@@ -66,6 +68,16 @@ public class TaskServiceImpl implements TaskService {
 
         task = taskRepository.save(task);
         return mapToResponse(task);
+    }
+
+    @Override
+    public Page<TaskResponse> search(
+            String keyword,
+            Pageable pageable) {
+
+        return taskRepository
+                .findByTaskNameContainingIgnoreCase(keyword, pageable)
+                .map(this::mapToResponse);
     }
 
     private TaskResponse mapToResponse(Task task) {
