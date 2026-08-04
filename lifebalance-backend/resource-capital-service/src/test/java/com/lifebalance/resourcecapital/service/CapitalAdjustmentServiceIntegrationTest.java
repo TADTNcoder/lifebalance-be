@@ -138,7 +138,7 @@ class CapitalAdjustmentServiceIntegrationTest {
     }
 
     @Test
-    void adjustCapitalRejectsClosedCycleWithoutChangingCapitalOrWritingHistory() {
+    void adjustCapitalRejectsClosedCycleWithoutChangingCapitalOrWritingAdjustmentHistory() {
         CapitalCycle cycle = capitalCycleRepository.saveAndFlush(dailyCycle("August 6", LocalDate.of(2026, 8, 6)));
         capitalService.setupTimeCapital(OWNER_ID, cycle.getId(), new SetupTimeCapitalRequest(90L));
         cycle.activate(NOW.minusSeconds(120));
@@ -157,7 +157,11 @@ class CapitalAdjustmentServiceIntegrationTest {
                 .isPresent()
                 .get()
                 .satisfies(timeCapital -> assertThat(timeCapital.getPlannedMinutes()).isEqualTo(90L));
-        assertThat(capitalHistoryRepository.findByCapitalCycleId(cycle.getId(), PageRequest.of(0, 10))).isEmpty();
+        assertThat(capitalHistoryRepository.findByCapitalCycleIdAndActionType(
+                cycle.getId(),
+                CapitalActionType.ADJUSTMENT_INCREASE,
+                PageRequest.of(0, 10)
+        )).isEmpty();
     }
 
     @Test

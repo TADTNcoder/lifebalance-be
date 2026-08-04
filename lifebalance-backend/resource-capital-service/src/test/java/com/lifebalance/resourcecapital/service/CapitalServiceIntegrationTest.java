@@ -1,5 +1,6 @@
 package com.lifebalance.resourcecapital.service;
 
+import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalActionType;
 import com.lifebalance.resourcecapital.domain.capital.exception.CapitalAlreadyInitializedException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleStatus;
@@ -10,11 +11,13 @@ import com.lifebalance.resourcecapital.dto.SetupMoneyCapitalRequest;
 import com.lifebalance.resourcecapital.dto.SetupTimeCapitalRequest;
 import com.lifebalance.resourcecapital.dto.TimeCapitalResponse;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalCycleRepository;
+import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalHistoryRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.PageRequest;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -39,6 +42,9 @@ class CapitalServiceIntegrationTest {
     private CapitalCycleRepository capitalCycleRepository;
 
     @Autowired
+    private CapitalHistoryRepository capitalHistoryRepository;
+
+    @Autowired
     private EntityManager entityManager;
 
     @Test
@@ -59,6 +65,7 @@ class CapitalServiceIntegrationTest {
         entityManager.clear();
 
         CapitalOverviewResponse overview = capitalService.getCapitalOverview(OWNER_ID, cycle.getId());
+        var historyPage = capitalHistoryRepository.findByCapitalCycleId(cycle.getId(), PageRequest.of(0, 10));
 
         assertThat(timeCapital.initialized()).isTrue();
         assertThat(timeCapital.availableMinutes()).isEqualTo(480L);
@@ -70,6 +77,9 @@ class CapitalServiceIntegrationTest {
         assertThat(overview.cycleStatus()).isEqualTo(CapitalCycleStatus.DRAFT);
         assertThat(overview.timeCapital().plannedMinutes()).isEqualTo(480L);
         assertThat(overview.moneyCapital().plannedAmount()).isEqualByComparingTo("1234.5000");
+        assertThat(historyPage.getContent())
+                .extracting(history -> history.getActionType())
+                .containsExactly(CapitalActionType.CAPITAL_SET, CapitalActionType.CAPITAL_SET);
     }
 
     @Test
