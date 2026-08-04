@@ -9,7 +9,8 @@ import com.lifebalance.task.model.Task;
 import com.lifebalance.task.model.enums.TaskStatus;
 import com.lifebalance.task.repository.TaskRepository;
 import com.lifebalance.task.service.TaskService;
-
+import java.util.UUID;
+import com.lifebalance.task.dto.request.UpdateTaskRequest;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -20,7 +21,7 @@ public class TaskServiceImpl implements TaskService {
     @Override
     @Transactional
     public TaskResponse create(CreateTaskRequest request) {
-        if (taskRepository.existsByTaskName(request.getTaskName())) {
+        if (taskRepository.findByTaskName(request.getTaskName()).isPresent()) {
             throw new RuntimeException("Task name already exists");
         }
         Task task = Task.builder()
@@ -39,6 +40,32 @@ public class TaskServiceImpl implements TaskService {
         task = taskRepository.save(task);
         return mapToResponse(task);
 
+    }
+
+    @Transactional
+    @Override
+    public TaskResponse update(UUID id, UpdateTaskRequest request) {
+        Task task = taskRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Task not found "));
+        taskRepository.findByTaskName(request.getTaskName())
+                .ifPresent(exitingTask -> {
+                    if (!exitingTask.getId().equals(id)) {
+                        throw new RuntimeException("Task name already exists");
+                    }
+                });
+        task.setTaskName(request.getTaskName());
+        task.setDescription(request.getDescription());
+        task.setPriorityLevel(request.getPriorityLevel());
+        task.setStatus(request.getStatus());
+        task.setStartDate(request.getStartDate());
+        task.setEndDate(request.getEndDate());
+        task.setStartTime(request.getStartTime());
+        task.setEndTime(request.getEndTime());
+        task.setDayOfWeek(request.getDayOfWeek());
+        task.setNote(request.getNote());
+
+        task = taskRepository.save(task);
+        return mapToResponse(task);
     }
 
     private TaskResponse mapToResponse(Task task) {
