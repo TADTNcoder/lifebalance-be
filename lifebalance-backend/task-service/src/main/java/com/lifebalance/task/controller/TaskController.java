@@ -56,4 +56,9 @@ public class TaskController {
         taskService.restore(id);
     }
 
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable UUID id) {
+        taskService.delete(id);
+    }
+
 }

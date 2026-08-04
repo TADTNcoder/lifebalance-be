@@ -104,6 +104,16 @@ public class TaskServiceImpl implements TaskService {
         taskRepository.save(task);
     }
 
+    @Transactional
+    @Override
+    public void delete(UUID id) {
+
+        Task task = taskRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Task not found"));
+
+        taskRepository.delete(task);
+    }
+
     private TaskResponse mapToResponse(Task task) {
 
         TaskResponse response = new TaskResponse();

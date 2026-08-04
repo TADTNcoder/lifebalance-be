@@ -20,4 +20,6 @@ public interface TaskService {
     void archive(UUID id);
 
     void restore(UUID id);
+
+    void delete(UUID id);
 }
