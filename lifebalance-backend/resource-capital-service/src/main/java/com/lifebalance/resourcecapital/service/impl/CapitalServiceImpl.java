@@ -5,6 +5,10 @@ import com.lifebalance.resourcecapital.domain.capital.exception.CapitalAlreadyIn
 import com.lifebalance.resourcecapital.domain.capital.exception.CapitalNotSetupException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.CapitalCycleNotFoundException;
+import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalActionType;
+import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalActorType;
+import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalHistory;
+import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalReferenceType;
 import com.lifebalance.resourcecapital.domain.moneycapital.MoneyCapital;
 import com.lifebalance.resourcecapital.domain.timecapital.TimeCapital;
 import com.lifebalance.resourcecapital.dto.CapitalOverviewResponse;
@@ -13,6 +17,7 @@ import com.lifebalance.resourcecapital.dto.SetupMoneyCapitalRequest;
 import com.lifebalance.resourcecapital.dto.SetupTimeCapitalRequest;
 import com.lifebalance.resourcecapital.dto.TimeCapitalResponse;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalCycleRepository;
+import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalHistoryRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.MoneyCapitalRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.TimeCapitalRepository;
 import com.lifebalance.resourcecapital.service.CapitalService;
@@ -21,26 +26,33 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Objects;
 import java.util.UUID;
 
 @Service
 public class CapitalServiceImpl implements CapitalService {
 
+    private static final int MONEY_SCALE = 4;
+
     private final CapitalCycleRepository capitalCycleRepository;
     private final TimeCapitalRepository timeCapitalRepository;
     private final MoneyCapitalRepository moneyCapitalRepository;
+    private final CapitalHistoryRepository capitalHistoryRepository;
     private final CapitalMapper capitalMapper;
 
     public CapitalServiceImpl(
             CapitalCycleRepository capitalCycleRepository,
             TimeCapitalRepository timeCapitalRepository,
             MoneyCapitalRepository moneyCapitalRepository,
+            CapitalHistoryRepository capitalHistoryRepository,
             CapitalMapper capitalMapper
     ) {
         this.capitalCycleRepository = capitalCycleRepository;
         this.timeCapitalRepository = timeCapitalRepository;
         this.moneyCapitalRepository = moneyCapitalRepository;
+        this.capitalHistoryRepository = capitalHistoryRepository;
         this.capitalMapper = capitalMapper;
     }
 
@@ -53,7 +65,15 @@ public class CapitalServiceImpl implements CapitalService {
 
         TimeCapital timeCapital = TimeCapital.create(cycle, request.plannedMinutes());
         try {
-            return capitalMapper.toTimeResponse(timeCapitalRepository.saveAndFlush(timeCapital));
+            TimeCapital savedCapital = timeCapitalRepository.saveAndFlush(timeCapital);
+            recordSetupHistory(
+                    cycle,
+                    CapitalKind.TIME,
+                    money(savedCapital.getPlannedMinutes()),
+                    "Setup time capital",
+                    ownerId
+            );
+            return capitalMapper.toTimeResponse(savedCapital);
         } catch (DataIntegrityViolationException exception) {
             throw new CapitalAlreadyInitializedException(cycleId, CapitalKind.TIME, exception);
         }
@@ -68,7 +88,15 @@ public class CapitalServiceImpl implements CapitalService {
 
         MoneyCapital moneyCapital = MoneyCapital.create(cycle, request.plannedAmount(), request.currencyCode());
         try {
-            return capitalMapper.toMoneyResponse(moneyCapitalRepository.saveAndFlush(moneyCapital));
+            MoneyCapital savedCapital = moneyCapitalRepository.saveAndFlush(moneyCapital);
+            recordSetupHistory(
+                    cycle,
+                    CapitalKind.MONEY,
+                    savedCapital.getPlannedAmount(),
+                    "Setup money capital",
+                    ownerId
+            );
+            return capitalMapper.toMoneyResponse(savedCapital);
         } catch (DataIntegrityViolationException exception) {
             throw new CapitalAlreadyInitializedException(cycleId, CapitalKind.MONEY, exception);
         }
@@ -141,5 +169,32 @@ public class CapitalServiceImpl implements CapitalService {
     private MoneyCapital findMoneyCapital(UUID cycleId) {
         return moneyCapitalRepository.findByCapitalCycleId(cycleId)
                 .orElseThrow(() -> new CapitalNotSetupException(cycleId, CapitalKind.MONEY));
+    }
+
+    private void recordSetupHistory(
+            CapitalCycle cycle,
+            CapitalKind capitalType,
+            BigDecimal amount,
+            String reason,
+            UUID actorId
+    ) {
+        capitalHistoryRepository.saveAndFlush(CapitalHistory.record(
+                cycle,
+                capitalType,
+                CapitalActionType.CAPITAL_SET,
+                amount,
+                money(0),
+                amount,
+                reason,
+                null,
+                CapitalReferenceType.MANUAL,
+                null,
+                CapitalActorType.USER,
+                actorId
+        ));
+    }
+
+    private BigDecimal money(long amount) {
+        return BigDecimal.valueOf(amount).setScale(MONEY_SCALE, RoundingMode.UNNECESSARY);
     }
 }
