@@ -17,6 +17,7 @@ import com.lifebalance.resourcecapital.dto.TimeCapitalResponse;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalCycleRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.MoneyCapitalRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.TimeCapitalRepository;
+import com.lifebalance.resourcecapital.service.NoAllocationPersistenceReader;
 import com.lifebalance.resourcecapital.service.mapper.CapitalMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -321,7 +322,7 @@ class CapitalServiceImplTest {
                 capitalCycleRepository,
                 timeCapitalRepository,
                 moneyCapitalRepository,
-                new CapitalMapper()
+                new CapitalMapper(new NoAllocationPersistenceReader())
         );
     }
 
