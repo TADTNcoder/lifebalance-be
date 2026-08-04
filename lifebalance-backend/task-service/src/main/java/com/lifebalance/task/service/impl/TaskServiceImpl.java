@@ -80,6 +80,18 @@ public class TaskServiceImpl implements TaskService {
                 .map(this::mapToResponse);
     }
 
+    @Transactional
+    @Override
+    public void archive(UUID id) {
+
+        Task task = taskRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Task not found"));
+
+        task.setStatus(TaskStatus.ARCHIVED);
+
+        taskRepository.save(task);
+    }
+
     private TaskResponse mapToResponse(Task task) {
 
         TaskResponse response = new TaskResponse();

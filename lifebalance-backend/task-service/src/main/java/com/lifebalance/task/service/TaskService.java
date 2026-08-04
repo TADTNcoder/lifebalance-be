@@ -16,4 +16,6 @@ public interface TaskService {
     Page<TaskResponse> search(
             String keyword,
             Pageable pageable);
+
+    void archive(UUID id);
 }

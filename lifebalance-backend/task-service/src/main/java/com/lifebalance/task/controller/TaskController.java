@@ -46,4 +46,9 @@ public class TaskController {
         return taskService.update(id, request);
     }
 
+    @PatchMapping("/{id}/archive")
+    public void archive(@PathVariable UUID id) {
+        taskService.archive(id);
+    }
+
 }
