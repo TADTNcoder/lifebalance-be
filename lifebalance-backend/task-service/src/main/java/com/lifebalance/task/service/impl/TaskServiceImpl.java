@@ -114,6 +114,31 @@ public class TaskServiceImpl implements TaskService {
         taskRepository.delete(task);
     }
 
+    @Transactional
+    @Override
+    public TaskResponse duplicate(UUID id) {
+
+        Task source = taskRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Task not found"));
+
+        Task copy = Task.builder()
+                .taskName(source.getTaskName() + " (Copy)")
+                .description(source.getDescription())
+                .priorityLevel(source.getPriorityLevel())
+                .status(TaskStatus.TODO)
+                .startDate(source.getStartDate())
+                .endDate(source.getEndDate())
+                .startTime(source.getStartTime())
+                .endTime(source.getEndTime())
+                .dayOfWeek(source.getDayOfWeek())
+                .note(source.getNote())
+                .build();
+
+        copy = taskRepository.save(copy);
+
+        return mapToResponse(copy);
+    }
+
     private TaskResponse mapToResponse(Task task) {
 
         TaskResponse response = new TaskResponse();

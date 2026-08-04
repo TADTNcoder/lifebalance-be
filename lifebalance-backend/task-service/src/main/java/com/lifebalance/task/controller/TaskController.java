@@ -30,6 +30,11 @@ public class TaskController {
         return taskService.create(request);
     }
 
+    @PostMapping("/{id}/duplicate")
+    public TaskResponse duplicate(@PathVariable UUID id) {
+        return taskService.duplicate(id);
+    }
+
     @GetMapping
     public Page<TaskResponse> search(
             @RequestParam(defaultValue = "") String keyword,

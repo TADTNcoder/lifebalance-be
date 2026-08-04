@@ -22,4 +22,6 @@ public interface TaskService {
     void restore(UUID id);
 
     void delete(UUID id);
+
+    TaskResponse duplicate(UUID id);
 }
