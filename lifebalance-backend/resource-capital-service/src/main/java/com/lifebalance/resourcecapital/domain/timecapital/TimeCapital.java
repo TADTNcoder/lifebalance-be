@@ -1,6 +1,7 @@
 package com.lifebalance.resourcecapital.domain.timecapital;
 
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
+import com.lifebalance.resourcecapital.domain.capital.exception.InvalidAdjustmentAmountException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -79,6 +80,24 @@ public class TimeCapital {
         return plannedMinutes > 0;
     }
 
+    public void increasePlannedMinutes(long amountInMinutes) {
+        validateAdjustmentMinutes(amountInMinutes);
+        try {
+            plannedMinutes = Math.addExact(plannedMinutes, amountInMinutes);
+        } catch (ArithmeticException exception) {
+            throw InvalidAdjustmentAmountException.timeOverflow(amountInMinutes, exception);
+        }
+    }
+
+    public void decreasePlannedMinutes(long amountInMinutes) {
+        validateAdjustmentMinutes(amountInMinutes);
+        long newPlannedMinutes = plannedMinutes - amountInMinutes;
+        if (newPlannedMinutes < 0) {
+            throw InvalidAdjustmentAmountException.timeBelowZero(plannedMinutes, amountInMinutes);
+        }
+        plannedMinutes = newPlannedMinutes;
+    }
+
     @PrePersist
     void onCreate() {
         Instant now = Instant.now();
@@ -104,6 +123,12 @@ public class TimeCapital {
     private static void validatePlannedMinutes(long plannedMinutes) {
         if (plannedMinutes < 0) {
             throw new IllegalArgumentException("Planned minutes must be greater than or equal to zero.");
+        }
+    }
+
+    private static void validateAdjustmentMinutes(long amountInMinutes) {
+        if (amountInMinutes <= 0) {
+            throw InvalidAdjustmentAmountException.nonPositiveTime(amountInMinutes);
         }
     }
 
