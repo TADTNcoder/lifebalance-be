@@ -18,4 +18,6 @@ public interface TaskService {
             Pageable pageable);
 
     void archive(UUID id);
+
+    void restore(UUID id);
 }

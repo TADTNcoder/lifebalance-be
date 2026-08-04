@@ -51,4 +51,9 @@ public class TaskController {
         taskService.archive(id);
     }
 
+    @PatchMapping("/{id}/restore")
+    public void restore(@PathVariable UUID id) {
+        taskService.restore(id);
+    }
+
 }

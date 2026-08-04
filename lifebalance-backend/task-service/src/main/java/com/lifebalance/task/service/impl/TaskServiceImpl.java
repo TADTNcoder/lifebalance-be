@@ -92,6 +92,18 @@ public class TaskServiceImpl implements TaskService {
         taskRepository.save(task);
     }
 
+    @Transactional
+    @Override
+    public void restore(UUID id) {
+
+        Task task = taskRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Task not found"));
+
+        task.setStatus(TaskStatus.TODO);
+
+        taskRepository.save(task);
+    }
+
     private TaskResponse mapToResponse(Task task) {
 
         TaskResponse response = new TaskResponse();
