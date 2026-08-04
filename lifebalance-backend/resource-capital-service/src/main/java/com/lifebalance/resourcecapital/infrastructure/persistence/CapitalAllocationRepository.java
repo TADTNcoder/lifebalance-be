@@ -67,4 +67,31 @@ public interface CapitalAllocationRepository extends JpaRepository<CapitalAlloca
             @Param("capitalCycleId") UUID capitalCycleId,
             @Param("capitalType") CapitalKind capitalType
     );
+
+    @Query("""
+            select allocation.capitalType as capitalType,
+                   allocation.targetType as targetType,
+                   allocation.targetId as targetId,
+                   coalesce(sum(allocation.allocatedAmount), 0) as allocatedAmount
+            from CapitalAllocation allocation
+            where allocation.capitalCycle.id = :capitalCycleId
+              and allocation.targetType = :targetType
+            group by allocation.capitalType, allocation.targetType, allocation.targetId
+            order by allocation.capitalType asc, sum(allocation.allocatedAmount) desc, allocation.targetId asc
+            """)
+    List<TargetAllocationBreakdownProjection> findAllocationBreakdownByTargetType(
+            @Param("capitalCycleId") UUID capitalCycleId,
+            @Param("targetType") AllocationTargetType targetType
+    );
+
+    interface TargetAllocationBreakdownProjection {
+
+        CapitalKind getCapitalType();
+
+        AllocationTargetType getTargetType();
+
+        UUID getTargetId();
+
+        BigDecimal getAllocatedAmount();
+    }
 }
