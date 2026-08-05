@@ -6,6 +6,7 @@ import com.lifebalance.resourcecapital.domain.timecapital.TimeCapital;
 import com.lifebalance.resourcecapital.dto.CapitalOverviewResponse;
 import com.lifebalance.resourcecapital.dto.MoneyCapitalResponse;
 import com.lifebalance.resourcecapital.dto.TimeCapitalResponse;
+import com.lifebalance.resourcecapital.service.CapitalAllocationReader;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -17,18 +18,25 @@ public class CapitalMapper {
 
     private static final int MONEY_SCALE = 4;
 
+    private final CapitalAllocationReader capitalAllocationReader;
+
+    public CapitalMapper(CapitalAllocationReader capitalAllocationReader) {
+        this.capitalAllocationReader = capitalAllocationReader;
+    }
+
     public TimeCapitalResponse toTimeResponse(TimeCapital timeCapital) {
         UUID cycleId = timeCapital.getCapitalCycle().getId();
         long plannedMinutes = timeCapital.getPlannedMinutes();
-        long allocatedMinutes = 0L;
+        long allocatedMinutes = capitalAllocationReader.getAllocatedMinutes(cycleId);
+        long remainingMinutes = plannedMinutes - allocatedMinutes;
 
         return new TimeCapitalResponse(
                 timeCapital.getId(),
                 cycleId,
                 plannedMinutes,
                 allocatedMinutes,
-                plannedMinutes - allocatedMinutes,
-                plannedMinutes - allocatedMinutes,
+                remainingMinutes,
+                remainingMinutes,
                 true
         );
     }
@@ -48,15 +56,19 @@ public class CapitalMapper {
     public MoneyCapitalResponse toMoneyResponse(MoneyCapital moneyCapital) {
         UUID cycleId = moneyCapital.getCapitalCycle().getId();
         BigDecimal plannedAmount = moneyCapital.getPlannedAmount();
-        BigDecimal allocatedAmount = zeroMoney();
+        BigDecimal allocatedAmount = capitalAllocationReader.getAllocatedAmount(cycleId);
+        if (allocatedAmount == null) {
+            allocatedAmount = zeroMoney();
+        }
+        BigDecimal remainingAmount = plannedAmount.subtract(allocatedAmount).setScale(MONEY_SCALE, RoundingMode.UNNECESSARY);
 
         return new MoneyCapitalResponse(
                 moneyCapital.getId(),
                 cycleId,
                 plannedAmount,
                 allocatedAmount,
-                plannedAmount.subtract(allocatedAmount).setScale(MONEY_SCALE, RoundingMode.UNNECESSARY),
-                plannedAmount.subtract(allocatedAmount).setScale(MONEY_SCALE, RoundingMode.UNNECESSARY),
+                remainingAmount,
+                remainingAmount,
                 moneyCapital.getCurrencyCode(),
                 true
         );

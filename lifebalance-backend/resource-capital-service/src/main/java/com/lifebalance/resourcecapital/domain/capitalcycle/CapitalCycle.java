@@ -2,6 +2,7 @@ package com.lifebalance.resourcecapital.domain.capitalcycle;
 
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.InvalidCapitalCyclePeriodException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.InvalidCapitalCycleStateException;
+import com.lifebalance.resourcecapital.domain.capital.exception.CapitalCycleNotAdjustableException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -229,6 +230,18 @@ public class CapitalCycle {
 
     public boolean canInitializeCapital() {
         return status == CapitalCycleStatus.DRAFT || status == CapitalCycleStatus.REOPENED;
+    }
+
+    public void ensureCapitalAdjustmentAllowed() {
+        if (!isCapitalAdjustmentAllowed()) {
+            throw new CapitalCycleNotAdjustableException(id, status);
+        }
+    }
+
+    public boolean isCapitalAdjustmentAllowed() {
+        return status == CapitalCycleStatus.DRAFT
+                || status == CapitalCycleStatus.ACTIVE
+                || status == CapitalCycleStatus.REOPENED;
     }
 
     public boolean contains(LocalDate date) {

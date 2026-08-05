@@ -1,6 +1,7 @@
 package com.lifebalance.resourcecapital.domain.moneycapital;
 
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
+import com.lifebalance.resourcecapital.domain.capital.exception.InvalidAdjustmentAmountException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -37,6 +38,7 @@ import java.util.UUID;
 public class MoneyCapital {
 
     private static final int AMOUNT_SCALE = 4;
+    private static final int AMOUNT_INTEGER_DIGITS = 15;
     private static final int CURRENCY_CODE_LENGTH = 3;
 
     @Id
@@ -90,6 +92,24 @@ public class MoneyCapital {
         return plannedAmount.compareTo(BigDecimal.ZERO) > 0;
     }
 
+    public void increasePlannedAmount(BigDecimal amount) {
+        BigDecimal normalizedAmount = normalizeAdjustmentAmount(amount);
+        BigDecimal newPlannedAmount = plannedAmount.add(normalizedAmount);
+        validateColumnPrecision(newPlannedAmount, "planned amount after increase");
+        plannedAmount = newPlannedAmount;
+    }
+
+    public void decreasePlannedAmount(BigDecimal amount) {
+        BigDecimal normalizedAmount = normalizeAdjustmentAmount(amount);
+        BigDecimal newPlannedAmount = plannedAmount.subtract(normalizedAmount);
+        if (newPlannedAmount.compareTo(BigDecimal.ZERO) < 0) {
+            throw InvalidAdjustmentAmountException.invalidMoney(
+                    "cannot decrease current planned amount " + plannedAmount + " by " + normalizedAmount
+            );
+        }
+        plannedAmount = newPlannedAmount;
+    }
+
     @PrePersist
     void onCreate() {
         Instant now = Instant.now();
@@ -119,11 +139,38 @@ public class MoneyCapital {
         if (plannedAmount.compareTo(BigDecimal.ZERO) < 0) {
             throw new IllegalArgumentException("Planned amount must be greater than or equal to zero.");
         }
+        validateColumnPrecision(plannedAmount.setScale(AMOUNT_SCALE, RoundingMode.UNNECESSARY), "planned amount");
     }
 
     private static void validateCurrencyCode(String currencyCode) {
         if (currencyCode == null || !currencyCode.trim().matches("[A-Za-z]{3}")) {
             throw new IllegalArgumentException("Currency code must contain exactly three letters.");
+        }
+    }
+
+    private static BigDecimal normalizeAdjustmentAmount(BigDecimal amount) {
+        if (amount == null) {
+            throw InvalidAdjustmentAmountException.invalidMoney("amount is required");
+        }
+        BigDecimal normalizedAmount;
+        try {
+            normalizedAmount = amount.setScale(AMOUNT_SCALE, RoundingMode.UNNECESSARY);
+        } catch (ArithmeticException exception) {
+            throw InvalidAdjustmentAmountException.invalidMoney("amount scale must not exceed " + AMOUNT_SCALE);
+        }
+        if (normalizedAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw InvalidAdjustmentAmountException.invalidMoney("amount must be greater than zero");
+        }
+        validateColumnPrecision(normalizedAmount, "adjustment amount");
+        return normalizedAmount;
+    }
+
+    private static void validateColumnPrecision(BigDecimal amount, String fieldName) {
+        int integerDigits = amount.precision() - amount.scale();
+        if (integerDigits > AMOUNT_INTEGER_DIGITS) {
+            throw InvalidAdjustmentAmountException.invalidMoney(
+                    fieldName + " exceeds " + AMOUNT_INTEGER_DIGITS + " integer digits"
+            );
         }
     }
 

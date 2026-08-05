@@ -7,6 +7,9 @@ import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleStatus;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleType;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.CapitalCycleNotFoundException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.InvalidCapitalCycleStateException;
+import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalActionType;
+import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalHistory;
+import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalReferenceType;
 import com.lifebalance.resourcecapital.domain.moneycapital.MoneyCapital;
 import com.lifebalance.resourcecapital.domain.timecapital.TimeCapital;
 import com.lifebalance.resourcecapital.dto.CapitalOverviewResponse;
@@ -15,8 +18,10 @@ import com.lifebalance.resourcecapital.dto.SetupMoneyCapitalRequest;
 import com.lifebalance.resourcecapital.dto.SetupTimeCapitalRequest;
 import com.lifebalance.resourcecapital.dto.TimeCapitalResponse;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalCycleRepository;
+import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalHistoryRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.MoneyCapitalRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.TimeCapitalRepository;
+import com.lifebalance.resourcecapital.service.NoAllocationPersistenceReader;
 import com.lifebalance.resourcecapital.service.mapper.CapitalMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -58,6 +63,9 @@ class CapitalServiceImplTest {
     @Mock
     private MoneyCapitalRepository moneyCapitalRepository;
 
+    @Mock
+    private CapitalHistoryRepository capitalHistoryRepository;
+
     @Test
     void setupTimeCapitalCreatesZeroValueCapitalForDraftCycle() throws Exception {
         CapitalCycle cycle = draftCycle();
@@ -76,8 +84,16 @@ class CapitalServiceImplTest {
         );
 
         ArgumentCaptor<TimeCapital> captor = ArgumentCaptor.forClass(TimeCapital.class);
+        ArgumentCaptor<CapitalHistory> historyCaptor = ArgumentCaptor.forClass(CapitalHistory.class);
         verify(timeCapitalRepository).saveAndFlush(captor.capture());
+        verify(capitalHistoryRepository).saveAndFlush(historyCaptor.capture());
         assertThat(captor.getValue().getPlannedMinutes()).isZero();
+        assertThat(historyCaptor.getValue().getActionType()).isEqualTo(CapitalActionType.CAPITAL_SET);
+        assertThat(historyCaptor.getValue().getCapitalType()).isEqualTo(com.lifebalance.resourcecapital.domain.capital.CapitalKind.TIME);
+        assertThat(historyCaptor.getValue().getReferenceType()).isEqualTo(CapitalReferenceType.MANUAL);
+        assertThat(historyCaptor.getValue().getBeforeAmount()).isEqualByComparingTo("0.0000");
+        assertThat(historyCaptor.getValue().getAfterAmount()).isEqualByComparingTo("0.0000");
+        assertThat(historyCaptor.getValue().getActorId()).isEqualTo(OWNER_ID);
         assertThat(response.id()).isEqualTo(TIME_CAPITAL_ID);
         assertThat(response.initialized()).isTrue();
         assertThat(response.plannedMinutes()).isZero();
@@ -180,6 +196,12 @@ class CapitalServiceImplTest {
                 new SetupMoneyCapitalRequest(BigDecimal.ZERO, "vnd")
         );
 
+        ArgumentCaptor<CapitalHistory> historyCaptor = ArgumentCaptor.forClass(CapitalHistory.class);
+        verify(capitalHistoryRepository).saveAndFlush(historyCaptor.capture());
+        assertThat(historyCaptor.getValue().getActionType()).isEqualTo(CapitalActionType.CAPITAL_SET);
+        assertThat(historyCaptor.getValue().getCapitalType()).isEqualTo(com.lifebalance.resourcecapital.domain.capital.CapitalKind.MONEY);
+        assertThat(historyCaptor.getValue().getReferenceType()).isEqualTo(CapitalReferenceType.MANUAL);
+        assertThat(historyCaptor.getValue().getAfterAmount()).isEqualByComparingTo("0.0000");
         assertThat(response.id()).isEqualTo(MONEY_CAPITAL_ID);
         assertThat(response.initialized()).isTrue();
         assertThat(response.plannedAmount()).isEqualByComparingTo("0.0000");
@@ -321,7 +343,8 @@ class CapitalServiceImplTest {
                 capitalCycleRepository,
                 timeCapitalRepository,
                 moneyCapitalRepository,
-                new CapitalMapper()
+                capitalHistoryRepository,
+                new CapitalMapper(new NoAllocationPersistenceReader())
         );
     }
 

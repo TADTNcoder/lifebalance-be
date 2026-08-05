@@ -261,6 +261,12 @@ public class CapitalHistory {
     }
 
     private static void validateReference(CapitalReferenceType referenceType, UUID referenceId) {
+        if (referenceType == CapitalReferenceType.MANUAL) {
+            if (referenceId != null) {
+                throw new IllegalArgumentException("Manual capital history reference must not have a reference id.");
+            }
+            return;
+        }
         if ((referenceType == null) != (referenceId == null)) {
             throw new IllegalArgumentException("Reference type and reference id must both be null or both be provided.");
         }

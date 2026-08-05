@@ -240,6 +240,46 @@ class CapitalHistoryTest {
     }
 
     @Test
+    void allowsManualReferenceWithoutReferenceId() {
+        CapitalHistory history = CapitalHistory.record(
+                createCycle(),
+                CapitalKind.TIME,
+                CapitalActionType.ADJUSTMENT_INCREASE,
+                new BigDecimal("30.0000"),
+                BigDecimal.ZERO,
+                new BigDecimal("30.0000"),
+                "Manual adjustment",
+                null,
+                CapitalReferenceType.MANUAL,
+                null,
+                CapitalActorType.USER,
+                ACTOR_ID
+        );
+
+        assertThat(history.getReferenceType()).isEqualTo(CapitalReferenceType.MANUAL);
+        assertThat(history.getReferenceId()).isNull();
+    }
+
+    @Test
+    void rejectsManualReferenceWithReferenceId() {
+        assertThatThrownBy(() -> CapitalHistory.record(
+                createCycle(),
+                CapitalKind.TIME,
+                CapitalActionType.ADJUSTMENT_INCREASE,
+                new BigDecimal("30.0000"),
+                BigDecimal.ZERO,
+                new BigDecimal("30.0000"),
+                "Manual adjustment",
+                null,
+                CapitalReferenceType.MANUAL,
+                REFERENCE_ID,
+                CapitalActorType.USER,
+                ACTOR_ID
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Manual");
+    }
+
+    @Test
     void validatesUserAndSystemActors() {
         assertThatThrownBy(() -> CapitalHistory.record(
                 createCycle(),
