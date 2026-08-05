@@ -43,6 +43,11 @@ public class TaskController {
         return taskService.search(keyword, pageable);
     }
 
+    @GetMapping("/{id}")
+    public TaskResponse getById(@PathVariable UUID id) {
+        return taskService.getById(id);
+    }
+
     @PutMapping("/{id}")
     public TaskResponse update(
             @PathVariable UUID id,

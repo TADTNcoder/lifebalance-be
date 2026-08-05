@@ -24,4 +24,6 @@ public interface TaskService {
     void delete(UUID id);
 
     TaskResponse duplicate(UUID id);
+
+    TaskResponse getById(UUID id);
 }

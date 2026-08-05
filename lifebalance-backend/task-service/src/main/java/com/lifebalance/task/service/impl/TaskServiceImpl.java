@@ -139,6 +139,15 @@ public class TaskServiceImpl implements TaskService {
         return mapToResponse(copy);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public TaskResponse getById(UUID id) {
+        Task task = taskRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Task not found"));
+
+        return mapToResponse(task);
+    }
+
     private TaskResponse mapToResponse(Task task) {
 
         TaskResponse response = new TaskResponse();
