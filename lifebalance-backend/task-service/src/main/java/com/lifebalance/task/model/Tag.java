@@ -83,6 +83,9 @@ public class Tag extends BaseAuditableEntity {
     @Builder.Default
     private Set<TaskTag> taskTags = new HashSet<>();
 
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
     @PrePersist
     @PreUpdate
     void applyDefaults() {
