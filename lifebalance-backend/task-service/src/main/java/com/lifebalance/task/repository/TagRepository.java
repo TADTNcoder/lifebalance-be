@@ -41,6 +41,10 @@ public interface TagRepository extends JpaRepository<Tag, UUID> {
             @Param("name") String name
     );
 
+    Optional<Tag> findByUserIdAndSlug(UUID userId, String slug);
+
+    boolean existsByUserIdAndSlug(UUID userId, String slug);
+
     List<Tag> findAllByIdInAndUserId(Collection<UUID> ids, UUID userId);
 
     @Query("""
