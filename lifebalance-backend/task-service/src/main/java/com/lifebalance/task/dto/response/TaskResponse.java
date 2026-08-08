@@ -1,11 +1,10 @@
 package com.lifebalance.task.dto.response;
 
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.math.BigDecimal;
 import java.util.UUID;
 
-import com.lifebalance.task.model.enums.DayOfWeekType;
 import com.lifebalance.task.model.enums.PriorityLevel;
 import com.lifebalance.task.model.enums.TaskStatus;
 
@@ -17,25 +16,27 @@ public class TaskResponse {
 
     private UUID id;
 
-    private String taskName;
+    private UUID userId;
+
+    private String name;
 
     private String description;
 
     private TaskStatus status;
 
-    private PriorityLevel priorityLevel;
+    private PriorityLevel priority;
 
-    private LocalDate startDate;
+    private LocalDate deadline;
 
-    private LocalDate endDate;
+    private Integer progress;
 
-    private LocalTime startTime;
+    private Integer estimatedMinutes;
 
-    private LocalTime endTime;
+    private BigDecimal estimatedCost;
 
-    private DayOfWeekType dayOfWeek;
+    private UUID categoryId;
 
-    private String note;
+    private String categoryName;
 
     private OffsetDateTime createdAt;
 

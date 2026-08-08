@@ -1,41 +1,43 @@
 package com.lifebalance.task.dto.request;
 
 import java.time.LocalDate;
-import java.time.LocalTime;
+import java.math.BigDecimal;
+import java.util.UUID;
 
-import com.lifebalance.task.model.enums.DayOfWeekType;
 import com.lifebalance.task.model.enums.PriorityLevel;
 import com.lifebalance.task.model.enums.TaskStatus;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 import lombok.Getter;
 import lombok.Setter;
 
 @Getter
 @Setter
 public class UpdateTaskRequest {
+
     @NotBlank
-    private String taskName;
+    private String name;
 
     private String description;
 
-    @NotNull
-    private PriorityLevel priorityLevel;
+    private PriorityLevel priority;
 
-    @NotNull
+    private LocalDate deadline;
+
+    @Min(0)
+    @Max(100)
+    private Integer progress;
+
+    @Min(0)
+    private Integer estimatedMinutes;
+
+    @PositiveOrZero
+    private BigDecimal estimatedCost;
+
+    private UUID categoryId;
+
     private TaskStatus status;
-
-    @NotNull
-    private LocalDate startDate;
-
-    private LocalDate endDate;
-
-    private LocalTime startTime;
-
-    private LocalTime endTime;
-
-    private DayOfWeekType dayOfWeek;
-
-    private String note;
 }
