@@ -85,6 +85,24 @@ class TagRepositoryTest {
     }
 
     @Test
+    void findsAndChecksTagSlugWithinOwnerScope() {
+        UUID userId = UUID.randomUUID();
+        UUID otherUserId = UUID.randomUUID();
+        Tag tag = persistTag(userId, "Công việc");
+        persistTag(otherUserId, "Công việc");
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(tagRepository.findByUserIdAndSlug(userId, "cong-viec"))
+                .isPresent()
+                .get()
+                .extracting(Tag::getId)
+                .isEqualTo(tag.getId());
+        assertThat(tagRepository.existsByUserIdAndSlug(userId, "cong-viec")).isTrue();
+        assertThat(tagRepository.findByUserIdAndSlug(userId, "missing")).isEmpty();
+    }
+
+    @Test
     void findsAllRequestedTagsWithinOwnerScope() {
         UUID userId = UUID.randomUUID();
         UUID otherUserId = UUID.randomUUID();

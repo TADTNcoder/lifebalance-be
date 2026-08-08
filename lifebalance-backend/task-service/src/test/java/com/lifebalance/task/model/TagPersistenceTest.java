@@ -32,6 +32,7 @@ class TagPersistenceTest {
         Tag tag = Tag.builder()
                 .userId(userId)
                 .name("Health")
+                .color("#33AA66")
                 .build();
 
         entityManager.persist(tag);
@@ -42,6 +43,9 @@ class TagPersistenceTest {
 
         assertThat(persisted.getUserId()).isEqualTo(userId);
         assertThat(persisted.getName()).isEqualTo("Health");
+        assertThat(persisted.getSlug()).isEqualTo("health");
+        assertThat(persisted.getColor()).isEqualTo("#33AA66");
+        assertThat(persisted.getIsSystem()).isFalse();
         assertThat(persisted.getCreatedAt()).isNotNull();
     }
 
