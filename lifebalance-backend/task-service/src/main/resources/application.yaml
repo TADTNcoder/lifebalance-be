@@ -9,6 +9,10 @@ spring:
   application:
     name: task-service
 
+  flyway:
+    locations:
+      - classpath:db/migration/postgresql
+
 management:
   endpoints:
     web:

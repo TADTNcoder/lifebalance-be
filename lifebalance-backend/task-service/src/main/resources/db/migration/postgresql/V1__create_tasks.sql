@@ -1,4 +1,5 @@
 CREATE SCHEMA IF NOT EXISTS task;
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE TABLE task.tasks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
