@@ -30,7 +30,7 @@ import lombok.Setter;
 @Table(
         name = "task_tags",
         schema = "task",
-        indexes = @Index(name = "idx_task_tags_tag_id", columnList = "tag_id")
+        indexes = @Index(name = "idx_task_tags_tag_task", columnList = "tag_id,task_id")
 )
 public class TaskTag {
 
