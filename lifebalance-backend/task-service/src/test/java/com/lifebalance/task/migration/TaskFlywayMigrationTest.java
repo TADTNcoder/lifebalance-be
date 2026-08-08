@@ -10,14 +10,18 @@ import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.core.io.ResourceLoader;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+
+import javax.sql.DataSource;
 
 @Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(properties = {
@@ -37,6 +41,12 @@ class TaskFlywayMigrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private DataSource dataSource;
+
+    @Autowired
+    private ResourceLoader resourceLoader;
 
     @DynamicPropertySource
     static void postgresProperties(DynamicPropertyRegistry registry) {
@@ -99,6 +109,49 @@ class TaskFlywayMigrationTest {
 
         assertIndexExists("idx_task_tags_tag_task");
         assertIndexColumns("idx_task_tags_tag_task", List.of("tag_id", "task_id"));
+    }
+
+    @Test
+    void flywayExtendsCategoriesTableForDefaultCategoryMetadata() {
+        assertTableExists("categories");
+        assertColumnExists("categories", "slug", "character varying");
+        assertColumnExists("categories", "color", "character varying");
+        assertColumnExists("categories", "icon", "character varying");
+        assertColumnExists("categories", "is_system", "boolean");
+        assertColumnIsNotNullable("categories", "slug");
+        assertColumnIsNotNullable("categories", "is_system");
+        assertIndexExists("uq_categories_slug_active");
+        assertIndexPredicate("uq_categories_slug_active", "(deleted_at IS NULL)");
+    }
+
+    @Test
+    void flywaySeedsDefaultSystemCategories() {
+        List<String> categories = jdbcTemplate.queryForList("""
+                SELECT name || '|' || slug || '|' || color || '|' || icon || '|' || is_system::text
+                FROM task.categories
+                WHERE slug IN ('work', 'personal-development', 'health', 'finance', 'learning')
+                ORDER BY slug
+                """, String.class);
+
+        assertThat(categories).containsExactly(
+                "Finance|finance|#FB8C00|dollar-sign|true",
+                "Health & Fitness|health|#E53935|heart|true",
+                "Learning|learning|#8E24AA|book|true",
+                "Personal Development|personal-development|#43A047|user|true",
+                "Work|work|#1E88E5|briefcase|true"
+        );
+    }
+
+    @Test
+    void defaultCategorySeedScriptCanRunAgainWithoutCreatingDuplicates() {
+        long defaultCategoryCountBefore = countDefaultCategories();
+
+        ResourceDatabasePopulator populator = new ResourceDatabasePopulator(
+                resourceLoader.getResource("classpath:db/migration/postgresql/V9__seed_default_categories.sql")
+        );
+        populator.execute(dataSource);
+
+        assertThat(countDefaultCategories()).isEqualTo(defaultCategoryCountBefore);
     }
 
     @Test
@@ -229,6 +282,111 @@ class TaskFlywayMigrationTest {
     }
 
     @Test
+    void v8BackfillsCategorySlugForRowsCreatedBeforeCategoryMetadata() {
+        try (PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16.4-alpine")
+                .withDatabaseName("task_v8_category_backfill")
+                .withUsername("task")
+                .withPassword("task")) {
+            postgres.start();
+
+            DriverManagerDataSource dataSource = new DriverManagerDataSource(
+                    postgres.getJdbcUrl(),
+                    postgres.getUsername(),
+                    postgres.getPassword()
+            );
+            dataSource.setDriverClassName("org.postgresql.Driver");
+            JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+
+            Flyway.configure()
+                    .dataSource(dataSource)
+                    .locations("classpath:db/migration/postgresql")
+                    .target("7")
+                    .load()
+                    .migrate();
+
+            UUID vietnameseCategoryId = UUID.fromString("00000000-0000-0000-0000-000000000101");
+            UUID cPlusPlusCategoryId = UUID.fromString("00000000-0000-0000-0000-000000000102");
+            UUID cSharpCategoryId = UUID.fromString("00000000-0000-0000-0000-000000000103");
+            insertLegacyCategory(jdbc, vietnameseCategoryId, "Công việc");
+            insertLegacyCategory(jdbc, cPlusPlusCategoryId, "C++");
+            insertLegacyCategory(jdbc, cSharpCategoryId, "C#");
+
+            Flyway.configure()
+                    .dataSource(dataSource)
+                    .locations("classpath:db/migration/postgresql")
+                    .load()
+                    .migrate();
+
+            List<String> slugs = jdbc.queryForList("""
+                    SELECT slug
+                    FROM task.categories
+                    WHERE id IN (?, ?, ?)
+                    ORDER BY id
+                    """, String.class, vietnameseCategoryId, cPlusPlusCategoryId, cSharpCategoryId);
+
+            assertThat(slugs)
+                    .hasSize(3)
+                    .contains("cong-viec", "c");
+            assertThat(slugs.get(2))
+                    .startsWith("c-")
+                    .hasSize(34);
+            assertThat(jdbc.queryForObject("""
+                    SELECT count(*)
+                    FROM task.categories
+                    WHERE slug IS NULL
+                    """, Long.class)).isZero();
+        }
+    }
+
+    @Test
+    void v9RestoresSoftDeletedSystemCategoryFromCanonicalSeed() {
+        try (PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16.4-alpine")
+                .withDatabaseName("task_v9_category_restore")
+                .withUsername("task")
+                .withPassword("task")) {
+            postgres.start();
+
+            DriverManagerDataSource dataSource = new DriverManagerDataSource(
+                    postgres.getJdbcUrl(),
+                    postgres.getUsername(),
+                    postgres.getPassword()
+            );
+            dataSource.setDriverClassName("org.postgresql.Driver");
+            JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+
+            Flyway.configure()
+                    .dataSource(dataSource)
+                    .locations("classpath:db/migration/postgresql")
+                    .target("8")
+                    .load()
+                    .migrate();
+
+            UUID deletedWorkId = UUID.fromString("00000000-0000-0000-0000-000000000201");
+            jdbc.update("""
+                    INSERT INTO task.categories (id, name, slug, color, icon, is_system, deleted_at)
+                    VALUES (?, 'Archived Work', 'work', '#000000', 'archive', false, now())
+                    """, deletedWorkId);
+
+            Flyway.configure()
+                    .dataSource(dataSource)
+                    .locations("classpath:db/migration/postgresql")
+                    .load()
+                    .migrate();
+
+            String restoredCategory = jdbc.queryForObject("""
+                    SELECT name || '|' || slug || '|' || color || '|' || icon || '|'
+                           || is_system::text || '|' || (deleted_at IS NULL)::text
+                    FROM task.categories
+                    WHERE id = ?
+                    """, String.class, deletedWorkId);
+
+            assertThat(restoredCategory)
+                    .isEqualTo("Work|work|#1E88E5|briefcase|true|true");
+            assertThat(countSeedRowsBySlug(jdbc, "work")).isEqualTo(1L);
+        }
+    }
+
+    @Test
     void tagsTableDoesNotCreatePhysicalUserForeignKey() {
         Integer foreignKeyCount = jdbcTemplate.queryForObject("""
                 SELECT count(*)
@@ -276,6 +434,31 @@ class TaskFlywayMigrationTest {
                 INSERT INTO task.tags (id, user_id, name)
                 VALUES (?, ?, ?)
                 """, id, userId, name);
+    }
+
+    private void insertLegacyCategory(JdbcTemplate jdbc, UUID id, String name) {
+        jdbc.update("""
+                INSERT INTO task.categories (id, name)
+                VALUES (?, ?)
+                """, id, name);
+    }
+
+    private long countDefaultCategories() {
+        Long count = jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                FROM task.categories
+                WHERE slug IN ('work', 'personal-development', 'health', 'finance', 'learning')
+                """, Long.class);
+        return count == null ? 0L : count;
+    }
+
+    private long countSeedRowsBySlug(JdbcTemplate jdbc, String slug) {
+        Long count = jdbc.queryForObject("""
+                SELECT count(*)
+                FROM task.categories
+                WHERE slug = ?
+                """, Long.class, slug);
+        return count == null ? 0L : count;
     }
 
     private void assertTableExists(String tableName) {
