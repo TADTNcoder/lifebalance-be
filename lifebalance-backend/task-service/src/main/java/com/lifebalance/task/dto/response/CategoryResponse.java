@@ -11,7 +11,15 @@ public class CategoryResponse {
 
     private String name;
 
+    private String slug;
+
     private String description;
+
+    private String color;
+
+    private String icon;
+
+    private Boolean isSystem;
 
     private OffsetDateTime createdAt;
 

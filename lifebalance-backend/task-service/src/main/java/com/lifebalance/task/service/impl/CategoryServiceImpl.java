@@ -12,6 +12,7 @@ import com.lifebalance.task.dto.response.CategoryResponse;
 import com.lifebalance.task.model.Category;
 import com.lifebalance.task.repository.CategoryRepository;
 import com.lifebalance.task.service.CategoryService;
+import com.lifebalance.task.util.SlugGenerator;
 
 import lombok.RequiredArgsConstructor;
 
@@ -29,9 +30,17 @@ public class CategoryServiceImpl implements CategoryService {
             throw new RuntimeException("Category name already exists");
         }
 
+        String slug = resolveSlug(request.getSlug(), request.getName());
+        if (categoryRepository.existsBySlug(slug)) {
+            throw new RuntimeException("Category slug already exists");
+        }
+
         Category category = Category.builder()
                 .name(request.getName())
+                .slug(slug)
                 .description(request.getDescription())
+                .color(request.getColor())
+                .icon(request.getIcon())
                 .build();
 
         category = categoryRepository.save(category);
@@ -70,8 +79,19 @@ public class CategoryServiceImpl implements CategoryService {
                     }
                 });
 
+        String slug = resolveSlug(request.getSlug(), category.getSlug());
+        categoryRepository.findBySlug(slug)
+                .ifPresent(existing -> {
+                    if (!existing.getId().equals(id)) {
+                        throw new RuntimeException("Category slug already exists");
+                    }
+                });
+
         category.setName(request.getName());
+        category.setSlug(slug);
         category.setDescription(request.getDescription());
+        category.setColor(request.getColor());
+        category.setIcon(request.getIcon());
 
         category = categoryRepository.save(category);
 
@@ -98,10 +118,21 @@ public class CategoryServiceImpl implements CategoryService {
 
         response.setId(category.getId());
         response.setName(category.getName());
+        response.setSlug(category.getSlug());
         response.setDescription(category.getDescription());
+        response.setColor(category.getColor());
+        response.setIcon(category.getIcon());
+        response.setIsSystem(category.getIsSystem());
         response.setCreatedAt(category.getCreatedAt());
         response.setUpdatedAt(category.getUpdatedAt());
 
         return response;
+    }
+
+    private String resolveSlug(String requestedSlug, String fallbackValue) {
+        if (requestedSlug == null || requestedSlug.isBlank()) {
+            return SlugGenerator.from(fallbackValue);
+        }
+        return SlugGenerator.from(requestedSlug);
     }
 }
