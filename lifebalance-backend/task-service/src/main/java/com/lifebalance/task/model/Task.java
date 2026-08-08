@@ -2,7 +2,9 @@ package com.lifebalance.task.model;
 
 import java.time.LocalDate;
 import java.math.BigDecimal;
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 import com.lifebalance.task.model.enums.PriorityLevel;
@@ -18,6 +20,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.Max;
@@ -99,6 +102,10 @@ public class Task extends BaseAuditableEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id")
     private Category category;
+
+    @OneToMany(mappedBy = "task", fetch = FetchType.LAZY)
+    @Builder.Default
+    private Set<TaskTag> taskTags = new HashSet<>();
 
     @PrePersist
     void onCreate() {
@@ -254,6 +261,40 @@ public class Task extends BaseAuditableEntity {
 
     public boolean belongsTo(UUID userId) {
         return Objects.equals(this.userId, userId);
+    }
+
+    public TaskTag assignTag(Tag tag) {
+        for (TaskTag taskTag : taskTags) {
+            if (taskTag.referencesTag(tag)) {
+                return taskTag;
+            }
+        }
+
+        TaskTag taskTag = TaskTag.attach(this, tag);
+        taskTags.add(taskTag);
+        tag.getTaskTags().add(taskTag);
+        return taskTag;
+    }
+
+    public boolean removeTag(Tag tag) {
+        if (tag == null) {
+            return false;
+        }
+
+        TaskTag existingTaskTag = null;
+        for (TaskTag taskTag : taskTags) {
+            if (taskTag.referencesTag(tag)) {
+                existingTaskTag = taskTag;
+                break;
+            }
+        }
+        if (existingTaskTag == null) {
+            return false;
+        }
+
+        taskTags.remove(existingTaskTag);
+        tag.getTaskTags().remove(existingTaskTag);
+        return true;
     }
 
     public void setName(String name) {
