@@ -5,8 +5,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.lifebalance.task.dto.request.CreateTaskRequest;
 import com.lifebalance.task.dto.response.TaskResponse;
+import com.lifebalance.task.model.Category;
 import com.lifebalance.task.model.Task;
 import com.lifebalance.task.model.enums.TaskStatus;
+import com.lifebalance.task.repository.CategoryRepository;
 import com.lifebalance.task.repository.TaskRepository;
 import com.lifebalance.task.service.TaskService;
 import java.util.UUID;
@@ -18,25 +20,26 @@ import org.springframework.data.domain.Pageable;
 @Service
 @RequiredArgsConstructor
 public class TaskServiceImpl implements TaskService {
+
     private final TaskRepository taskRepository;
+    private final CategoryRepository categoryRepository;
 
     @Override
     @Transactional
     public TaskResponse create(CreateTaskRequest request) {
-        if (taskRepository.findByTaskName(request.getTaskName()).isPresent()) {
-            throw new RuntimeException("Task name already exists");
-        }
+        ensureNameAvailable(request.getName(), null);
+        Category category = resolveCategory(request.getCategoryId());
+
         Task task = Task.builder()
-                .taskName(request.getTaskName())
+                .userId(request.getUserId())
+                .name(request.getName())
                 .description(request.getDescription())
-                .priorityLevel(request.getPriorityLevel())
-                .status(TaskStatus.TODO)
-                .startDate(request.getStartDate())
-                .endDate(request.getEndDate())
-                .startTime(request.getStartTime())
-                .endTime(request.getEndTime())
-                .dayOfWeek(request.getDayOfWeek())
-                .note(request.getNote())
+                .priority(request.getPriority())
+                .deadline(request.getDeadline())
+                .estimatedMinutes(request.getEstimatedMinutes())
+                .estimatedCost(request.getEstimatedCost())
+                .category(category)
+                .status(TaskStatus.DRAFT)
                 .build();
 
         task = taskRepository.save(task);
@@ -49,22 +52,23 @@ public class TaskServiceImpl implements TaskService {
     public TaskResponse update(UUID id, UpdateTaskRequest request) {
         Task task = taskRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Task not found "));
-        taskRepository.findByTaskName(request.getTaskName())
-                .ifPresent(exitingTask -> {
-                    if (!exitingTask.getId().equals(id)) {
-                        throw new RuntimeException("Task name already exists");
-                    }
-                });
-        task.setTaskName(request.getTaskName());
-        task.setDescription(request.getDescription());
-        task.setPriorityLevel(request.getPriorityLevel());
-        task.setStatus(request.getStatus());
-        task.setStartDate(request.getStartDate());
-        task.setEndDate(request.getEndDate());
-        task.setStartTime(request.getStartTime());
-        task.setEndTime(request.getEndTime());
-        task.setDayOfWeek(request.getDayOfWeek());
-        task.setNote(request.getNote());
+
+        ensureNameAvailable(request.getName(), id);
+        Category category = resolveCategory(request.getCategoryId());
+
+        task.updateDetails(
+                request.getName(),
+                request.getDescription(),
+                request.getPriority(),
+                request.getDeadline(),
+                request.getEstimatedMinutes(),
+                request.getEstimatedCost(),
+                category
+        );
+        if (request.getProgress() != null) {
+            task.updateProgress(request.getProgress());
+        }
+        task.transitionTo(request.getStatus());
 
         task = taskRepository.save(task);
         return mapToResponse(task);
@@ -76,7 +80,7 @@ public class TaskServiceImpl implements TaskService {
             Pageable pageable) {
 
         return taskRepository
-                .findByTaskNameContainingIgnoreCase(keyword, pageable)
+                .findByNameContainingIgnoreCase(keyword, pageable)
                 .map(this::mapToResponse);
     }
 
@@ -87,7 +91,7 @@ public class TaskServiceImpl implements TaskService {
         Task task = taskRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Task not found"));
 
-        task.setStatus(TaskStatus.ARCHIVED);
+        task.archive();
 
         taskRepository.save(task);
     }
@@ -99,7 +103,7 @@ public class TaskServiceImpl implements TaskService {
         Task task = taskRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Task not found"));
 
-        task.setStatus(TaskStatus.TODO);
+        task.restore();
 
         taskRepository.save(task);
     }
@@ -122,16 +126,15 @@ public class TaskServiceImpl implements TaskService {
                 .orElseThrow(() -> new RuntimeException("Task not found"));
 
         Task copy = Task.builder()
-                .taskName(source.getTaskName() + " (Copy)")
+                .userId(source.getUserId())
+                .name(source.getName() + " (Copy)")
                 .description(source.getDescription())
-                .priorityLevel(source.getPriorityLevel())
-                .status(TaskStatus.TODO)
-                .startDate(source.getStartDate())
-                .endDate(source.getEndDate())
-                .startTime(source.getStartTime())
-                .endTime(source.getEndTime())
-                .dayOfWeek(source.getDayOfWeek())
-                .note(source.getNote())
+                .priority(source.getPriority())
+                .deadline(source.getDeadline())
+                .estimatedMinutes(source.getEstimatedMinutes())
+                .estimatedCost(source.getEstimatedCost())
+                .category(source.getCategory())
+                .status(TaskStatus.DRAFT)
                 .build();
 
         copy = taskRepository.save(copy);
@@ -153,19 +156,39 @@ public class TaskServiceImpl implements TaskService {
         TaskResponse response = new TaskResponse();
 
         response.setId(task.getId());
-        response.setTaskName(task.getTaskName());
+        response.setUserId(task.getUserId());
+        response.setName(task.getName());
         response.setDescription(task.getDescription());
         response.setStatus(task.getStatus());
-        response.setPriorityLevel(task.getPriorityLevel());
-        response.setStartDate(task.getStartDate());
-        response.setEndDate(task.getEndDate());
-        response.setStartTime(task.getStartTime());
-        response.setEndTime(task.getEndTime());
-        response.setDayOfWeek(task.getDayOfWeek());
-        response.setNote(task.getNote());
+        response.setPriority(task.getPriority());
+        response.setDeadline(task.getDeadline());
+        response.setProgress(task.getProgress());
+        response.setEstimatedMinutes(task.getEstimatedMinutes());
+        response.setEstimatedCost(task.getEstimatedCost());
+        if (task.getCategory() != null) {
+            response.setCategoryId(task.getCategory().getId());
+            response.setCategoryName(task.getCategory().getName());
+        }
         response.setCreatedAt(task.getCreatedAt());
         response.setUpdatedAt(task.getUpdatedAt());
 
         return response;
+    }
+
+    private void ensureNameAvailable(String name, UUID currentTaskId) {
+        taskRepository.findByName(name)
+                .ifPresent(existingTask -> {
+                    if (currentTaskId == null || !existingTask.getId().equals(currentTaskId)) {
+                        throw new RuntimeException("Task name already exists");
+                    }
+                });
+    }
+
+    private Category resolveCategory(UUID categoryId) {
+        if (categoryId == null) {
+            return null;
+        }
+        return categoryRepository.findById(categoryId)
+                .orElseThrow(() -> new RuntimeException("Category not found"));
     }
 }
