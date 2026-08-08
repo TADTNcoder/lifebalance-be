@@ -53,6 +53,9 @@ public class Tag extends BaseAuditableEntity {
     @Column(name = "name", nullable = false, length = NAME_MAX_LENGTH)
     private String name;
 
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
     public boolean belongsTo(UUID userId) {
         return Objects.equals(this.userId, userId);
     }
