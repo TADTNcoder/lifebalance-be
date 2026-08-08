@@ -1,11 +1,19 @@
 package com.lifebalance.task.model.enums;
 
 public enum TaskStatus {
-    TODO,
+    DRAFT,
+
+    PLANNED,
+
+    SCHEDULED,
 
     IN_PROGRESS,
 
+    ON_HOLD,
+
     COMPLETED,
+
+    CANCELLED,
 
     ARCHIVED
 }
