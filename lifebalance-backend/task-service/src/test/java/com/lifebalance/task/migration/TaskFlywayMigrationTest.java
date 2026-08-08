@@ -67,7 +67,7 @@ class TaskFlywayMigrationTest {
     }
 
     @Test
-    void flywayCreatesTaskTagsTableWithCompositePrimaryKeyCascadeForeignKeysAndTagIndex() {
+    void flywayCreatesTaskTagsTableWithCompositePrimaryKeyCascadeForeignKeysAndTagTaskIndex() {
         assertTableExists("task_tags");
         assertColumnExists("task_tags", "task_id", "uuid");
         assertColumnExists("task_tags", "tag_id", "uuid");
@@ -78,7 +78,27 @@ class TaskFlywayMigrationTest {
         assertPrimaryKeyColumns("task_tags", List.of("task_id", "tag_id"));
         assertForeignKeyDeleteRule("task_tags", "fk_task_tags_task", "tasks", "CASCADE");
         assertForeignKeyDeleteRule("task_tags", "fk_task_tags_tag", "tags", "CASCADE");
-        assertIndexExists("idx_task_tags_tag_id");
+        assertIndexDoesNotExist("idx_task_tags_tag_id");
+        assertIndexExists("idx_task_tags_tag_task");
+        assertIndexColumns("idx_task_tags_tag_task", List.of("tag_id", "task_id"));
+    }
+
+    @Test
+    void flywayCreatesTaskModuleFilterIndexesWithExpectedColumns() {
+        assertIndexExists("idx_tasks_user_status");
+        assertIndexColumns("idx_tasks_user_status", List.of("user_id", "status"));
+
+        assertIndexExists("idx_tasks_user_deadline");
+        assertIndexColumns("idx_tasks_user_deadline", List.of("user_id", "deadline"));
+
+        assertIndexExists("idx_tasks_user_priority");
+        assertIndexColumns("idx_tasks_user_priority", List.of("user_id", "priority"));
+
+        assertIndexExists("idx_tasks_user_category");
+        assertIndexColumns("idx_tasks_user_category", List.of("user_id", "category_id"));
+
+        assertIndexExists("idx_task_tags_tag_task");
+        assertIndexColumns("idx_task_tags_tag_task", List.of("tag_id", "task_id"));
     }
 
     @Test
@@ -370,6 +390,27 @@ class TaskFlywayMigrationTest {
                 """, String.class, indexName);
 
         assertThat(indexDefinition).contains(predicate);
+    }
+
+    private void assertIndexColumns(String indexName, List<String> expectedColumnNames) {
+        List<String> indexColumns = jdbcTemplate.queryForList("""
+                SELECT attribute.attname
+                FROM pg_class index_class
+                JOIN pg_namespace namespace
+                  ON namespace.oid = index_class.relnamespace
+                JOIN pg_index index_metadata
+                  ON index_metadata.indexrelid = index_class.oid
+                JOIN LATERAL unnest(index_metadata.indkey) WITH ORDINALITY AS indexed_column(attnum, position)
+                  ON TRUE
+                JOIN pg_attribute attribute
+                  ON attribute.attrelid = index_metadata.indrelid
+                 AND attribute.attnum = indexed_column.attnum
+                WHERE lower(namespace.nspname) = 'task'
+                  AND lower(index_class.relname) = lower(?)
+                ORDER BY indexed_column.position
+                """, String.class, indexName);
+
+        assertThat(indexColumns).containsExactlyElementsOf(expectedColumnNames);
     }
 
     private void assertTaskTagCount(UUID taskId, UUID tagId, long expectedCount) {
