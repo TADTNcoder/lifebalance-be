@@ -67,6 +67,63 @@ class TaskFlywayMigrationTest {
     }
 
     @Test
+    void flywayCreatesTaskTagsTableWithCompositePrimaryKeyCascadeForeignKeysAndTagIndex() {
+        assertTableExists("task_tags");
+        assertColumnExists("task_tags", "task_id", "uuid");
+        assertColumnExists("task_tags", "tag_id", "uuid");
+        assertColumnExists("task_tags", "created_at", "timestamp with time zone");
+        assertColumnIsNotNullable("task_tags", "task_id");
+        assertColumnIsNotNullable("task_tags", "tag_id");
+        assertColumnIsNotNullable("task_tags", "created_at");
+        assertPrimaryKeyColumns("task_tags", List.of("task_id", "tag_id"));
+        assertForeignKeyDeleteRule("task_tags", "fk_task_tags_task", "tasks", "CASCADE");
+        assertForeignKeyDeleteRule("task_tags", "fk_task_tags_tag", "tags", "CASCADE");
+        assertIndexExists("idx_task_tags_tag_id");
+    }
+
+    @Test
+    void taskTagsRejectDuplicateTaskTagPairs() {
+        UUID userId = UUID.randomUUID();
+        UUID taskId = insertTask(userId, "Task with one tag");
+        UUID tagId = insertTagReturningId(userId, "Duplicate Guard", "duplicate-guard");
+        insertTaskTag(taskId, tagId);
+
+        assertThatThrownBy(() -> insertTaskTag(taskId, tagId))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("pk_task_tags");
+    }
+
+    @Test
+    void taskTagsAreDeletedWhenTaskIsHardDeleted() {
+        UUID userId = UUID.randomUUID();
+        UUID taskId = insertTask(userId, "Task cascade source");
+        UUID tagId = insertTagReturningId(userId, "Task Cascade", "task-cascade");
+        insertTaskTag(taskId, tagId);
+
+        jdbcTemplate.update("""
+                DELETE FROM task.tasks
+                WHERE id = ?
+                """, taskId);
+
+        assertTaskTagCount(taskId, tagId, 0L);
+    }
+
+    @Test
+    void taskTagsAreDeletedWhenTagIsHardDeleted() {
+        UUID userId = UUID.randomUUID();
+        UUID taskId = insertTask(userId, "Tag cascade source");
+        UUID tagId = insertTagReturningId(userId, "Tag Cascade", "tag-cascade");
+        insertTaskTag(taskId, tagId);
+
+        jdbcTemplate.update("""
+                DELETE FROM task.tags
+                WHERE id = ?
+                """, tagId);
+
+        assertTaskTagCount(taskId, tagId, 0L);
+    }
+
+    @Test
     void partialUniqueIndexRejectsDuplicateActiveSlugsButAllowsSlugReuseAfterSoftDelete() {
         UUID userId = UUID.randomUUID();
         insertTag(userId, "Work", "work");
@@ -171,6 +228,29 @@ class TaskFlywayMigrationTest {
                 """, userId, name, slug);
     }
 
+    private UUID insertTagReturningId(UUID userId, String name, String slug) {
+        return jdbcTemplate.queryForObject("""
+                INSERT INTO task.tags (user_id, name, slug)
+                VALUES (?, ?, ?)
+                RETURNING id
+                """, UUID.class, userId, name, slug);
+    }
+
+    private UUID insertTask(UUID userId, String name) {
+        return jdbcTemplate.queryForObject("""
+                INSERT INTO task.tasks (user_id, name, status, priority)
+                VALUES (?, ?, 'DRAFT', 'LOW')
+                RETURNING id
+                """, UUID.class, userId, name);
+    }
+
+    private void insertTaskTag(UUID taskId, UUID tagId) {
+        jdbcTemplate.update("""
+                INSERT INTO task.task_tags (task_id, tag_id)
+                VALUES (?, ?)
+                """, taskId, tagId);
+    }
+
     private void insertLegacyTag(JdbcTemplate jdbc, UUID id, UUID userId, String name) {
         jdbc.update("""
                 INSERT INTO task.tags (id, user_id, name)
@@ -214,6 +294,51 @@ class TaskFlywayMigrationTest {
         assertThat(nullable).isEqualTo("NO");
     }
 
+    private void assertPrimaryKeyColumns(String tableName, List<String> expectedColumnNames) {
+        List<String> primaryKeyColumns = jdbcTemplate.queryForList("""
+                SELECT kcu.column_name
+                FROM information_schema.table_constraints tc
+                JOIN information_schema.key_column_usage kcu
+                  ON tc.constraint_schema = kcu.constraint_schema
+                 AND tc.constraint_name = kcu.constraint_name
+                 AND tc.table_schema = kcu.table_schema
+                 AND tc.table_name = kcu.table_name
+                WHERE lower(tc.table_schema) = 'task'
+                  AND lower(tc.table_name) = lower(?)
+                  AND lower(tc.constraint_type) = 'primary key'
+                ORDER BY kcu.ordinal_position
+                """, String.class, tableName);
+
+        assertThat(primaryKeyColumns).containsExactlyElementsOf(expectedColumnNames);
+    }
+
+    private void assertForeignKeyDeleteRule(
+            String tableName,
+            String constraintName,
+            String referencedTableName,
+            String deleteRule
+    ) {
+        Integer count = jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                FROM information_schema.table_constraints tc
+                JOIN information_schema.referential_constraints rc
+                  ON tc.constraint_schema = rc.constraint_schema
+                 AND tc.constraint_name = rc.constraint_name
+                JOIN information_schema.constraint_column_usage ccu
+                  ON rc.unique_constraint_schema = ccu.constraint_schema
+                 AND rc.unique_constraint_name = ccu.constraint_name
+                WHERE lower(tc.table_schema) = 'task'
+                  AND lower(tc.table_name) = lower(?)
+                  AND lower(tc.constraint_name) = lower(?)
+                  AND lower(tc.constraint_type) = 'foreign key'
+                  AND lower(ccu.table_schema) = 'task'
+                  AND lower(ccu.table_name) = lower(?)
+                  AND upper(rc.delete_rule) = upper(?)
+                """, Integer.class, tableName, constraintName, referencedTableName, deleteRule);
+
+        assertThat(count).isEqualTo(1);
+    }
+
     private void assertIndexExists(String indexName) {
         Integer count = jdbcTemplate.queryForObject("""
                 SELECT count(*)
@@ -245,5 +370,16 @@ class TaskFlywayMigrationTest {
                 """, String.class, indexName);
 
         assertThat(indexDefinition).contains(predicate);
+    }
+
+    private void assertTaskTagCount(UUID taskId, UUID tagId, long expectedCount) {
+        Long taskTagCount = jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                FROM task.task_tags
+                WHERE task_id = ?
+                  AND tag_id = ?
+                """, Long.class, taskId, tagId);
+
+        assertThat(taskTagCount).isEqualTo(expectedCount);
     }
 }
