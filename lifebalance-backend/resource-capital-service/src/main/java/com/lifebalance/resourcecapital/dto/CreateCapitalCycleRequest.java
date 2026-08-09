@@ -1,6 +1,7 @@
 package com.lifebalance.resourcecapital.dto;
 
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleType;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
@@ -8,6 +9,7 @@ import java.time.LocalDate;
 
 public class CreateCapitalCycleRequest {
 
+    @NotBlank
     @Size(max = 255)
     private String name;
 
