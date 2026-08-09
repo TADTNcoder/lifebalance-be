@@ -1,10 +1,19 @@
 package com.lifebalance.resourcecapital.domain.capitalcycle.exception;
 
+import com.lifebalance.common.error.AppException;
+import org.springframework.http.HttpStatus;
+
 import java.util.UUID;
 
-public class CapitalCycleNotFoundException extends RuntimeException {
+public class CapitalCycleNotFoundException extends AppException {
 
-    public CapitalCycleNotFoundException(UUID cycleId, UUID ownerId) {
-        super("Capital cycle " + cycleId + " was not found for owner " + ownerId + ".");
+    public static final String ERROR_CODE = "CAPITAL_CYCLE_NOT_FOUND";
+
+    public CapitalCycleNotFoundException(UUID cycleId) {
+        super(
+                ERROR_CODE,
+                "Capital cycle " + cycleId + " was not found.",
+                HttpStatus.NOT_FOUND
+        );
     }
 }

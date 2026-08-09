@@ -350,7 +350,7 @@ public class AllocationServiceImpl implements AllocationService {
 
     private CapitalCycle findAdjustableOwnedCycle(UUID ownerId, UUID cycleId) {
         CapitalCycle cycle = capitalCycleRepository.findByIdAndOwnerId(cycleId, ownerId)
-                .orElseThrow(() -> new CapitalCycleNotFoundException(cycleId, ownerId));
+                .orElseThrow(() -> new CapitalCycleNotFoundException(cycleId));
         cycle.ensureCapitalAdjustmentAllowed();
         return cycle;
     }
