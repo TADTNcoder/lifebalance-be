@@ -26,6 +26,7 @@ import com.lifebalance.resourcecapital.domain.capitalcycle.exception.CapitalCycl
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.InvalidCapitalCycleStateException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.InvalidCapitalCyclePeriodException;
 import com.lifebalance.resourcecapital.dto.CapitalCycleResponse;
+import com.lifebalance.resourcecapital.dto.CloseCapitalCycleRequest;
 import com.lifebalance.resourcecapital.dto.CreateCapitalCycleRequest;
 import com.lifebalance.resourcecapital.dto.UpdateCapitalCycleRequest;
 import com.lifebalance.resourcecapital.service.CapitalCycleService;
@@ -437,6 +438,101 @@ class CapitalCycleControllerTest {
         verify(capitalCycleService, never()).activateCycle(any(), any());
     }
 
+    @Test
+    void closeReturnsOkWhenCycleIsClosed() throws Exception {
+        CloseCapitalCycleRequest request = closeRequest();
+        CapitalCycleResponse response = closedResponse();
+
+        when(capitalCycleService.closeCycle(eq(OWNER_ID), eq(CYCLE_ID), any(CloseCapitalCycleRequest.class)))
+                .thenReturn(response);
+
+        mockMvc.perform(post(ENDPOINT + "/{id}/close", CYCLE_ID)
+                        .with(authenticatedUser())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(CYCLE_ID.toString()))
+                .andExpect(jsonPath("$.status").value("CLOSED"))
+                .andExpect(jsonPath("$.closedAt").value("2026-08-09T04:20:45Z"))
+                .andExpect(jsonPath("$.closeReason").value("Finished cycle settlement"));
+
+        ArgumentCaptor<CloseCapitalCycleRequest> requestCaptor =
+                ArgumentCaptor.forClass(CloseCapitalCycleRequest.class);
+        verify(capitalCycleService).closeCycle(eq(OWNER_ID), eq(CYCLE_ID), requestCaptor.capture());
+        assertThat(requestCaptor.getValue().getReason()).isEqualTo("Finished cycle settlement");
+    }
+
+    @Test
+    void closeReturnsBadRequestWhenReasonIsBlank() throws Exception {
+        CloseCapitalCycleRequest request = closeRequest();
+        request.setReason(" ");
+
+        mockMvc.perform(post(ENDPOINT + "/{id}/close", CYCLE_ID)
+                        .with(authenticatedUser())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value(CommonErrorCode.VALIDATION_FAILED))
+                .andExpect(jsonPath("$.error.details.reason").exists());
+
+        verify(capitalCycleService, never()).closeCycle(any(), any(), any());
+    }
+
+    @Test
+    void closeReturnsBadRequestWhenTransitionIsInvalid() throws Exception {
+        CloseCapitalCycleRequest request = closeRequest();
+
+        when(capitalCycleService.closeCycle(eq(OWNER_ID), eq(CYCLE_ID), any(CloseCapitalCycleRequest.class)))
+                .thenThrow(new InvalidCapitalCycleStateException(
+                        CYCLE_ID,
+                        CapitalCycleStatus.DRAFT,
+                        CapitalCycleStatus.CLOSED,
+                        "close"
+                ));
+
+        mockMvc.perform(post(ENDPOINT + "/{id}/close", CYCLE_ID)
+                        .with(authenticatedUser())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value(InvalidCapitalCycleStateException.ERROR_CODE));
+
+        verify(capitalCycleService).closeCycle(eq(OWNER_ID), eq(CYCLE_ID), any(CloseCapitalCycleRequest.class));
+    }
+
+    @Test
+    void closeReturnsNotFoundWhenCycleDoesNotBelongToUser() throws Exception {
+        CloseCapitalCycleRequest request = closeRequest();
+
+        when(capitalCycleService.closeCycle(eq(OWNER_ID), eq(CYCLE_ID), any(CloseCapitalCycleRequest.class)))
+                .thenThrow(new CapitalCycleNotFoundException(CYCLE_ID));
+
+        mockMvc.perform(post(ENDPOINT + "/{id}/close", CYCLE_ID)
+                        .with(authenticatedUser())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value(CapitalCycleNotFoundException.ERROR_CODE))
+                .andExpect(jsonPath("$.error.message").value("Capital cycle " + CYCLE_ID + " was not found."));
+
+        verify(capitalCycleService).closeCycle(eq(OWNER_ID), eq(CYCLE_ID), any(CloseCapitalCycleRequest.class));
+    }
+
+    @Test
+    void closeReturnsUnauthorizedWhenAuthenticationIsMissing() throws Exception {
+        mockMvc.perform(post(ENDPOINT + "/{id}/close", CYCLE_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(closeRequest())))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value(AuthErrorCode.UNAUTHORIZED));
+
+        verify(capitalCycleService, never()).closeCycle(any(), any(), any());
+    }
+
     private static CreateCapitalCycleRequest monthlyRequest() {
         CreateCapitalCycleRequest request = new CreateCapitalCycleRequest();
         request.setName("Chu ky Thang 8/2026");
@@ -480,6 +576,21 @@ class CapitalCycleControllerTest {
         CapitalCycleResponse response = response();
         response.setStatus(CapitalCycleStatus.ACTIVE);
         response.setActivatedAt(Instant.parse("2026-08-09T03:15:30Z"));
+        return response;
+    }
+
+    private static CloseCapitalCycleRequest closeRequest() {
+        CloseCapitalCycleRequest request = new CloseCapitalCycleRequest();
+        request.setReason("Finished cycle settlement");
+        return request;
+    }
+
+    private static CapitalCycleResponse closedResponse() {
+        CapitalCycleResponse response = response();
+        response.setStatus(CapitalCycleStatus.CLOSED);
+        response.setActivatedAt(Instant.parse("2026-08-09T03:15:30Z"));
+        response.setClosedAt(Instant.parse("2026-08-09T04:20:45Z"));
+        response.setCloseReason("Finished cycle settlement");
         return response;
     }
 
