@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,6 +22,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 class KeycloakUserMappingFilterTest {
 
     private KeycloakUserMappingFilter filter;
+    private static final UUID USER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
 
     @BeforeEach
     void setUp() {
@@ -65,7 +67,8 @@ class KeycloakUserMappingFilterTest {
     @Test
     void shouldSetCurrentUserWhenAuthenticationIsJwtAuthenticationToken() throws Exception {
         Jwt jwt = jwt(Map.of(
-                "sub", "user-1",
+                "sub", "kc-user-1",
+                "lifebalance_user_id", USER_ID.toString(),
                 "preferred_username", "john",
                 "realm_access", Map.of("roles", List.of("admin")),
                 "resource_access", Map.of(
@@ -84,7 +87,8 @@ class KeycloakUserMappingFilterTest {
         Object currentUser = request.getAttribute(KeycloakUserMappingFilter.CURRENT_USER_ATTRIBUTE);
 
         assertThat(currentUser).isInstanceOf(KeycloakUserPrincipal.class);
-        assertThat(((KeycloakUserPrincipal) currentUser).subject()).isEqualTo("user-1");
+        assertThat(((KeycloakUserPrincipal) currentUser).subject()).isEqualTo("kc-user-1");
+        assertThat(((KeycloakUserPrincipal) currentUser).userId()).isEqualTo(USER_ID);
         assertThat(((KeycloakUserPrincipal) currentUser).roles()).containsExactly("admin", "task:read");
         assertThat(chain.getRequest()).isSameAs(request);
     }

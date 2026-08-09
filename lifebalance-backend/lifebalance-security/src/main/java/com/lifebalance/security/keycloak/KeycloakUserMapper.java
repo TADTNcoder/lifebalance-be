@@ -4,12 +4,14 @@ import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 import org.springframework.security.oauth2.jwt.Jwt;
 
 public class KeycloakUserMapper {
 
     private static final String CLAIM_SUBJECT = "sub";
+    private static final String CLAIM_LIFEBALANCE_USER_ID = "lifebalance_user_id";
     private static final String CLAIM_USERNAME = "preferred_username";
     private static final String CLAIM_EMAIL = "email";
     private static final String CLAIM_NAME = "name";
@@ -37,6 +39,7 @@ public class KeycloakUserMapper {
 
         return new KeycloakUserPrincipal(
                 stringClaim(jwt, CLAIM_SUBJECT),
+                uuidClaim(jwt, CLAIM_LIFEBALANCE_USER_ID),
                 stringClaim(jwt, CLAIM_USERNAME),
                 stringClaim(jwt, CLAIM_EMAIL),
                 stringClaim(jwt, CLAIM_NAME),
@@ -91,6 +94,22 @@ public class KeycloakUserMapper {
         Object value = jwt.getClaims().get(claimName);
         if (value instanceof String stringValue) {
             return stringValue;
+        }
+
+        return null;
+    }
+
+    private UUID uuidClaim(Jwt jwt, String claimName) {
+        Object value = jwt.getClaims().get(claimName);
+        if (value instanceof UUID uuidValue) {
+            return uuidValue;
+        }
+        if (value instanceof String stringValue && !stringValue.isBlank()) {
+            try {
+                return UUID.fromString(stringValue);
+            } catch (IllegalArgumentException ignored) {
+                return null;
+            }
         }
 
         return null;
