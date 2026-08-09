@@ -22,6 +22,7 @@ import com.lifebalance.resourcecapital.infrastructure.persistence.MoneyCapitalRe
 import com.lifebalance.resourcecapital.infrastructure.persistence.TimeCapitalRepository;
 import com.lifebalance.resourcecapital.service.CapitalService;
 import com.lifebalance.resourcecapital.service.mapper.CapitalMapper;
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,6 +36,8 @@ import java.util.UUID;
 public class CapitalServiceImpl implements CapitalService {
 
     private static final int MONEY_SCALE = 4;
+    private static final String TIME_CAPITAL_CYCLE_UNIQUE_CONSTRAINT = "uk_time_capitals_cycle";
+    private static final String MONEY_CAPITAL_CYCLE_UNIQUE_CONSTRAINT = "uk_money_capitals_cycle";
 
     private final CapitalCycleRepository capitalCycleRepository;
     private final TimeCapitalRepository timeCapitalRepository;
@@ -75,6 +78,9 @@ public class CapitalServiceImpl implements CapitalService {
             );
             return capitalMapper.toTimeResponse(savedCapital);
         } catch (DataIntegrityViolationException exception) {
+            if (!isConstraintViolation(exception, TIME_CAPITAL_CYCLE_UNIQUE_CONSTRAINT)) {
+                throw exception;
+            }
             throw new CapitalAlreadyInitializedException(cycleId, CapitalKind.TIME, exception);
         }
     }
@@ -98,6 +104,9 @@ public class CapitalServiceImpl implements CapitalService {
             );
             return capitalMapper.toMoneyResponse(savedCapital);
         } catch (DataIntegrityViolationException exception) {
+            if (!isConstraintViolation(exception, MONEY_CAPITAL_CYCLE_UNIQUE_CONSTRAINT)) {
+                throw exception;
+            }
             throw new CapitalAlreadyInitializedException(cycleId, CapitalKind.MONEY, exception);
         }
     }
@@ -196,5 +205,21 @@ public class CapitalServiceImpl implements CapitalService {
 
     private BigDecimal money(long amount) {
         return BigDecimal.valueOf(amount).setScale(MONEY_SCALE, RoundingMode.UNNECESSARY);
+    }
+
+    private boolean isConstraintViolation(DataIntegrityViolationException exception, String constraintName) {
+        Throwable current = exception;
+        while (current != null) {
+            if (current instanceof ConstraintViolationException constraintViolationException
+                    && constraintName.equalsIgnoreCase(constraintViolationException.getConstraintName())) {
+                return true;
+            }
+            String message = current.getMessage();
+            if (message != null && message.toLowerCase().contains(constraintName.toLowerCase())) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 }
