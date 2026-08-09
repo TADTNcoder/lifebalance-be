@@ -158,14 +158,14 @@ class CapitalCycleServiceIntegrationTest {
     }
 
     @Test
-    void updateActiveCyclePersistsOnlyTextChangesWhenStructuralFieldsAreUnchanged() {
+    void updateActiveCycleIsRejectedEvenWhenStructuralFieldsAreUnchanged() {
         CapitalCycleResponse created = capitalCycleService.createCycle(
                 OWNER_ID,
                 createRequest("August 6", CapitalCycleType.DAILY, LocalDate.of(2026, 8, 6))
         );
         capitalCycleService.activateCycle(OWNER_ID, created.getId());
 
-        CapitalCycleResponse updated = capitalCycleService.updateCycle(
+        assertThatThrownBy(() -> capitalCycleService.updateCycle(
                 OWNER_ID,
                 created.getId(),
                 updateRequest(
@@ -175,16 +175,16 @@ class CapitalCycleServiceIntegrationTest {
                         LocalDate.of(2026, 8, 6),
                         LocalDate.of(2026, 8, 6)
                 )
-        );
+        )).isInstanceOf(InvalidCapitalCycleStateException.class);
 
         entityManager.flush();
         entityManager.clear();
 
         CapitalCycle persisted = capitalCycleRepository.findById(created.getId()).orElseThrow();
 
-        assertThat(updated.getStatus()).isEqualTo(CapitalCycleStatus.ACTIVE);
-        assertThat(persisted.getName()).isEqualTo("August 6 active");
-        assertThat(persisted.getDescription()).isEqualTo("Active description");
+        assertThat(persisted.getStatus()).isEqualTo(CapitalCycleStatus.ACTIVE);
+        assertThat(persisted.getName()).isEqualTo("August 6");
+        assertThat(persisted.getDescription()).isEqualTo("Resource cycle");
         assertThat(persisted.getType()).isEqualTo(CapitalCycleType.DAILY);
         assertThat(persisted.getStartDate()).isEqualTo(LocalDate.of(2026, 8, 6));
         assertThat(persisted.getEndDate()).isEqualTo(LocalDate.of(2026, 8, 6));
