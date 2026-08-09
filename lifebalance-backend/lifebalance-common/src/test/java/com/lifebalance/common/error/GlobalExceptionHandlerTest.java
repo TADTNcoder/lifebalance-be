@@ -10,6 +10,8 @@ import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.mock.http.MockHttpInputMessage;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.InsufficientAuthenticationException;
@@ -58,6 +60,28 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody().error().code()).isEqualTo(AuthErrorCode.FORBIDDEN);
         assertThat(response.getBody().error().message()).isEqualTo("Access is denied");
         assertThat(response.getBody().error().details()).isEmpty();
+        assertThat(response.getBody().timestamp()).isNotNull();
+    }
+
+    @Test
+    void shouldHandleUnreadableRequestBodyAsStandardBadRequestJson() {
+        ResponseEntity<ApiResponse<Void>> response = handler.handleMessageNotReadableException(
+                new HttpMessageNotReadableException(
+                        "unsupported enum value",
+                        new MockHttpInputMessage(new byte[0])
+                )
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().success()).isFalse();
+        assertThat(response.getBody().data()).isNull();
+        assertThat(response.getBody().error().code()).isEqualTo(CommonErrorCode.VALIDATION_FAILED);
+        assertThat(response.getBody().error().message()).isEqualTo("Request body has invalid format");
+        assertThat(response.getBody().error().details()).containsEntry(
+                "body",
+                "must be valid JSON with supported field values"
+        );
         assertThat(response.getBody().timestamp()).isNotNull();
     }
 
