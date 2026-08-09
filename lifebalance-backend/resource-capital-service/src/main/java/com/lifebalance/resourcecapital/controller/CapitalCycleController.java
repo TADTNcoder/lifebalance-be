@@ -3,6 +3,7 @@ package com.lifebalance.resourcecapital.controller;
 import static com.lifebalance.security.keycloak.KeycloakUserMappingFilter.CURRENT_USER_ATTRIBUTE;
 
 import com.lifebalance.resourcecapital.dto.CapitalCycleResponse;
+import com.lifebalance.resourcecapital.dto.CloseCapitalCycleRequest;
 import com.lifebalance.resourcecapital.dto.CreateCapitalCycleRequest;
 import com.lifebalance.resourcecapital.dto.UpdateCapitalCycleRequest;
 import com.lifebalance.resourcecapital.service.CapitalCycleService;
@@ -99,6 +100,29 @@ public class CapitalCycleController {
     ) {
         UUID ownerId = resolveOwnerId(currentUser);
         CapitalCycleResponse response = capitalCycleService.activateCycle(ownerId, id);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @Operation(
+            summary = "Close capital cycle",
+            description = "Close an authenticated user's active or reopened capital cycle with a business reason."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Capital cycle closed"),
+            @ApiResponse(responseCode = "400", description = "Request validation failed or cycle status transition is not allowed"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "404", description = "Capital cycle not found")
+    })
+    @PostMapping("/{id}/close")
+    public ResponseEntity<CapitalCycleResponse> close(
+            @PathVariable UUID id,
+            @Valid @RequestBody CloseCapitalCycleRequest request,
+            @RequestAttribute(value = CURRENT_USER_ATTRIBUTE, required = false)
+            KeycloakUserPrincipal currentUser
+    ) {
+        UUID ownerId = resolveOwnerId(currentUser);
+        CapitalCycleResponse response = capitalCycleService.closeCycle(ownerId, id, request);
 
         return ResponseEntity.ok(response);
     }
