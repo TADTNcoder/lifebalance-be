@@ -64,6 +64,7 @@ class CapitalCyclePostgresConstraintTest {
     @BeforeEach
     @AfterEach
     void cleanDatabase() {
+        jdbcTemplate.update("DELETE FROM resourcecapital.capital_allocations");
         jdbcTemplate.update("DELETE FROM resourcecapital.money_capitals");
         jdbcTemplate.update("DELETE FROM resourcecapital.time_capitals");
         jdbcTemplate.update("DELETE FROM resourcecapital.capital_cycles");
@@ -174,6 +175,21 @@ class CapitalCyclePostgresConstraintTest {
                         """, cycleId))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("chk_money_capitals_planned_amount");
+    }
+
+    @Test
+    void rejectsFractionalTimeAllocationAmount() {
+        UUID cycleId = insertCycle(OWNER_ID, "DAILY", LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 1), "ACTIVE");
+
+        assertThatThrownBy(() -> jdbcTemplate.update("""
+                        INSERT INTO resourcecapital.capital_allocations (
+                            id, capital_cycle_id, capital_type, target_type, target_id, allocated_amount,
+                            created_at, updated_at, version
+                        )
+                        VALUES (gen_random_uuid(), ?, 'TIME', 'TASK', gen_random_uuid(), 120.5000, now(), now(), 0)
+                        """, cycleId))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("chk_capital_allocations_time_whole_minutes");
     }
 
     private UUID insertCycle(UUID ownerId, String type, LocalDate startDate, LocalDate endDate, String status) {
