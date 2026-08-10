@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -96,6 +97,12 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     ResponseEntity<ApiResponse<Void>> handleUnexpectedException(Exception exception) {
+        if (exception instanceof ErrorResponse errorResponse
+                && errorResponse.getStatusCode().value() == HttpStatus.NOT_FOUND.value()) {
+            ApiError error = ApiError.of(CommonErrorCode.NOT_FOUND, "Resource was not found");
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.failure(error));
+        }
+
         ApiError error = ApiError.of(CommonErrorCode.INTERNAL_ERROR, "Unexpected server error");
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ApiResponse.failure(error));
     }

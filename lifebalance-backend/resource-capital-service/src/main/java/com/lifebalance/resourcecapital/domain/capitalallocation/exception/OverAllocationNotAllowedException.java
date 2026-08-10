@@ -1,13 +1,13 @@
 package com.lifebalance.resourcecapital.domain.capitalallocation.exception;
 
-import com.lifebalance.common.error.AppException;
 import com.lifebalance.resourcecapital.domain.capital.CapitalKind;
+import com.lifebalance.resourcecapital.domain.exception.CapitalDomainException;
 import org.springframework.http.HttpStatus;
 
 import java.math.BigDecimal;
 import java.util.UUID;
 
-public class OverAllocationNotAllowedException extends AppException {
+public class OverAllocationNotAllowedException extends CapitalDomainException {
 
     public static final String ERROR_CODE = "CAPITAL_OVER_ALLOCATION_NOT_ALLOWED";
 
@@ -23,7 +23,7 @@ public class OverAllocationNotAllowedException extends AppException {
                         + " would exceed planned capital " + plannedAmount
                         + " with projected allocation " + projectedAllocatedAmount
                         + ", but over-allocation is disabled for the cycle.",
-                HttpStatus.BAD_REQUEST
+                HttpStatus.CONFLICT
         );
     }
 }

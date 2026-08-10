@@ -175,9 +175,7 @@ class AvailableCapitalControllerTest {
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error.code").value(CapitalAllocationDataIntegrityException.ERROR_CODE))
-                .andExpect(jsonPath("$.error.message").value(
-                        "TIME allocation data has an invalid persisted format for capital cycle " + CYCLE_ID + "."
-                ));
+                .andExpect(jsonPath("$.error.message").value("Capital allocation data is inconsistent."));
 
         verify(capitalBalanceService).getCycleBalance(OWNER_ID, CYCLE_ID);
     }

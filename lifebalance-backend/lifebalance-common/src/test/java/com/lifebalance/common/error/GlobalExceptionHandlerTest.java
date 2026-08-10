@@ -17,6 +17,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.InsufficientAuthenticationException;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.ErrorResponseException;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
@@ -82,6 +83,22 @@ class GlobalExceptionHandlerTest {
                 "body",
                 "must be valid JSON with supported field values"
         );
+        assertThat(response.getBody().timestamp()).isNotNull();
+    }
+
+    @Test
+    void shouldHandleFrameworkNotFoundAsStandardNotFoundJson() {
+        ResponseEntity<ApiResponse<Void>> response = handler.handleUnexpectedException(
+                new ErrorResponseException(HttpStatus.NOT_FOUND)
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().success()).isFalse();
+        assertThat(response.getBody().data()).isNull();
+        assertThat(response.getBody().error().code()).isEqualTo(CommonErrorCode.NOT_FOUND);
+        assertThat(response.getBody().error().message()).isEqualTo("Resource was not found");
+        assertThat(response.getBody().error().details()).isEmpty();
         assertThat(response.getBody().timestamp()).isNotNull();
     }
 

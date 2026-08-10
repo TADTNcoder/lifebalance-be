@@ -5,7 +5,6 @@ import com.lifebalance.resourcecapital.domain.capital.exception.CapitalNotSetupE
 import com.lifebalance.resourcecapital.domain.capitalallocation.AllocationTargetType;
 import com.lifebalance.resourcecapital.domain.capitalallocation.CapitalAllocation;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.AllocationNotFoundException;
-import com.lifebalance.resourcecapital.domain.capitalallocation.exception.CapitalExceededException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InsufficientAllocatedCapitalException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InvalidAllocationAmountException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InvalidAllocationTargetException;
@@ -101,8 +100,6 @@ public class AllocationServiceImpl implements AllocationService {
 
         if (overAllocated) {
             validateOverAllocationApproval(cycle, capitalType, plannedAmount, totalAfter, request.allowOverAllocation());
-        } else if (totalAfter.compareTo(plannedAmount) > 0) {
-            throw new CapitalExceededException(cycleId, capitalType, plannedAmount, totalAfter);
         }
 
         CapitalAllocation targetAllocation = allocation.orElseGet(() -> CapitalAllocation.create(

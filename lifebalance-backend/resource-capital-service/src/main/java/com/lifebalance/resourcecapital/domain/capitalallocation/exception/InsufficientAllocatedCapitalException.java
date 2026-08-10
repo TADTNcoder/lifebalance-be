@@ -1,14 +1,14 @@
 package com.lifebalance.resourcecapital.domain.capitalallocation.exception;
 
-import com.lifebalance.common.error.AppException;
 import com.lifebalance.resourcecapital.domain.capital.CapitalKind;
 import com.lifebalance.resourcecapital.domain.capitalallocation.AllocationTargetType;
+import com.lifebalance.resourcecapital.domain.exception.CapitalDomainException;
 import org.springframework.http.HttpStatus;
 
 import java.math.BigDecimal;
 import java.util.UUID;
 
-public class InsufficientAllocatedCapitalException extends AppException {
+public class InsufficientAllocatedCapitalException extends CapitalDomainException {
 
     public static final String ERROR_CODE = "CAPITAL_INSUFFICIENT_ALLOCATED";
 

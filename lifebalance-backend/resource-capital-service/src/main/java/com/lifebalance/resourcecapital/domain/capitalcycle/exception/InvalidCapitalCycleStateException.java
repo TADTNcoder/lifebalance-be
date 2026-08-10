@@ -1,12 +1,12 @@
 package com.lifebalance.resourcecapital.domain.capitalcycle.exception;
 
-import com.lifebalance.common.error.AppException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleStatus;
+import com.lifebalance.resourcecapital.domain.exception.CapitalDomainException;
 import org.springframework.http.HttpStatus;
 
 import java.util.UUID;
 
-public class InvalidCapitalCycleStateException extends AppException {
+public class InvalidCapitalCycleStateException extends CapitalDomainException {
 
     public static final String ERROR_CODE = "INVALID_CYCLE_STATE_TRANSITION";
 
