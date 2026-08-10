@@ -86,15 +86,21 @@ public class CapitalCycleServiceImpl implements CapitalCycleService {
         Objects.requireNonNull(request, "Update capital cycle request is required.");
         CapitalCycle cycle = findOwnedCycle(ownerId, cycleId);
 
-        if (!cycle.isActive()) {
-            ensureNoOverlappingCycle(
-                    ownerId,
-                    request.getType(),
-                    request.getStartDate(),
-                    request.getEndDate(),
-                    cycleId
-            );
-        }
+        cycle.validateUpdateInformation(
+                request.getName(),
+                request.getDescription(),
+                request.getType(),
+                request.getStartDate(),
+                request.getEndDate()
+        );
+
+        ensureNoOverlappingCycle(
+                ownerId,
+                request.getType(),
+                request.getStartDate(),
+                request.getEndDate(),
+                cycleId
+        );
 
         cycle.updateInformation(
                 request.getName(),
@@ -151,7 +157,7 @@ public class CapitalCycleServiceImpl implements CapitalCycleService {
 
     private CapitalCycle findOwnedCycle(UUID ownerId, UUID cycleId) {
         return capitalCycleRepository.findByIdAndOwnerId(cycleId, ownerId)
-                .orElseThrow(() -> new CapitalCycleNotFoundException(cycleId, ownerId));
+                .orElseThrow(() -> new CapitalCycleNotFoundException(cycleId));
     }
 
     private void ensureNoOverlappingCycle(

@@ -146,7 +146,7 @@ public class CapitalServiceImpl implements CapitalService {
 
     private CapitalCycle findOwnedCycle(UUID ownerId, UUID cycleId) {
         return capitalCycleRepository.findByIdAndOwnerId(cycleId, ownerId)
-                .orElseThrow(() -> new CapitalCycleNotFoundException(cycleId, ownerId));
+                .orElseThrow(() -> new CapitalCycleNotFoundException(cycleId));
     }
 
     private void ensureTimeCapitalNotInitialized(UUID cycleId) {

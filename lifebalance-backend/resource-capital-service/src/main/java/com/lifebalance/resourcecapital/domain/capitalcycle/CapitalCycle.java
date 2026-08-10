@@ -142,14 +142,22 @@ public class CapitalCycle {
             LocalDate startDate,
             LocalDate endDate
     ) {
-        if (status == CapitalCycleStatus.ACTIVE) {
-            ensureStructuralInformationUnchanged(type, startDate, endDate);
-            setEditableInformation(name, description);
-            return;
-        }
-
-        ensureStatusAllows("update information", CapitalCycleStatus.DRAFT, CapitalCycleStatus.REOPENED);
+        validateUpdateInformation(name, description, type, startDate, endDate);
         setCoreInformation(ownerId, name, description, type, startDate, endDate);
+    }
+
+    /**
+     * Validates update inputs without mutating this cycle.
+     */
+    public void validateUpdateInformation(
+            String name,
+            String description,
+            CapitalCycleType type,
+            LocalDate startDate,
+            LocalDate endDate
+    ) {
+        ensureStatusAllows("update information", CapitalCycleStatus.DRAFT);
+        validateCoreInformation(ownerId, name, description, type, startDate, endDate);
     }
 
     /**
@@ -303,42 +311,29 @@ public class CapitalCycle {
             LocalDate startDate,
             LocalDate endDate
     ) {
+        CoreInformation information = validateCoreInformation(ownerId, name, description, type, startDate, endDate);
+        this.ownerId = information.ownerId();
+        this.name = information.name();
+        this.description = information.description();
+        this.type = information.type();
+        this.startDate = startDate;
+        this.endDate = endDate;
+    }
+
+    private CoreInformation validateCoreInformation(
+            UUID ownerId,
+            String name,
+            String description,
+            CapitalCycleType type,
+            LocalDate startDate,
+            LocalDate endDate
+    ) {
         UUID validatedOwnerId = requireOwner(ownerId);
         String validatedName = optionalText(name, "name", NAME_MAX_LENGTH);
         String validatedDescription = optionalText(description, "description", DESCRIPTION_MAX_LENGTH);
         CapitalCycleType validatedType = requireType(type);
         validatePeriod(validatedType, startDate, endDate);
-        this.ownerId = validatedOwnerId;
-        this.name = validatedName;
-        this.description = validatedDescription;
-        this.type = validatedType;
-        this.startDate = startDate;
-        this.endDate = endDate;
-    }
-
-    private void setEditableInformation(String name, String description) {
-        this.name = optionalText(name, "name", NAME_MAX_LENGTH);
-        this.description = optionalText(description, "description", DESCRIPTION_MAX_LENGTH);
-    }
-
-    private void ensureStructuralInformationUnchanged(
-            CapitalCycleType type,
-            LocalDate startDate,
-            LocalDate endDate
-    ) {
-        requireType(type);
-        validateDateRange(startDate, endDate, "capital cycle period");
-
-        if (!Objects.equals(this.type, type)
-                || !Objects.equals(this.startDate, startDate)
-                || !Objects.equals(this.endDate, endDate)) {
-            throw new InvalidCapitalCycleStateException(
-                    id,
-                    status,
-                    "update structural information",
-                    "type, startDate, and endDate cannot be changed while the cycle is active"
-            );
-        }
+        return new CoreInformation(validatedOwnerId, validatedName, validatedDescription, validatedType);
     }
 
     private void validatePeriod(CapitalCycleType type, LocalDate startDate, LocalDate endDate) {
@@ -466,6 +461,14 @@ public class CapitalCycle {
 
     private String cycleRef() {
         return id == null ? "<new>" : id.toString();
+    }
+
+    private record CoreInformation(
+            UUID ownerId,
+            String name,
+            String description,
+            CapitalCycleType type
+    ) {
     }
 
     public UUID getId() {

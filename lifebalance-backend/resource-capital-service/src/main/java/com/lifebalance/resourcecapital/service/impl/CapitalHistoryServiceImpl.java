@@ -86,7 +86,7 @@ public class CapitalHistoryServiceImpl implements CapitalHistoryService {
 
     private CapitalCycle findOwnedCycle(UUID ownerId, UUID cycleId) {
         return capitalCycleRepository.findByIdAndOwnerId(cycleId, ownerId)
-                .orElseThrow(() -> new CapitalCycleNotFoundException(cycleId, ownerId));
+                .orElseThrow(() -> new CapitalCycleNotFoundException(cycleId));
     }
 
     private void validateRange(HistoryFilterRequest filter) {

@@ -6,6 +6,7 @@ import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleType;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.ActiveCapitalCycleAlreadyExistsException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.CapitalCycleNotFoundException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.CapitalCycleOverlapException;
+import com.lifebalance.resourcecapital.domain.capitalcycle.exception.InvalidCapitalCyclePeriodException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.InvalidCapitalCycleStateException;
 import com.lifebalance.resourcecapital.dto.CapitalCycleResponse;
 import com.lifebalance.resourcecapital.dto.CloseCapitalCycleRequest;
@@ -139,7 +140,7 @@ class CapitalCycleServiceImplTest {
     }
 
     @Test
-    void updateCycleAllowsReopenedCycle() throws Exception {
+    void updateCycleRejectsReopenedCycle() throws Exception {
         CapitalCycle cycle = closedCycle();
         setField(cycle, "id", CYCLE_ID);
         cycle.reopen("Need correction", NOW.minusSeconds(60));
@@ -152,14 +153,16 @@ class CapitalCycleServiceImplTest {
         );
         when(capitalCycleRepository.findByIdAndOwnerId(CYCLE_ID, OWNER_ID)).thenReturn(Optional.of(cycle));
 
-        CapitalCycleResponse response = createService().updateCycle(OWNER_ID, CYCLE_ID, request);
-
-        assertThat(response.getStatus()).isEqualTo(CapitalCycleStatus.REOPENED);
-        assertThat(response.getStartDate()).isEqualTo(LocalDate.of(2026, 8, 2));
+        assertThatThrownBy(() -> createService().updateCycle(OWNER_ID, CYCLE_ID, request))
+                .isInstanceOf(InvalidCapitalCycleStateException.class)
+                .hasMessageContaining("REOPENED")
+                .hasMessageContaining("DRAFT");
+        assertThat(cycle.getStartDate()).isEqualTo(LocalDate.of(2026, 8, 1));
+        verify(capitalCycleRepository, never()).existsOverlappingCycle(any(), any(), any(), any(), any());
     }
 
     @Test
-    void updateCycleAllowsActiveCycleToUpdateNameAndDescriptionOnly() throws Exception {
+    void updateCycleRejectsActiveCycleEvenWhenStructuralFieldsAreUnchanged() throws Exception {
         CapitalCycle cycle = dailyCycle();
         setField(cycle, "id", CYCLE_ID);
         cycle.activate(NOW.minusSeconds(60));
@@ -172,17 +175,17 @@ class CapitalCycleServiceImplTest {
         );
         when(capitalCycleRepository.findByIdAndOwnerId(CYCLE_ID, OWNER_ID)).thenReturn(Optional.of(cycle));
 
-        CapitalCycleResponse response = createService().updateCycle(OWNER_ID, CYCLE_ID, request);
-
-        assertThat(response.getStatus()).isEqualTo(CapitalCycleStatus.ACTIVE);
-        assertThat(response.getName()).isEqualTo("August 1 active update");
-        assertThat(response.getDescription()).isEqualTo("Active cycle description update");
-        assertThat(response.getType()).isEqualTo(CapitalCycleType.DAILY);
+        assertThatThrownBy(() -> createService().updateCycle(OWNER_ID, CYCLE_ID, request))
+                .isInstanceOf(InvalidCapitalCycleStateException.class)
+                .hasMessageContaining("ACTIVE")
+                .hasMessageContaining("DRAFT");
+        assertThat(cycle.getName()).isEqualTo("August 1");
+        assertThat(cycle.getDescription()).isEqualTo("Daily resource cycle");
         verify(capitalCycleRepository, never()).existsOverlappingCycle(any(), any(), any(), any(), any());
     }
 
     @Test
-    void updateCycleRejectsActiveCycleStructuralChanges() throws Exception {
+    void updateCycleRejectsActiveCycleBeforeCheckingStructuralChanges() throws Exception {
         CapitalCycle cycle = dailyCycle();
         setField(cycle, "id", CYCLE_ID);
         cycle.activate(NOW.minusSeconds(60));
@@ -198,7 +201,7 @@ class CapitalCycleServiceImplTest {
         assertThatThrownBy(() -> createService().updateCycle(OWNER_ID, CYCLE_ID, request))
                 .isInstanceOf(InvalidCapitalCycleStateException.class)
                 .hasMessageContaining("ACTIVE")
-                .hasMessageContaining("update structural information");
+                .hasMessageContaining("DRAFT");
         assertThat(cycle.getType()).isEqualTo(CapitalCycleType.DAILY);
         assertThat(cycle.getStartDate()).isEqualTo(LocalDate.of(2026, 8, 1));
         assertThat(cycle.getEndDate()).isEqualTo(LocalDate.of(2026, 8, 1));
@@ -216,6 +219,7 @@ class CapitalCycleServiceImplTest {
                 .isInstanceOf(InvalidCapitalCycleStateException.class)
                 .hasMessageContaining("CLOSED")
                 .hasMessageContaining("update information");
+        verify(capitalCycleRepository, never()).existsOverlappingCycle(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -234,6 +238,30 @@ class CapitalCycleServiceImplTest {
 
         assertThatThrownBy(() -> createService().updateCycle(OWNER_ID, CYCLE_ID, request))
                 .isInstanceOf(CapitalCycleOverlapException.class);
+    }
+
+    @Test
+    void updateCycleRejectsInvalidPeriodBeforeCheckingOverlap() throws Exception {
+        CapitalCycle cycle = monthlyCycle();
+        setField(cycle, "id", CYCLE_ID);
+        UpdateCapitalCycleRequest request = updateRequest(
+                "Invalid August",
+                "Invalid monthly period",
+                CapitalCycleType.MONTHLY,
+                LocalDate.of(2026, 8, 2),
+                LocalDate.of(2026, 8, 31)
+        );
+        when(capitalCycleRepository.findByIdAndOwnerId(CYCLE_ID, OWNER_ID)).thenReturn(Optional.of(cycle));
+
+        assertThatThrownBy(() -> createService().updateCycle(OWNER_ID, CYCLE_ID, request))
+                .isInstanceOf(InvalidCapitalCyclePeriodException.class)
+                .hasMessageContaining("MONTHLY")
+                .hasMessageContaining("first day");
+
+        assertThat(cycle.getName()).isEqualTo("August");
+        assertThat(cycle.getStartDate()).isEqualTo(LocalDate.of(2026, 8, 1));
+        assertThat(cycle.getEndDate()).isEqualTo(LocalDate.of(2026, 8, 31));
+        verify(capitalCycleRepository, never()).existsOverlappingCycle(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -405,7 +433,7 @@ class CapitalCycleServiceImplTest {
         assertThatThrownBy(() -> createService().activateCycle(OTHER_OWNER_ID, CYCLE_ID))
                 .isInstanceOf(CapitalCycleNotFoundException.class)
                 .hasMessageContaining(CYCLE_ID.toString())
-                .hasMessageContaining(OTHER_OWNER_ID.toString());
+                .hasMessageNotContaining(OTHER_OWNER_ID.toString());
         verify(capitalCycleBusinessValidator, never()).validateActivationAllowed(any(), any(), any());
     }
 
@@ -426,6 +454,17 @@ class CapitalCycleServiceImplTest {
                 CapitalCycleType.DAILY,
                 LocalDate.of(2026, 8, 1),
                 LocalDate.of(2026, 8, 1)
+        );
+    }
+
+    private static CapitalCycle monthlyCycle() {
+        return CapitalCycle.create(
+                OWNER_ID,
+                "August",
+                "Monthly resource cycle",
+                CapitalCycleType.MONTHLY,
+                LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 8, 31)
         );
     }
 

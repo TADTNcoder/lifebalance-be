@@ -1,6 +1,9 @@
 package com.lifebalance.resourcecapital.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleType;
+import jakarta.validation.constraints.AssertTrue;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
@@ -8,6 +11,7 @@ import java.time.LocalDate;
 
 public class UpdateCapitalCycleRequest {
 
+    @NotBlank
     @Size(max = 255)
     private String name;
 
@@ -61,5 +65,11 @@ public class UpdateCapitalCycleRequest {
 
     public void setEndDate(LocalDate endDate) {
         this.endDate = endDate;
+    }
+
+    @JsonIgnore
+    @AssertTrue(message = "startDate must not be after endDate")
+    public boolean isDateRangeValid() {
+        return startDate == null || endDate == null || !startDate.isAfter(endDate);
     }
 }

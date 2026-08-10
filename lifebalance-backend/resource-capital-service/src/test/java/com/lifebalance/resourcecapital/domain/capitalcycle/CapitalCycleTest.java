@@ -230,24 +230,26 @@ class CapitalCycleTest {
                 LocalDate.of(2026, 8, 7)
         )).isInstanceOf(InvalidCapitalCycleStateException.class)
                 .hasMessageContaining("ACTIVE")
-                .hasMessageContaining("update structural information");
+                .hasMessageContaining("update information");
     }
 
     @Test
-    void activeCycleCanUpdateNameAndDescriptionWhenStructuralFieldsDoNotChange() {
+    void activeCycleCannotUpdateNameAndDescriptionEvenWhenStructuralFieldsDoNotChange() {
         CapitalCycle cycle = createDaily();
         cycle.activate(NOW);
 
-        cycle.updateInformation(
+        assertThatThrownBy(() -> cycle.updateInformation(
                 "August 1 active",
                 "Active cycle description",
                 CapitalCycleType.DAILY,
                 LocalDate.of(2026, 8, 1),
                 LocalDate.of(2026, 8, 1)
-        );
+        )).isInstanceOf(InvalidCapitalCycleStateException.class)
+                .hasMessageContaining("ACTIVE")
+                .hasMessageContaining("update information");
 
-        assertThat(cycle.getName()).isEqualTo("August 1 active");
-        assertThat(cycle.getDescription()).isEqualTo("Active cycle description");
+        assertThat(cycle.getName()).isEqualTo("August 1");
+        assertThat(cycle.getDescription()).isEqualTo("Daily resource cycle");
         assertThat(cycle.getStatus()).isEqualTo(CapitalCycleStatus.ACTIVE);
     }
 
