@@ -4,7 +4,9 @@ import com.lifebalance.resourcecapital.domain.capital.CapitalKind;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.CapitalCycleNotFoundException;
 import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalHistory;
+import com.lifebalance.resourcecapital.domain.capitalhistory.exception.InvalidCapitalHistoryFilterException;
 import com.lifebalance.resourcecapital.dto.CapitalHistoryResponse;
+import com.lifebalance.resourcecapital.dto.CapitalHistoryResponseDTO;
 import com.lifebalance.resourcecapital.dto.HistoryFilterRequest;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalCycleRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalHistoryRepository;
@@ -47,6 +49,26 @@ public class CapitalHistoryServiceImpl implements CapitalHistoryService {
 
     @Transactional(readOnly = true)
     @Override
+    public Page<CapitalHistoryResponseDTO> getHistory(
+            UUID ownerId,
+            UUID capitalCycleId,
+            HistoryFilterRequest filter,
+            Pageable pageable
+    ) {
+        Objects.requireNonNull(ownerId, "Owner id is required.");
+        if (capitalCycleId != null) {
+            findOwnedCycle(ownerId, capitalCycleId);
+        }
+        validateRange(filter);
+        return capitalHistoryRepository.findAll(
+                        specification(ownerId, capitalCycleId, filter),
+                        pageableWithDefaultSort(pageable)
+                )
+                .map(this::toDto);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
     public Page<CapitalHistoryResponse> getHistoryByCycle(
             UUID ownerId,
             UUID cycleId,
@@ -55,7 +77,10 @@ public class CapitalHistoryServiceImpl implements CapitalHistoryService {
     ) {
         CapitalCycle cycle = findOwnedCycle(ownerId, cycleId);
         validateRange(filter);
-        return capitalHistoryRepository.findAll(specification(cycle.getId(), filter), pageableWithDefaultSort(pageable))
+        return capitalHistoryRepository.findAll(
+                        specification(ownerId, cycle.getId(), filter),
+                        pageableWithDefaultSort(pageable)
+                )
                 .map(this::toResponse);
     }
 
@@ -80,7 +105,10 @@ public class CapitalHistoryServiceImpl implements CapitalHistoryService {
                 null,
                 null
         );
-        return capitalHistoryRepository.findAll(specification(cycle.getId(), filter), pageableWithDefaultSort(pageable))
+        return capitalHistoryRepository.findAll(
+                        specification(ownerId, cycle.getId(), filter),
+                        pageableWithDefaultSort(pageable)
+                )
                 .map(this::toResponse);
     }
 
@@ -94,14 +122,17 @@ public class CapitalHistoryServiceImpl implements CapitalHistoryService {
             return;
         }
         if (!filter.from().isBefore(filter.to())) {
-            throw new IllegalArgumentException("History filter from must be before to.");
+            throw new InvalidCapitalHistoryFilterException("History filter fromDate must be before toDate.");
         }
     }
 
-    private Specification<CapitalHistory> specification(UUID cycleId, HistoryFilterRequest filter) {
+    private Specification<CapitalHistory> specification(UUID ownerId, UUID cycleId, HistoryFilterRequest filter) {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
-            predicates.add(criteriaBuilder.equal(root.get("capitalCycle").get("id"), cycleId));
+            predicates.add(criteriaBuilder.equal(root.get("capitalCycle").get("ownerId"), ownerId));
+            if (cycleId != null) {
+                predicates.add(criteriaBuilder.equal(root.get("capitalCycle").get("id"), cycleId));
+            }
 
             if (filter == null) {
                 return criteriaBuilder.and(predicates.toArray(Predicate[]::new));
@@ -180,8 +211,8 @@ public class CapitalHistoryServiceImpl implements CapitalHistoryService {
         return pageable;
     }
 
-    private CapitalHistoryResponse toResponse(CapitalHistory history) {
-        return new CapitalHistoryResponse(
+    private CapitalHistoryResponseDTO toDto(CapitalHistory history) {
+        return new CapitalHistoryResponseDTO(
                 history.getId(),
                 history.getCapitalCycle().getId(),
                 history.getCapitalType(),
@@ -196,6 +227,26 @@ public class CapitalHistoryServiceImpl implements CapitalHistoryService {
                 history.getActorType(),
                 history.getActorId(),
                 history.getCreatedAt()
+        );
+    }
+
+    private CapitalHistoryResponse toResponse(CapitalHistory history) {
+        CapitalHistoryResponseDTO dto = toDto(history);
+        return new CapitalHistoryResponse(
+                dto.id(),
+                dto.capitalCycleId(),
+                dto.capitalType(),
+                dto.actionType(),
+                dto.amount(),
+                dto.beforeAmount(),
+                dto.afterAmount(),
+                dto.reason(),
+                dto.description(),
+                dto.referenceType(),
+                dto.referenceId(),
+                dto.actorType(),
+                dto.actorId(),
+                dto.createdAt()
         );
     }
 }
