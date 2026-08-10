@@ -28,6 +28,7 @@ import com.lifebalance.resourcecapital.domain.capitalcycle.exception.InvalidCapi
 import com.lifebalance.resourcecapital.dto.CapitalCycleResponse;
 import com.lifebalance.resourcecapital.dto.CloseCapitalCycleRequest;
 import com.lifebalance.resourcecapital.dto.CreateCapitalCycleRequest;
+import com.lifebalance.resourcecapital.dto.ReopenCapitalCycleRequest;
 import com.lifebalance.resourcecapital.dto.UpdateCapitalCycleRequest;
 import com.lifebalance.resourcecapital.service.CapitalCycleService;
 import com.lifebalance.security.keycloak.LifebalanceSecurityAutoConfiguration;
@@ -533,6 +534,116 @@ class CapitalCycleControllerTest {
         verify(capitalCycleService, never()).closeCycle(any(), any(), any());
     }
 
+    @Test
+    void reopenReturnsOkWhenClosedCycleIsReopened() throws Exception {
+        ReopenCapitalCycleRequest request = reopenRequest();
+        CapitalCycleResponse response = reopenedResponse();
+
+        when(capitalCycleService.reopenCycle(eq(OWNER_ID), eq(CYCLE_ID), any(ReopenCapitalCycleRequest.class)))
+                .thenReturn(response);
+
+        mockMvc.perform(post(ENDPOINT + "/{id}/reopen", CYCLE_ID)
+                        .with(authenticatedUser())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(CYCLE_ID.toString()))
+                .andExpect(jsonPath("$.status").value("REOPENED"))
+                .andExpect(jsonPath("$.closedAt").value("2026-08-09T04:20:45Z"))
+                .andExpect(jsonPath("$.closeReason").value("Finished cycle settlement"))
+                .andExpect(jsonPath("$.reopenedAt").value("2026-08-09T05:10:00Z"))
+                .andExpect(jsonPath("$.reopenReason").value("Need correction"));
+
+        ArgumentCaptor<ReopenCapitalCycleRequest> requestCaptor =
+                ArgumentCaptor.forClass(ReopenCapitalCycleRequest.class);
+        verify(capitalCycleService).reopenCycle(eq(OWNER_ID), eq(CYCLE_ID), requestCaptor.capture());
+        assertThat(requestCaptor.getValue().getReason()).isEqualTo("Need correction");
+    }
+
+    @Test
+    void reopenReturnsBadRequestWhenReasonIsBlank() throws Exception {
+        ReopenCapitalCycleRequest request = reopenRequest();
+        request.setReason(" ");
+
+        mockMvc.perform(post(ENDPOINT + "/{id}/reopen", CYCLE_ID)
+                        .with(authenticatedUser())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value(CommonErrorCode.VALIDATION_FAILED))
+                .andExpect(jsonPath("$.error.details.reason").exists());
+
+        verify(capitalCycleService, never()).reopenCycle(any(), any(), any());
+    }
+
+    @Test
+    void reopenReturnsBadRequestWhenCycleIsNotClosed() throws Exception {
+        ReopenCapitalCycleRequest request = reopenRequest();
+
+        when(capitalCycleService.reopenCycle(eq(OWNER_ID), eq(CYCLE_ID), any(ReopenCapitalCycleRequest.class)))
+                .thenThrow(new InvalidCapitalCycleStateException(
+                        CYCLE_ID,
+                        CapitalCycleStatus.ACTIVE,
+                        CapitalCycleStatus.REOPENED,
+                        "reopen"
+                ));
+
+        mockMvc.perform(post(ENDPOINT + "/{id}/reopen", CYCLE_ID)
+                        .with(authenticatedUser())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value(InvalidCapitalCycleStateException.ERROR_CODE));
+
+        verify(capitalCycleService).reopenCycle(eq(OWNER_ID), eq(CYCLE_ID), any(ReopenCapitalCycleRequest.class));
+    }
+
+    @Test
+    void reopenReturnsNotFoundWhenCycleDoesNotBelongToUser() throws Exception {
+        ReopenCapitalCycleRequest request = reopenRequest();
+
+        when(capitalCycleService.reopenCycle(eq(OWNER_ID), eq(CYCLE_ID), any(ReopenCapitalCycleRequest.class)))
+                .thenThrow(new CapitalCycleNotFoundException(CYCLE_ID));
+
+        mockMvc.perform(post(ENDPOINT + "/{id}/reopen", CYCLE_ID)
+                        .with(authenticatedUser())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value(CapitalCycleNotFoundException.ERROR_CODE))
+                .andExpect(jsonPath("$.error.message").value("Capital cycle " + CYCLE_ID + " was not found."));
+
+        verify(capitalCycleService).reopenCycle(eq(OWNER_ID), eq(CYCLE_ID), any(ReopenCapitalCycleRequest.class));
+    }
+
+    @Test
+    void reopenReturnsUnauthorizedWhenAuthenticationIsMissing() throws Exception {
+        mockMvc.perform(post(ENDPOINT + "/{id}/reopen", CYCLE_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(reopenRequest())))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value(AuthErrorCode.UNAUTHORIZED));
+
+        verify(capitalCycleService, never()).reopenCycle(any(), any(), any());
+    }
+
+    @Test
+    void reopenReturnsUnauthorizedWhenInternalUserIdClaimIsMissing() throws Exception {
+        mockMvc.perform(post(ENDPOINT + "/{id}/reopen", CYCLE_ID)
+                        .with(jwt().jwt(jwt -> jwt.subject("kc-user-123")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(reopenRequest())))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value(AuthErrorCode.UNAUTHORIZED));
+
+        verify(capitalCycleService, never()).reopenCycle(any(), any(), any());
+    }
+
     private static CreateCapitalCycleRequest monthlyRequest() {
         CreateCapitalCycleRequest request = new CreateCapitalCycleRequest();
         request.setName("Chu ky Thang 8/2026");
@@ -591,6 +702,20 @@ class CapitalCycleControllerTest {
         response.setActivatedAt(Instant.parse("2026-08-09T03:15:30Z"));
         response.setClosedAt(Instant.parse("2026-08-09T04:20:45Z"));
         response.setCloseReason("Finished cycle settlement");
+        return response;
+    }
+
+    private static ReopenCapitalCycleRequest reopenRequest() {
+        ReopenCapitalCycleRequest request = new ReopenCapitalCycleRequest();
+        request.setReason("Need correction");
+        return request;
+    }
+
+    private static CapitalCycleResponse reopenedResponse() {
+        CapitalCycleResponse response = closedResponse();
+        response.setStatus(CapitalCycleStatus.REOPENED);
+        response.setReopenedAt(Instant.parse("2026-08-09T05:10:00Z"));
+        response.setReopenReason("Need correction");
         return response;
     }
 
