@@ -80,6 +80,29 @@ public class CapitalCycleController {
         return ResponseEntity.ok(response);
     }
 
+    @Operation(
+            summary = "Activate capital cycle",
+            description = "Activate an authenticated user's capital cycle after validating ownership, status transition, and one-active-cycle rule."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Capital cycle activated"),
+            @ApiResponse(responseCode = "400", description = "Cycle status transition is not allowed"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "404", description = "Capital cycle not found"),
+            @ApiResponse(responseCode = "409", description = "An active capital cycle already exists for the same cycle type")
+    })
+    @PostMapping("/{id}/activate")
+    public ResponseEntity<CapitalCycleResponse> activate(
+            @PathVariable UUID id,
+            @RequestAttribute(value = CURRENT_USER_ATTRIBUTE, required = false)
+            KeycloakUserPrincipal currentUser
+    ) {
+        UUID ownerId = resolveOwnerId(currentUser);
+        CapitalCycleResponse response = capitalCycleService.activateCycle(ownerId, id);
+
+        return ResponseEntity.ok(response);
+    }
+
     private UUID resolveOwnerId(KeycloakUserPrincipal currentUser) {
         if (currentUser == null || currentUser.userId() == null) {
             throw new AuthenticationCredentialsNotFoundException("Authenticated internal user id is required.");

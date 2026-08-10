@@ -20,6 +20,7 @@ import com.lifebalance.common.error.AuthErrorCode;
 import com.lifebalance.common.error.CommonErrorCode;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleStatus;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleType;
+import com.lifebalance.resourcecapital.domain.capitalcycle.exception.ActiveCapitalCycleAlreadyExistsException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.CapitalCycleNotFoundException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.CapitalCycleOverlapException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.InvalidCapitalCycleStateException;
@@ -29,6 +30,7 @@ import com.lifebalance.resourcecapital.dto.CreateCapitalCycleRequest;
 import com.lifebalance.resourcecapital.dto.UpdateCapitalCycleRequest;
 import com.lifebalance.resourcecapital.service.CapitalCycleService;
 import com.lifebalance.security.keycloak.LifebalanceSecurityAutoConfiguration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -360,6 +362,81 @@ class CapitalCycleControllerTest {
         verify(capitalCycleService, never()).updateCycle(any(), any(), any());
     }
 
+    @Test
+    void activateReturnsOkWhenCycleIsActivated() throws Exception {
+        CapitalCycleResponse response = activatedResponse();
+
+        when(capitalCycleService.activateCycle(OWNER_ID, CYCLE_ID))
+                .thenReturn(response);
+
+        mockMvc.perform(post(ENDPOINT + "/{id}/activate", CYCLE_ID)
+                        .with(authenticatedUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(CYCLE_ID.toString()))
+                .andExpect(jsonPath("$.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.activatedAt").value("2026-08-09T03:15:30Z"));
+
+        verify(capitalCycleService).activateCycle(OWNER_ID, CYCLE_ID);
+    }
+
+    @Test
+    void activateReturnsConflictWhenActiveCycleAlreadyExists() throws Exception {
+        when(capitalCycleService.activateCycle(OWNER_ID, CYCLE_ID))
+                .thenThrow(new ActiveCapitalCycleAlreadyExistsException(OWNER_ID, CapitalCycleType.MONTHLY));
+
+        mockMvc.perform(post(ENDPOINT + "/{id}/activate", CYCLE_ID)
+                        .with(authenticatedUser()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value(ActiveCapitalCycleAlreadyExistsException.ERROR_CODE));
+
+        verify(capitalCycleService).activateCycle(OWNER_ID, CYCLE_ID);
+    }
+
+    @Test
+    void activateReturnsBadRequestWhenCycleStatusTransitionIsInvalid() throws Exception {
+        when(capitalCycleService.activateCycle(OWNER_ID, CYCLE_ID))
+                .thenThrow(new InvalidCapitalCycleStateException(
+                        CYCLE_ID,
+                        CapitalCycleStatus.CLOSED,
+                        CapitalCycleStatus.ACTIVE,
+                        "activate"
+                ));
+
+        mockMvc.perform(post(ENDPOINT + "/{id}/activate", CYCLE_ID)
+                        .with(authenticatedUser()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value(InvalidCapitalCycleStateException.ERROR_CODE));
+
+        verify(capitalCycleService).activateCycle(OWNER_ID, CYCLE_ID);
+    }
+
+    @Test
+    void activateReturnsNotFoundWhenCycleDoesNotBelongToUser() throws Exception {
+        when(capitalCycleService.activateCycle(OWNER_ID, CYCLE_ID))
+                .thenThrow(new CapitalCycleNotFoundException(CYCLE_ID));
+
+        mockMvc.perform(post(ENDPOINT + "/{id}/activate", CYCLE_ID)
+                        .with(authenticatedUser()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value(CapitalCycleNotFoundException.ERROR_CODE))
+                .andExpect(jsonPath("$.error.message").value("Capital cycle " + CYCLE_ID + " was not found."));
+
+        verify(capitalCycleService).activateCycle(OWNER_ID, CYCLE_ID);
+    }
+
+    @Test
+    void activateReturnsUnauthorizedWhenAuthenticationIsMissing() throws Exception {
+        mockMvc.perform(post(ENDPOINT + "/{id}/activate", CYCLE_ID))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value(AuthErrorCode.UNAUTHORIZED));
+
+        verify(capitalCycleService, never()).activateCycle(any(), any());
+    }
+
     private static CreateCapitalCycleRequest monthlyRequest() {
         CreateCapitalCycleRequest request = new CreateCapitalCycleRequest();
         request.setName("Chu ky Thang 8/2026");
@@ -396,6 +473,13 @@ class CapitalCycleControllerTest {
         CapitalCycleResponse response = response();
         response.setName("Chu ky Thang 8/2026 dieu chinh");
         response.setDescription("Cap nhat muc tieu va ke hoach chu ky");
+        return response;
+    }
+
+    private static CapitalCycleResponse activatedResponse() {
+        CapitalCycleResponse response = response();
+        response.setStatus(CapitalCycleStatus.ACTIVE);
+        response.setActivatedAt(Instant.parse("2026-08-09T03:15:30Z"));
         return response;
     }
 
