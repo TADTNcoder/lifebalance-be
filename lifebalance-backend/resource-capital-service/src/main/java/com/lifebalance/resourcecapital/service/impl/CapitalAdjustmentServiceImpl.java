@@ -197,12 +197,18 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
         return switch (adjustmentType) {
             case INCREASE -> CapitalActionType.ADJUSTMENT_INCREASE;
             case DECREASE -> CapitalActionType.ADJUSTMENT_DECREASE;
+            case OVERRIDE -> throw new InvalidAdjustmentAmountException(
+                    "Override adjustment is not supported by this service."
+            );
         };
     }
 
     private CapitalAdjustmentType requireAdjustmentType(CapitalAdjustmentType adjustmentType) {
         if (adjustmentType == null) {
             throw new InvalidAdjustmentAmountException("Adjustment type is required.");
+        }
+        if (adjustmentType == CapitalAdjustmentType.OVERRIDE) {
+            throw new InvalidAdjustmentAmountException("Override adjustment is not supported by this service.");
         }
         return adjustmentType;
     }
