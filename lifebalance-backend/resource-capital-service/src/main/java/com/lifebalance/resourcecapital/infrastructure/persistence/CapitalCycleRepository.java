@@ -22,6 +22,11 @@ public interface CapitalCycleRepository extends JpaRepository<CapitalCycle, UUID
 
     Page<CapitalCycle> findByOwnerIdAndStatus(UUID ownerId, CapitalCycleStatus status, Pageable pageable);
 
+    Optional<CapitalCycle> findFirstByOwnerIdAndStatusOrderByActivatedAtDescCreatedAtDesc(
+            UUID ownerId,
+            CapitalCycleStatus status
+    );
+
     Optional<CapitalCycle> findByOwnerIdAndTypeAndStatus(
             UUID ownerId,
             CapitalCycleType type,

@@ -12,7 +12,10 @@ import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalHistory;
 import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalReferenceType;
 import com.lifebalance.resourcecapital.domain.moneycapital.MoneyCapital;
 import com.lifebalance.resourcecapital.domain.timecapital.TimeCapital;
+import com.lifebalance.resourcecapital.dto.CapitalBalanceResponse;
+import com.lifebalance.resourcecapital.dto.CapitalBalanceSummaryDto;
 import com.lifebalance.resourcecapital.dto.CapitalOverviewResponse;
+import com.lifebalance.resourcecapital.dto.CapitalSummaryResponseDTO;
 import com.lifebalance.resourcecapital.dto.MoneyCapitalResponse;
 import com.lifebalance.resourcecapital.dto.SetupMoneyCapitalRequest;
 import com.lifebalance.resourcecapital.dto.SetupTimeCapitalRequest;
@@ -21,6 +24,7 @@ import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalCycleRe
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalHistoryRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.MoneyCapitalRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.TimeCapitalRepository;
+import com.lifebalance.resourcecapital.service.CapitalBalanceService;
 import com.lifebalance.resourcecapital.service.NoAllocationPersistenceReader;
 import com.lifebalance.resourcecapital.service.mapper.CapitalMapper;
 import org.junit.jupiter.api.Test;
@@ -65,6 +69,9 @@ class CapitalServiceImplTest {
 
     @Mock
     private CapitalHistoryRepository capitalHistoryRepository;
+
+    @Mock
+    private CapitalBalanceService capitalBalanceService;
 
     @Test
     void setupTimeCapitalCreatesZeroValueCapitalForDraftCycle() throws Exception {
@@ -354,13 +361,91 @@ class CapitalServiceImplTest {
         verify(timeCapitalRepository, never()).saveAndFlush(any());
     }
 
+    @Test
+    void getCapitalSummaryReturnsEmptySummaryWhenActiveCycleIsMissing() {
+        when(capitalCycleRepository.findFirstByOwnerIdAndStatusOrderByActivatedAtDescCreatedAtDesc(
+                OWNER_ID,
+                CapitalCycleStatus.ACTIVE
+        )).thenReturn(Optional.empty());
+
+        CapitalSummaryResponseDTO response = createService().getCapitalSummary(OWNER_ID);
+
+        assertThat(response.activeCyclePresent()).isFalse();
+        assertThat(response.activeCycleId()).isNull();
+        assertThat(response.activeCycleStatus()).isNull();
+        assertThat(response.timeCapital().allocatedMinutes()).isZero();
+        assertThat(response.timeCapital().spentMinutes()).isZero();
+        assertThat(response.timeCapital().remainingMinutes()).isZero();
+        assertThat(response.timeCapital().allocatedHours()).isEqualByComparingTo("0.0000");
+        assertThat(response.moneyCapital().allocatedAmount()).isEqualByComparingTo("0.0000");
+        assertThat(response.moneyCapital().spentAmount()).isEqualByComparingTo("0.0000");
+        assertThat(response.moneyCapital().remainingAmount()).isEqualByComparingTo("0.0000");
+    }
+
+    @Test
+    void getCapitalSummaryMapsActiveCycleBalance() {
+        CapitalCycle cycle = activeCycle();
+        when(capitalCycleRepository.findFirstByOwnerIdAndStatusOrderByActivatedAtDescCreatedAtDesc(
+                OWNER_ID,
+                CapitalCycleStatus.ACTIVE
+        )).thenReturn(Optional.of(cycle));
+        when(capitalBalanceService.getCycleBalance(OWNER_ID, CYCLE_ID)).thenReturn(summaryBalance());
+
+        CapitalSummaryResponseDTO response = createService().getCapitalSummary(OWNER_ID);
+
+        assertThat(response.activeCyclePresent()).isTrue();
+        assertThat(response.activeCycleId()).isEqualTo(CYCLE_ID);
+        assertThat(response.activeCycleType()).isEqualTo(CapitalCycleType.DAILY);
+        assertThat(response.activeCycleStatus()).isEqualTo(CapitalCycleStatus.ACTIVE);
+        assertThat(response.timeCapital().allocatedMinutes()).isEqualTo(480L);
+        assertThat(response.timeCapital().spentMinutes()).isEqualTo(120L);
+        assertThat(response.timeCapital().remainingMinutes()).isEqualTo(360L);
+        assertThat(response.timeCapital().allocatedHours()).isEqualByComparingTo("8.0000");
+        assertThat(response.timeCapital().spentHours()).isEqualByComparingTo("2.0000");
+        assertThat(response.timeCapital().remainingHours()).isEqualByComparingTo("6.0000");
+        assertThat(response.moneyCapital().allocatedAmount()).isEqualByComparingTo("1000.0000");
+        assertThat(response.moneyCapital().spentAmount()).isEqualByComparingTo("250.0000");
+        assertThat(response.moneyCapital().remainingAmount()).isEqualByComparingTo("750.0000");
+        assertThat(response.moneyCapital().currencyCode()).isEqualTo("VND");
+    }
+
     private CapitalServiceImpl createService() {
         return new CapitalServiceImpl(
                 capitalCycleRepository,
                 timeCapitalRepository,
                 moneyCapitalRepository,
                 capitalHistoryRepository,
+                capitalBalanceService,
                 new CapitalMapper(new NoAllocationPersistenceReader())
+        );
+    }
+
+    private static CapitalBalanceResponse summaryBalance() {
+        return new CapitalBalanceResponse(
+                CYCLE_ID,
+                CapitalCycleStatus.ACTIVE,
+                new CapitalBalanceSummaryDto(
+                        com.lifebalance.resourcecapital.domain.capital.CapitalKind.TIME,
+                        new BigDecimal("480.0000"),
+                        new BigDecimal("120.0000"),
+                        new BigDecimal("360.0000"),
+                        new BigDecimal("360.0000"),
+                        new BigDecimal("25.00"),
+                        false,
+                        null,
+                        true
+                ),
+                new CapitalBalanceSummaryDto(
+                        com.lifebalance.resourcecapital.domain.capital.CapitalKind.MONEY,
+                        new BigDecimal("1000.0000"),
+                        new BigDecimal("250.0000"),
+                        new BigDecimal("750.0000"),
+                        new BigDecimal("750.0000"),
+                        new BigDecimal("25.00"),
+                        false,
+                        "VND",
+                        true
+                )
         );
     }
 

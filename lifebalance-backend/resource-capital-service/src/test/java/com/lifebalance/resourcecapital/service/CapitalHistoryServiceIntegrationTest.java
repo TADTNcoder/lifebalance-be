@@ -124,6 +124,61 @@ class CapitalHistoryServiceIntegrationTest {
     }
 
     @Test
+    void getHistoryFiltersAcrossOwnedCycles() {
+        CapitalCycle cycle = capitalCycleRepository.saveAndFlush(dailyCycle(OWNER_ID, "August 5", LocalDate.of(2026, 8, 5)));
+        CapitalCycle otherOwnedCycle = capitalCycleRepository.saveAndFlush(dailyCycle(OWNER_ID, "August 6", LocalDate.of(2026, 8, 6)));
+        CapitalCycle foreignCycle = capitalCycleRepository.saveAndFlush(dailyCycle(OTHER_OWNER_ID, "August 7", LocalDate.of(2026, 8, 7)));
+        CapitalHistory matching = capitalHistoryRepository.save(history(
+                cycle,
+                CapitalKind.MONEY,
+                CapitalActionType.ALLOCATE,
+                TASK_ID,
+                OWNER_ID,
+                "Money focus allocation",
+                BASE_TIME.plusSeconds(180)
+        ));
+        capitalHistoryRepository.save(history(
+                otherOwnedCycle,
+                CapitalKind.TIME,
+                CapitalActionType.ALLOCATE,
+                TASK_ID,
+                OWNER_ID,
+                "Time focus allocation",
+                BASE_TIME.plusSeconds(180)
+        ));
+        capitalHistoryRepository.save(history(
+                foreignCycle,
+                CapitalKind.MONEY,
+                CapitalActionType.ALLOCATE,
+                TASK_ID,
+                OTHER_OWNER_ID,
+                "Foreign money focus allocation",
+                BASE_TIME.plusSeconds(180)
+        ));
+        capitalHistoryRepository.flush();
+        entityManager.clear();
+
+        var filter = new HistoryFilterRequest(
+                CapitalKind.MONEY,
+                null,
+                BASE_TIME,
+                BASE_TIME.plusSeconds(240),
+                "focus",
+                null,
+                null,
+                null,
+                null
+        );
+
+        var page = capitalHistoryService.getHistory(OWNER_ID, null, filter, PageRequest.of(0, 10));
+
+        assertThat(page.getTotalElements()).isEqualTo(1);
+        assertThat(page.getContent().get(0).id()).isEqualTo(matching.getId());
+        assertThat(page.getContent().get(0).capitalCycleId()).isEqualTo(cycle.getId());
+        assertThat(page.getContent().get(0).capitalType()).isEqualTo(CapitalKind.MONEY);
+    }
+
+    @Test
     void getHistoryByCycleReturnsEmptyPageWhenCycleHasNoHistory() {
         CapitalCycle cycle = capitalCycleRepository.saveAndFlush(dailyCycle(OWNER_ID, "August 3", LocalDate.of(2026, 8, 3)));
 

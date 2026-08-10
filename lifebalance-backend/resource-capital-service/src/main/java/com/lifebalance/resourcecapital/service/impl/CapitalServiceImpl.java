@@ -2,8 +2,10 @@ package com.lifebalance.resourcecapital.service.impl;
 
 import com.lifebalance.resourcecapital.domain.capital.CapitalKind;
 import com.lifebalance.resourcecapital.domain.capital.exception.CapitalAlreadyInitializedException;
+import com.lifebalance.resourcecapital.domain.capital.exception.CapitalAllocationDataIntegrityException;
 import com.lifebalance.resourcecapital.domain.capital.exception.CapitalNotSetupException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
+import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleStatus;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.CapitalCycleNotFoundException;
 import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalActionType;
 import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalActorType;
@@ -11,7 +13,10 @@ import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalHistory;
 import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalReferenceType;
 import com.lifebalance.resourcecapital.domain.moneycapital.MoneyCapital;
 import com.lifebalance.resourcecapital.domain.timecapital.TimeCapital;
+import com.lifebalance.resourcecapital.dto.CapitalBalanceResponse;
+import com.lifebalance.resourcecapital.dto.CapitalBalanceSummaryDto;
 import com.lifebalance.resourcecapital.dto.CapitalOverviewResponse;
+import com.lifebalance.resourcecapital.dto.CapitalSummaryResponseDTO;
 import com.lifebalance.resourcecapital.dto.MoneyCapitalResponse;
 import com.lifebalance.resourcecapital.dto.SetupMoneyCapitalRequest;
 import com.lifebalance.resourcecapital.dto.SetupTimeCapitalRequest;
@@ -20,6 +25,7 @@ import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalCycleRe
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalHistoryRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.MoneyCapitalRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.TimeCapitalRepository;
+import com.lifebalance.resourcecapital.service.CapitalBalanceService;
 import com.lifebalance.resourcecapital.service.CapitalService;
 import com.lifebalance.resourcecapital.service.mapper.CapitalMapper;
 import org.hibernate.exception.ConstraintViolationException;
@@ -36,6 +42,8 @@ import java.util.UUID;
 public class CapitalServiceImpl implements CapitalService {
 
     private static final int MONEY_SCALE = 4;
+    private static final int HOURS_SCALE = 4;
+    private static final BigDecimal SIXTY = new BigDecimal("60");
     private static final String TIME_CAPITAL_CYCLE_UNIQUE_CONSTRAINT = "uk_time_capitals_cycle";
     private static final String MONEY_CAPITAL_CYCLE_UNIQUE_CONSTRAINT = "uk_money_capitals_cycle";
 
@@ -43,6 +51,7 @@ public class CapitalServiceImpl implements CapitalService {
     private final TimeCapitalRepository timeCapitalRepository;
     private final MoneyCapitalRepository moneyCapitalRepository;
     private final CapitalHistoryRepository capitalHistoryRepository;
+    private final CapitalBalanceService capitalBalanceService;
     private final CapitalMapper capitalMapper;
 
     public CapitalServiceImpl(
@@ -50,12 +59,14 @@ public class CapitalServiceImpl implements CapitalService {
             TimeCapitalRepository timeCapitalRepository,
             MoneyCapitalRepository moneyCapitalRepository,
             CapitalHistoryRepository capitalHistoryRepository,
+            CapitalBalanceService capitalBalanceService,
             CapitalMapper capitalMapper
     ) {
         this.capitalCycleRepository = capitalCycleRepository;
         this.timeCapitalRepository = timeCapitalRepository;
         this.moneyCapitalRepository = moneyCapitalRepository;
         this.capitalHistoryRepository = capitalHistoryRepository;
+        this.capitalBalanceService = capitalBalanceService;
         this.capitalMapper = capitalMapper;
     }
 
@@ -153,6 +164,22 @@ public class CapitalServiceImpl implements CapitalService {
         return capitalMapper.toOverview(cycle, timeCapital, moneyCapital);
     }
 
+    @Transactional(readOnly = true)
+    @Override
+    public CapitalSummaryResponseDTO getCapitalSummary(UUID ownerId) {
+        Objects.requireNonNull(ownerId, "Owner id is required.");
+        return capitalCycleRepository
+                .findFirstByOwnerIdAndStatusOrderByActivatedAtDescCreatedAtDesc(
+                        ownerId,
+                        CapitalCycleStatus.ACTIVE
+                )
+                .map(cycle -> {
+                    CapitalBalanceResponse balance = capitalBalanceService.getCycleBalance(ownerId, cycle.getId());
+                    return toSummary(cycle, balance);
+                })
+                .orElseGet(this::emptySummary);
+    }
+
     private CapitalCycle findOwnedCycle(UUID ownerId, UUID cycleId) {
         return capitalCycleRepository.findByIdAndOwnerId(cycleId, ownerId)
                 .orElseThrow(() -> new CapitalCycleNotFoundException(cycleId));
@@ -203,8 +230,103 @@ public class CapitalServiceImpl implements CapitalService {
         ));
     }
 
+    private CapitalSummaryResponseDTO toSummary(CapitalCycle cycle, CapitalBalanceResponse balance) {
+        return new CapitalSummaryResponseDTO(
+                true,
+                cycle.getId(),
+                cycle.getType(),
+                cycle.getStatus(),
+                cycle.getStartDate(),
+                cycle.getEndDate(),
+                toTimeSummary(cycle.getId(), balance.timeCapital()),
+                toMoneySummary(balance.moneyCapital())
+        );
+    }
+
+    private CapitalSummaryResponseDTO emptySummary() {
+        return new CapitalSummaryResponseDTO(
+                false,
+                null,
+                null,
+                null,
+                null,
+                null,
+                new CapitalSummaryResponseDTO.TimeCapitalSummaryDTO(
+                        zeroMoney(),
+                        zeroMoney(),
+                        zeroMoney(),
+                        0L,
+                        0L,
+                        0L,
+                        false,
+                        false
+                ),
+                new CapitalSummaryResponseDTO.MoneyCapitalSummaryDTO(
+                        zeroMoney(),
+                        zeroMoney(),
+                        zeroMoney(),
+                        null,
+                        false,
+                        false
+                )
+        );
+    }
+
+    private CapitalSummaryResponseDTO.TimeCapitalSummaryDTO toTimeSummary(
+            UUID cycleId,
+            CapitalBalanceSummaryDto timeCapital
+    ) {
+        BigDecimal allocatedMinutes = normalize(timeCapital.total());
+        BigDecimal spentMinutes = normalize(timeCapital.allocated());
+        BigDecimal remainingMinutes = normalize(timeCapital.remaining());
+        return new CapitalSummaryResponseDTO.TimeCapitalSummaryDTO(
+                minutesToHours(allocatedMinutes),
+                minutesToHours(spentMinutes),
+                minutesToHours(remainingMinutes),
+                toWholeMinutes(cycleId, allocatedMinutes),
+                toWholeMinutes(cycleId, spentMinutes),
+                toWholeMinutes(cycleId, remainingMinutes),
+                timeCapital.initialized(),
+                timeCapital.overAllocated()
+        );
+    }
+
+    private CapitalSummaryResponseDTO.MoneyCapitalSummaryDTO toMoneySummary(CapitalBalanceSummaryDto moneyCapital) {
+        return new CapitalSummaryResponseDTO.MoneyCapitalSummaryDTO(
+                normalize(moneyCapital.total()),
+                normalize(moneyCapital.allocated()),
+                normalize(moneyCapital.remaining()),
+                moneyCapital.currencyCode(),
+                moneyCapital.initialized(),
+                moneyCapital.overAllocated()
+        );
+    }
+
+    private BigDecimal minutesToHours(BigDecimal minutes) {
+        return normalize(minutes).divide(SIXTY, HOURS_SCALE, RoundingMode.HALF_UP);
+    }
+
+    private Long toWholeMinutes(UUID cycleId, BigDecimal amount) {
+        try {
+            return normalize(amount).longValueExact();
+        } catch (ArithmeticException exception) {
+            throw new CapitalAllocationDataIntegrityException(cycleId, CapitalKind.TIME);
+        }
+    }
+
+    private BigDecimal normalize(BigDecimal amount) {
+        if (amount == null) {
+            return zeroMoney();
+        }
+        return amount.setScale(MONEY_SCALE, RoundingMode.UNNECESSARY);
+    }
+
     private BigDecimal money(long amount) {
         return BigDecimal.valueOf(amount).setScale(MONEY_SCALE, RoundingMode.UNNECESSARY);
+    }
+
+    private BigDecimal zeroMoney() {
+        return BigDecimal.ZERO.setScale(MONEY_SCALE, RoundingMode.UNNECESSARY);
     }
 
     private boolean isConstraintViolation(DataIntegrityViolationException exception, String constraintName) {

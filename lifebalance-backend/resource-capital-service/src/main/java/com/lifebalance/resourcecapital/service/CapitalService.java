@@ -1,6 +1,7 @@
 package com.lifebalance.resourcecapital.service;
 
 import com.lifebalance.resourcecapital.dto.CapitalOverviewResponse;
+import com.lifebalance.resourcecapital.dto.CapitalSummaryResponseDTO;
 import com.lifebalance.resourcecapital.dto.MoneyCapitalResponse;
 import com.lifebalance.resourcecapital.dto.SetupMoneyCapitalRequest;
 import com.lifebalance.resourcecapital.dto.SetupTimeCapitalRequest;
@@ -23,4 +24,6 @@ public interface CapitalService {
     MoneyCapitalResponse getRemainingMoneyCapital(UUID ownerId, UUID cycleId);
 
     CapitalOverviewResponse getCapitalOverview(UUID ownerId, UUID cycleId);
+
+    CapitalSummaryResponseDTO getCapitalSummary(UUID ownerId);
 }
