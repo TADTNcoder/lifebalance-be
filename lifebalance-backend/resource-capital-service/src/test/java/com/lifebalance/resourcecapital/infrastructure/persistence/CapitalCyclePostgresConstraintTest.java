@@ -101,6 +101,54 @@ class CapitalCyclePostgresConstraintTest {
         assertThat(countCycles()).isEqualTo(2);
     }
 
+    @Test
+    void rejectsDailyCycleWhenPeriodSpansMultipleDays() {
+        assertThatThrownBy(() -> insertCycle(
+                OWNER_ID,
+                "DAILY",
+                LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 8, 2),
+                "DRAFT"
+        ))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("chk_resourcecapital_capital_cycles_period_by_type");
+    }
+
+    @Test
+    void rejectsWeeklyCycleWhenPeriodDoesNotCoverSevenDays() {
+        assertThatThrownBy(() -> insertCycle(
+                OWNER_ID,
+                "WEEKLY",
+                LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 8, 6),
+                "DRAFT"
+        ))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("chk_resourcecapital_capital_cycles_period_by_type");
+    }
+
+    @Test
+    void rejectsMonthlyCycleWhenPeriodDoesNotCoverCalendarMonth() {
+        assertThatThrownBy(() -> insertCycle(
+                OWNER_ID,
+                "MONTHLY",
+                LocalDate.of(2026, 8, 2),
+                LocalDate.of(2026, 8, 31),
+                "DRAFT"
+        ))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("chk_resourcecapital_capital_cycles_period_by_type");
+    }
+
+    @Test
+    void allowsValidDailyWeeklyAndMonthlyPeriods() {
+        insertCycle(OWNER_ID, "DAILY", LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 1), "DRAFT");
+        insertCycle(OWNER_ID, "WEEKLY", LocalDate.of(2026, 8, 2), LocalDate.of(2026, 8, 8), "DRAFT");
+        insertCycle(OWNER_ID, "MONTHLY", LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31), "DRAFT");
+
+        assertThat(countCycles()).isEqualTo(3);
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"DRAFT", "CLOSED", "REOPENED"})
     void allowsMultipleNonActiveCyclesForSameOwnerAndType(String status) {

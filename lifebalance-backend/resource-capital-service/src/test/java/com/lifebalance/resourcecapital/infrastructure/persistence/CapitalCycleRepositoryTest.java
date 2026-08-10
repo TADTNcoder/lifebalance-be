@@ -302,16 +302,16 @@ class CapitalCycleRepositoryTest {
         insertCycleRow(
                 UUID.fromString("44444444-4444-4444-4444-444444444442"),
                 OWNER_ID,
-                CapitalCycleType.MONTHLY,
+                CapitalCycleType.WEEKLY,
                 LocalDate.of(2026, 8, 10),
-                LocalDate.of(2026, 8, 20)
+                LocalDate.of(2026, 8, 16)
         );
 
         assertThat(capitalCycleRepository.existsOverlappingCycle(
                 OWNER_ID,
-                CapitalCycleType.MONTHLY,
-                LocalDate.of(2026, 8, 1),
-                LocalDate.of(2026, 8, 31),
+                CapitalCycleType.WEEKLY,
+                LocalDate.of(2026, 8, 9),
+                LocalDate.of(2026, 8, 17),
                 null
         )).isTrue();
     }
@@ -321,15 +321,15 @@ class CapitalCycleRepositoryTest {
         insertCycleRow(
                 UUID.fromString("44444444-4444-4444-4444-444444444443"),
                 OWNER_ID,
-                CapitalCycleType.MONTHLY,
+                CapitalCycleType.WEEKLY,
                 LocalDate.of(2026, 8, 10),
-                LocalDate.of(2026, 8, 20)
+                LocalDate.of(2026, 8, 16)
         );
 
         assertThat(capitalCycleRepository.existsOverlappingCycle(
                 OWNER_ID,
-                CapitalCycleType.MONTHLY,
-                LocalDate.of(2026, 8, 1),
+                CapitalCycleType.WEEKLY,
+                LocalDate.of(2026, 8, 4),
                 LocalDate.of(2026, 8, 10),
                 null
         )).isTrue();
@@ -340,16 +340,16 @@ class CapitalCycleRepositoryTest {
         insertCycleRow(
                 UUID.fromString("44444444-4444-4444-4444-444444444444"),
                 OWNER_ID,
-                CapitalCycleType.MONTHLY,
+                CapitalCycleType.WEEKLY,
                 LocalDate.of(2026, 8, 10),
-                LocalDate.of(2026, 8, 20)
+                LocalDate.of(2026, 8, 16)
         );
 
         assertThat(capitalCycleRepository.existsOverlappingCycle(
                 OWNER_ID,
-                CapitalCycleType.MONTHLY,
-                LocalDate.of(2026, 8, 20),
-                LocalDate.of(2026, 8, 30),
+                CapitalCycleType.WEEKLY,
+                LocalDate.of(2026, 8, 16),
+                LocalDate.of(2026, 8, 22),
                 null
         )).isTrue();
     }
@@ -359,16 +359,16 @@ class CapitalCycleRepositoryTest {
         insertCycleRow(
                 UUID.fromString("44444444-4444-4444-4444-444444444445"),
                 OWNER_ID,
-                CapitalCycleType.MONTHLY,
+                CapitalCycleType.WEEKLY,
                 LocalDate.of(2026, 8, 10),
-                LocalDate.of(2026, 8, 20)
+                LocalDate.of(2026, 8, 16)
         );
 
         assertThat(capitalCycleRepository.existsOverlappingCycle(
                 OWNER_ID,
-                CapitalCycleType.MONTHLY,
-                LocalDate.of(2026, 8, 21),
-                LocalDate.of(2026, 8, 31),
+                CapitalCycleType.WEEKLY,
+                LocalDate.of(2026, 8, 17),
+                LocalDate.of(2026, 8, 23),
                 null
         )).isFalse();
     }
