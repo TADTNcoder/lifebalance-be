@@ -122,6 +122,22 @@ class CapitalServiceImplTest {
     }
 
     @Test
+    void setupTimeCapitalRejectsActiveCycle() throws Exception {
+        CapitalCycle cycle = activeCycle();
+        when(capitalCycleRepository.findByIdAndOwnerId(CYCLE_ID, OWNER_ID)).thenReturn(Optional.of(cycle));
+        when(timeCapitalRepository.existsByCapitalCycleId(CYCLE_ID)).thenReturn(false);
+
+        assertThatThrownBy(() -> createService().setupTimeCapital(
+                OWNER_ID,
+                CYCLE_ID,
+                new SetupTimeCapitalRequest(480L)
+        )).isInstanceOf(InvalidCapitalCycleStateException.class)
+                .hasMessageContaining("ACTIVE")
+                .hasMessageContaining("initialize time capital");
+        verify(timeCapitalRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
     void setupTimeCapitalRejectsClosedCycle() throws Exception {
         CapitalCycle cycle = closedCycle();
         when(capitalCycleRepository.findByIdAndOwnerId(CYCLE_ID, OWNER_ID)).thenReturn(Optional.of(cycle));
@@ -169,7 +185,7 @@ class CapitalServiceImplTest {
         when(capitalCycleRepository.findByIdAndOwnerId(CYCLE_ID, OWNER_ID)).thenReturn(Optional.of(draftCycle()));
         when(timeCapitalRepository.existsByCapitalCycleId(CYCLE_ID)).thenReturn(false);
         when(timeCapitalRepository.saveAndFlush(any(TimeCapital.class)))
-                .thenThrow(new DataIntegrityViolationException("duplicate"));
+                .thenThrow(new DataIntegrityViolationException("uk_time_capitals_cycle duplicate"));
 
         assertThatThrownBy(() -> createService().setupTimeCapital(
                 OWNER_ID,
@@ -258,7 +274,7 @@ class CapitalServiceImplTest {
         when(capitalCycleRepository.findByIdAndOwnerId(CYCLE_ID, OWNER_ID)).thenReturn(Optional.of(draftCycle()));
         when(moneyCapitalRepository.existsByCapitalCycleId(CYCLE_ID)).thenReturn(false);
         when(moneyCapitalRepository.saveAndFlush(any(MoneyCapital.class)))
-                .thenThrow(new DataIntegrityViolationException("duplicate"));
+                .thenThrow(new DataIntegrityViolationException("uk_money_capitals_cycle duplicate"));
 
         assertThatThrownBy(() -> createService().setupMoneyCapital(
                 OWNER_ID,
@@ -365,6 +381,12 @@ class CapitalServiceImplTest {
         CapitalCycle cycle = draftCycle();
         cycle.activate(NOW.minusSeconds(120));
         cycle.close("Finished", NOW.minusSeconds(90));
+        return cycle;
+    }
+
+    private static CapitalCycle activeCycle() {
+        CapitalCycle cycle = draftCycle();
+        cycle.activate(NOW.minusSeconds(120));
         return cycle;
     }
 
