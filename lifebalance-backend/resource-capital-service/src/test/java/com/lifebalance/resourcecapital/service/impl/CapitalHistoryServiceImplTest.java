@@ -8,7 +8,10 @@ import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalActionType;
 import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalActorType;
 import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalHistory;
 import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalReferenceType;
+import com.lifebalance.resourcecapital.domain.capitalhistory.exception.InvalidCapitalHistoryFilterException;
 import com.lifebalance.resourcecapital.dto.CapitalHistoryResponse;
+import com.lifebalance.resourcecapital.dto.CapitalHistoryResponseDTO;
+import com.lifebalance.resourcecapital.dto.HistoryFilterRequest;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalCycleRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalHistoryRepository;
 import org.junit.jupiter.api.Test;
@@ -56,6 +59,39 @@ class CapitalHistoryServiceImplTest {
     private CapitalHistoryRepository capitalHistoryRepository;
 
     @Test
+    void getHistorySearchesAcrossOwnedCyclesWhenCycleFilterIsMissing() {
+        CapitalCycle cycle = draftCycle();
+        CapitalHistory history = history(cycle);
+        when(capitalHistoryRepository.findAll(
+                ArgumentMatchers.<Specification<CapitalHistory>>argThat(specification -> specification != null),
+                any(Pageable.class)
+        ))
+                .thenReturn(new PageImpl<>(List.of(history)));
+
+        Page<CapitalHistoryResponseDTO> response = createService().getHistory(
+                OWNER_ID,
+                null,
+                new HistoryFilterRequest(
+                        CapitalKind.TIME,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                ),
+                PageRequest.of(0, 10)
+        );
+
+        assertThat(response.getContent()).hasSize(1);
+        assertThat(response.getContent().get(0).id()).isEqualTo(HISTORY_ID);
+        assertThat(response.getContent().get(0).capitalCycleId()).isEqualTo(CYCLE_ID);
+        verifyNoInteractions(capitalCycleRepository);
+    }
+
+    @Test
     void getHistoryByResourceChecksOwnershipAndMapsResponse() {
         CapitalCycle cycle = draftCycle();
         CapitalHistory history = history(cycle);
@@ -99,6 +135,30 @@ class CapitalHistoryServiceImplTest {
                 CapitalKind.TIME,
                 PageRequest.of(0, 10)
         )).isInstanceOf(CapitalCycleNotFoundException.class);
+        verifyNoInteractions(capitalHistoryRepository);
+    }
+
+    @Test
+    void getHistoryRejectsInvalidDateRange() {
+        HistoryFilterRequest filter = new HistoryFilterRequest(
+                null,
+                null,
+                CREATED_AT,
+                CREATED_AT,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+
+        assertThatThrownBy(() -> createService().getHistory(
+                OWNER_ID,
+                null,
+                filter,
+                PageRequest.of(0, 10)
+        )).isInstanceOf(InvalidCapitalHistoryFilterException.class)
+                .hasMessageContaining("fromDate");
         verifyNoInteractions(capitalHistoryRepository);
     }
 
