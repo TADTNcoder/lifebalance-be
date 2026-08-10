@@ -1,9 +1,9 @@
 package com.lifebalance.resourcecapital.domain.capital.exception;
 
-import com.lifebalance.common.error.AppException;
+import com.lifebalance.resourcecapital.domain.exception.CapitalDomainException;
 import org.springframework.http.HttpStatus;
 
-public class InvalidAdjustmentAmountException extends AppException {
+public class InvalidAdjustmentAmountException extends CapitalDomainException {
 
     public static final String ERROR_CODE = "CAPITAL_INVALID_ADJUSTMENT_AMOUNT";
 
@@ -12,8 +12,7 @@ public class InvalidAdjustmentAmountException extends AppException {
     }
 
     public InvalidAdjustmentAmountException(String message, Throwable cause) {
-        super(ERROR_CODE, message, HttpStatus.BAD_REQUEST);
-        initCause(cause);
+        super(ERROR_CODE, message, HttpStatus.BAD_REQUEST, cause);
     }
 
     public static InvalidAdjustmentAmountException nonPositiveTime(long amountInMinutes) {

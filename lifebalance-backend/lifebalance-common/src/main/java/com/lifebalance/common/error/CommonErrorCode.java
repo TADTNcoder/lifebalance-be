@@ -3,6 +3,7 @@ package com.lifebalance.common.error;
 public final class CommonErrorCode {
 
     public static final String VALIDATION_FAILED = "COMMON_VALIDATION_FAILED";
+    public static final String NOT_FOUND = "COMMON_NOT_FOUND";
     public static final String INTERNAL_ERROR = "COMMON_INTERNAL_ERROR";
 
     private CommonErrorCode() {

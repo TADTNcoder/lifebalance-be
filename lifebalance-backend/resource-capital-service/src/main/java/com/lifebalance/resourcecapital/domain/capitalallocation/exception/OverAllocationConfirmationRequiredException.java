@@ -1,13 +1,13 @@
 package com.lifebalance.resourcecapital.domain.capitalallocation.exception;
 
-import com.lifebalance.common.error.AppException;
 import com.lifebalance.resourcecapital.domain.capital.CapitalKind;
+import com.lifebalance.resourcecapital.domain.exception.CapitalDomainException;
 import org.springframework.http.HttpStatus;
 
 import java.math.BigDecimal;
 import java.util.UUID;
 
-public class OverAllocationConfirmationRequiredException extends AppException {
+public class OverAllocationConfirmationRequiredException extends CapitalDomainException {
 
     public static final String ERROR_CODE = "CAPITAL_OVER_ALLOCATION_CONFIRMATION_REQUIRED";
 
@@ -23,7 +23,7 @@ public class OverAllocationConfirmationRequiredException extends AppException {
                         + " would exceed planned capital " + plannedAmount
                         + " with projected allocation " + projectedAllocatedAmount
                         + "; explicit over-allocation confirmation is required.",
-                HttpStatus.BAD_REQUEST
+                HttpStatus.CONFLICT
         );
     }
 }

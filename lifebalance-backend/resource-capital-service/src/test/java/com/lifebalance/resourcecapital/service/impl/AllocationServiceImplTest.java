@@ -6,6 +6,7 @@ import com.lifebalance.resourcecapital.domain.capitalallocation.CapitalAllocatio
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InsufficientAllocatedCapitalException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InvalidAllocationAmountException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationConfirmationRequiredException;
+import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationNotAllowedException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleType;
 import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalActionType;
@@ -143,6 +144,38 @@ class AllocationServiceImplTest {
                         "Needs confirmation"
                 )
         )).isInstanceOf(OverAllocationConfirmationRequiredException.class);
+
+        verify(capitalAllocationRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(capitalHistoryRepository);
+    }
+
+    @Test
+    void allocateCapitalRejectsOverAllocationWhenCyclePolicyDisallows() {
+        CapitalCycle cycle = draftCycle();
+        TimeCapital timeCapital = TimeCapital.create(cycle, 100L);
+        whenOwnedCycle(cycle);
+        when(timeCapitalRepository.findByCapitalCycleIdForUpdate(CYCLE_ID)).thenReturn(Optional.of(timeCapital));
+        when(capitalAllocationRepository.findTargetForUpdate(
+                CYCLE_ID,
+                CapitalKind.TIME,
+                AllocationTargetType.TASK,
+                SOURCE_TASK_ID
+        )).thenReturn(Optional.empty());
+        when(capitalAllocationRepository.sumAllocatedAmount(CYCLE_ID, CapitalKind.TIME))
+                .thenReturn(new BigDecimal("90.0000"));
+
+        assertThatThrownBy(() -> createService().allocateCapital(
+                OWNER_ID,
+                CYCLE_ID,
+                new AllocateCapitalRequest(
+                        CapitalKind.TIME,
+                        AllocationTargetType.TASK,
+                        SOURCE_TASK_ID,
+                        new BigDecimal("20.0000"),
+                        true,
+                        "Policy denied"
+                )
+        )).isInstanceOf(OverAllocationNotAllowedException.class);
 
         verify(capitalAllocationRepository, never()).saveAndFlush(any());
         verifyNoInteractions(capitalHistoryRepository);

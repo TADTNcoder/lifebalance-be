@@ -107,13 +107,15 @@ public class CapitalBalanceServiceImpl implements CapitalBalanceService {
             String currencyCode,
             boolean initialized
     ) {
-        BigDecimal available = total.subtract(allocated).setScale(MONEY_SCALE, RoundingMode.UNNECESSARY);
+        BigDecimal remaining = total.subtract(allocated).setScale(MONEY_SCALE, RoundingMode.UNNECESSARY);
+        // Available currently follows Remaining until a dedicated availability policy is introduced.
+        BigDecimal available = remaining;
         return new CapitalBalanceSummaryDto(
                 capitalType,
                 total,
                 allocated,
                 available,
-                available,
+                remaining,
                 percentage(allocated, total),
                 allocated.compareTo(total) > 0,
                 currencyCode,

@@ -1,10 +1,10 @@
 package com.lifebalance.resourcecapital.controller;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -20,7 +20,7 @@ import com.lifebalance.resourcecapital.domain.capitalcycle.exception.CapitalCycl
 import com.lifebalance.resourcecapital.dto.CapitalBalanceResponse;
 import com.lifebalance.resourcecapital.dto.CapitalBalanceSummaryDto;
 import com.lifebalance.resourcecapital.service.CapitalBalanceService;
-import com.lifebalance.resourcecapital.service.mapper.AvailableCapitalMapper;
+import com.lifebalance.resourcecapital.service.mapper.RemainingCapitalMapper;
 import com.lifebalance.security.keycloak.LifebalanceSecurityAutoConfiguration;
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -30,24 +30,25 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
-@WebMvcTest(AvailableCapitalController.class)
+@WebMvcTest(RemainingCapitalController.class)
 @Import({
         LifebalanceCommonAutoConfiguration.class,
         LifebalanceSecurityAutoConfiguration.class,
-        AvailableCapitalMapper.class,
-        AvailableCapitalControllerTest.TestSecuritySupport.class
+        RemainingCapitalMapper.class,
+        RemainingCapitalControllerTest.TestSecuritySupport.class
 })
-class AvailableCapitalControllerTest {
+class RemainingCapitalControllerTest {
 
     private static final UUID OWNER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private static final UUID CYCLE_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
-    private static final String ENDPOINT = "/api/v1/capital-cycles/{cycleId}/available-capital";
+    private static final String ENDPOINT = "/api/v1/capital-cycles/{cycleId}/remaining-capital";
 
     @Autowired
     private MockMvc mockMvc;
@@ -56,23 +57,29 @@ class AvailableCapitalControllerTest {
     private CapitalBalanceService capitalBalanceService;
 
     @Test
-    void getAvailableCapitalReturnsBothResources() throws Exception {
+    void getRemainingCapitalReturnsBothResources() throws Exception {
         when(capitalBalanceService.getCycleBalance(OWNER_ID, CYCLE_ID)).thenReturn(balance());
 
         mockMvc.perform(get(ENDPOINT, CYCLE_ID).with(authenticatedUser()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.cycleId").value(CYCLE_ID.toString()))
-                .andExpect(jsonPath("$.timeCapital.availableMinutes").value(7200))
+                .andExpect(jsonPath("$.timeCapital.plannedMinutes").value(9600))
+                .andExpect(jsonPath("$.timeCapital.allocatedMinutes").value(1200))
+                .andExpect(jsonPath("$.timeCapital.remainingMinutes").value(8400))
+                .andExpect(jsonPath("$.timeCapital.overAllocated").value(false))
                 .andExpect(jsonPath("$.timeCapital.initialized").value(true))
-                .andExpect(jsonPath("$.moneyCapital.availableAmount").value(10000000.0000))
+                .andExpect(jsonPath("$.moneyCapital.plannedAmount").value(15000000.0000))
+                .andExpect(jsonPath("$.moneyCapital.allocatedAmount").value(2000000.0000))
+                .andExpect(jsonPath("$.moneyCapital.remainingAmount").value(13000000.0000))
                 .andExpect(jsonPath("$.moneyCapital.currencyCode").value("VND"))
+                .andExpect(jsonPath("$.moneyCapital.overAllocated").value(false))
                 .andExpect(jsonPath("$.moneyCapital.initialized").value(true));
 
         verify(capitalBalanceService).getCycleBalance(OWNER_ID, CYCLE_ID);
     }
 
     @Test
-    void getAvailableCapitalReturnsTimeOnlyWhenTypeIsTime() throws Exception {
+    void getRemainingCapitalReturnsTimeOnlyWhenTypeIsTime() throws Exception {
         when(capitalBalanceService.getCycleBalance(OWNER_ID, CYCLE_ID)).thenReturn(balance());
 
         mockMvc.perform(get(ENDPOINT, CYCLE_ID)
@@ -80,15 +87,16 @@ class AvailableCapitalControllerTest {
                         .with(authenticatedUser()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.cycleId").value(CYCLE_ID.toString()))
-                .andExpect(jsonPath("$.timeCapital.availableMinutes").value(7200))
-                .andExpect(jsonPath("$.timeCapital.initialized").value(true))
+                .andExpect(jsonPath("$.timeCapital.plannedMinutes").value(9600))
+                .andExpect(jsonPath("$.timeCapital.allocatedMinutes").value(1200))
+                .andExpect(jsonPath("$.timeCapital.remainingMinutes").value(8400))
                 .andExpect(jsonPath("$.moneyCapital").value(nullValue()));
 
         verify(capitalBalanceService).getCycleBalance(OWNER_ID, CYCLE_ID);
     }
 
     @Test
-    void getAvailableCapitalReturnsMoneyOnlyWhenTypeIsMoney() throws Exception {
+    void getRemainingCapitalReturnsMoneyOnlyWhenTypeIsMoney() throws Exception {
         when(capitalBalanceService.getCycleBalance(OWNER_ID, CYCLE_ID)).thenReturn(balance());
 
         mockMvc.perform(get(ENDPOINT, CYCLE_ID)
@@ -97,15 +105,34 @@ class AvailableCapitalControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.cycleId").value(CYCLE_ID.toString()))
                 .andExpect(jsonPath("$.timeCapital").value(nullValue()))
-                .andExpect(jsonPath("$.moneyCapital.availableAmount").value(10000000.0000))
-                .andExpect(jsonPath("$.moneyCapital.currencyCode").value("VND"))
-                .andExpect(jsonPath("$.moneyCapital.initialized").value(true));
+                .andExpect(jsonPath("$.moneyCapital.plannedAmount").value(15000000.0000))
+                .andExpect(jsonPath("$.moneyCapital.allocatedAmount").value(2000000.0000))
+                .andExpect(jsonPath("$.moneyCapital.remainingAmount").value(13000000.0000))
+                .andExpect(jsonPath("$.moneyCapital.currencyCode").value("VND"));
 
         verify(capitalBalanceService).getCycleBalance(OWNER_ID, CYCLE_ID);
     }
 
     @Test
-    void getAvailableCapitalReturnsBadRequestForInvalidType() throws Exception {
+    void getRemainingCapitalReturnsOverAllocationState() throws Exception {
+        when(capitalBalanceService.getCycleBalance(OWNER_ID, CYCLE_ID)).thenReturn(overAllocatedBalance());
+
+        mockMvc.perform(get(ENDPOINT, CYCLE_ID).with(authenticatedUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.timeCapital.plannedMinutes").value(600))
+                .andExpect(jsonPath("$.timeCapital.allocatedMinutes").value(720))
+                .andExpect(jsonPath("$.timeCapital.remainingMinutes").value(-120))
+                .andExpect(jsonPath("$.timeCapital.overAllocated").value(true))
+                .andExpect(jsonPath("$.moneyCapital.plannedAmount").value(15000000.0000))
+                .andExpect(jsonPath("$.moneyCapital.allocatedAmount").value(17000000.0000))
+                .andExpect(jsonPath("$.moneyCapital.remainingAmount").value(-2000000.0000))
+                .andExpect(jsonPath("$.moneyCapital.overAllocated").value(true));
+
+        verify(capitalBalanceService).getCycleBalance(OWNER_ID, CYCLE_ID);
+    }
+
+    @Test
+    void getRemainingCapitalReturnsBadRequestForInvalidType() throws Exception {
         mockMvc.perform(get(ENDPOINT, CYCLE_ID)
                         .queryParam("type", "INVALID")
                         .with(authenticatedUser()))
@@ -118,7 +145,7 @@ class AvailableCapitalControllerTest {
     }
 
     @Test
-    void getAvailableCapitalReturnsNotFoundForForeignCycle() throws Exception {
+    void getRemainingCapitalReturnsNotFoundForForeignOrMissingCycle() throws Exception {
         when(capitalBalanceService.getCycleBalance(OWNER_ID, CYCLE_ID))
                 .thenThrow(new CapitalCycleNotFoundException(CYCLE_ID));
 
@@ -131,7 +158,20 @@ class AvailableCapitalControllerTest {
     }
 
     @Test
-    void getAvailableCapitalReturnsUnauthorizedWhenAuthenticationMissing() throws Exception {
+    void getRemainingCapitalReturnsForbiddenWhenAuthorizationLayerDeniesAccess() throws Exception {
+        when(capitalBalanceService.getCycleBalance(OWNER_ID, CYCLE_ID))
+                .thenThrow(new AccessDeniedException("Access is denied"));
+
+        mockMvc.perform(get(ENDPOINT, CYCLE_ID).with(authenticatedUser()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value(AuthErrorCode.FORBIDDEN));
+
+        verify(capitalBalanceService).getCycleBalance(OWNER_ID, CYCLE_ID);
+    }
+
+    @Test
+    void getRemainingCapitalReturnsUnauthorizedWhenAuthenticationMissing() throws Exception {
         mockMvc.perform(get(ENDPOINT, CYCLE_ID))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.success").value(false))
@@ -141,7 +181,7 @@ class AvailableCapitalControllerTest {
     }
 
     @Test
-    void getAvailableCapitalReturnsUnauthorizedWhenInternalUserIdMissing() throws Exception {
+    void getRemainingCapitalReturnsUnauthorizedWhenInternalUserIdMissing() throws Exception {
         mockMvc.perform(get(ENDPOINT, CYCLE_ID)
                         .with(jwt().jwt(jwt -> jwt.subject("kc-user-123"))))
                 .andExpect(status().isUnauthorized())
@@ -152,23 +192,29 @@ class AvailableCapitalControllerTest {
     }
 
     @Test
-    void getAvailableCapitalReturnsUninitializedState() throws Exception {
+    void getRemainingCapitalReturnsUninitializedState() throws Exception {
         when(capitalBalanceService.getCycleBalance(OWNER_ID, CYCLE_ID)).thenReturn(uninitializedBalance());
 
         mockMvc.perform(get(ENDPOINT, CYCLE_ID).with(authenticatedUser()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.cycleId").value(CYCLE_ID.toString()))
-                .andExpect(jsonPath("$.timeCapital.availableMinutes").value(0))
+                .andExpect(jsonPath("$.timeCapital.plannedMinutes").value(0))
+                .andExpect(jsonPath("$.timeCapital.allocatedMinutes").value(0))
+                .andExpect(jsonPath("$.timeCapital.remainingMinutes").value(0))
+                .andExpect(jsonPath("$.timeCapital.overAllocated").value(false))
                 .andExpect(jsonPath("$.timeCapital.initialized").value(false))
-                .andExpect(jsonPath("$.moneyCapital.availableAmount").value(0.0000))
+                .andExpect(jsonPath("$.moneyCapital.plannedAmount").value(0.0000))
+                .andExpect(jsonPath("$.moneyCapital.allocatedAmount").value(0.0000))
+                .andExpect(jsonPath("$.moneyCapital.remainingAmount").value(0.0000))
                 .andExpect(jsonPath("$.moneyCapital.currencyCode").value(nullValue()))
+                .andExpect(jsonPath("$.moneyCapital.overAllocated").value(false))
                 .andExpect(jsonPath("$.moneyCapital.initialized").value(false));
 
         verify(capitalBalanceService).getCycleBalance(OWNER_ID, CYCLE_ID);
     }
 
     @Test
-    void getAvailableCapitalReturnsTypedIntegrityErrorWhenTimeBalanceIsFractional() throws Exception {
+    void getRemainingCapitalReturnsTypedIntegrityErrorWhenTimeBalanceIsFractional() throws Exception {
         when(capitalBalanceService.getCycleBalance(OWNER_ID, CYCLE_ID)).thenReturn(fractionalTimeBalance());
 
         mockMvc.perform(get(ENDPOINT, CYCLE_ID).with(authenticatedUser()))
@@ -187,10 +233,10 @@ class AvailableCapitalControllerTest {
                 new CapitalBalanceSummaryDto(
                         CapitalKind.TIME,
                         money("9600.0000"),
-                        money("2400.0000"),
-                        money("7200.0000"),
-                        money("7200.0000"),
-                        money("25.00"),
+                        money("1200.0000"),
+                        money("8400.0000"),
+                        money("8400.0000"),
+                        money("12.50"),
                         false,
                         null,
                         true
@@ -198,11 +244,40 @@ class AvailableCapitalControllerTest {
                 new CapitalBalanceSummaryDto(
                         CapitalKind.MONEY,
                         money("15000000.0000"),
-                        money("5000000.0000"),
-                        money("10000000.0000"),
-                        money("10000000.0000"),
-                        money("33.33"),
+                        money("2000000.0000"),
+                        money("13000000.0000"),
+                        money("13000000.0000"),
+                        money("13.33"),
                         false,
+                        "VND",
+                        true
+                )
+        );
+    }
+
+    private static CapitalBalanceResponse overAllocatedBalance() {
+        return new CapitalBalanceResponse(
+                CYCLE_ID,
+                CapitalCycleStatus.ACTIVE,
+                new CapitalBalanceSummaryDto(
+                        CapitalKind.TIME,
+                        money("600.0000"),
+                        money("720.0000"),
+                        money("-120.0000"),
+                        money("-120.0000"),
+                        money("120.00"),
+                        true,
+                        null,
+                        true
+                ),
+                new CapitalBalanceSummaryDto(
+                        CapitalKind.MONEY,
+                        money("15000000.0000"),
+                        money("17000000.0000"),
+                        money("-2000000.0000"),
+                        money("-2000000.0000"),
+                        money("113.33"),
+                        true,
                         "VND",
                         true
                 )
@@ -245,10 +320,10 @@ class AvailableCapitalControllerTest {
                 new CapitalBalanceSummaryDto(
                         CapitalKind.TIME,
                         money("9600.0000"),
-                        money("2399.5000"),
-                        money("7200.5000"),
-                        money("7200.5000"),
-                        money("25.00"),
+                        money("1199.5000"),
+                        money("8400.5000"),
+                        money("8400.5000"),
+                        money("12.50"),
                         false,
                         null,
                         true
@@ -256,10 +331,10 @@ class AvailableCapitalControllerTest {
                 new CapitalBalanceSummaryDto(
                         CapitalKind.MONEY,
                         money("15000000.0000"),
-                        money("5000000.0000"),
-                        money("10000000.0000"),
-                        money("10000000.0000"),
-                        money("33.33"),
+                        money("2000000.0000"),
+                        money("13000000.0000"),
+                        money("13000000.0000"),
+                        money("13.33"),
                         false,
                         "VND",
                         true

@@ -1,12 +1,12 @@
 package com.lifebalance.resourcecapital.domain.capital.exception;
 
-import com.lifebalance.common.error.AppException;
 import com.lifebalance.resourcecapital.domain.capital.CapitalKind;
+import com.lifebalance.resourcecapital.domain.exception.CapitalDomainException;
 import org.springframework.http.HttpStatus;
 
 import java.util.UUID;
 
-public class CapitalAlreadyInitializedException extends AppException {
+public class CapitalAlreadyInitializedException extends CapitalDomainException {
 
     public CapitalAlreadyInitializedException(UUID cycleId, CapitalKind capitalKind) {
         super(
@@ -17,8 +17,12 @@ public class CapitalAlreadyInitializedException extends AppException {
     }
 
     public CapitalAlreadyInitializedException(UUID cycleId, CapitalKind capitalKind, Throwable cause) {
-        this(cycleId, capitalKind);
-        initCause(cause);
+        super(
+                errorCode(capitalKind),
+                capitalKind + " capital has already been initialized for capital cycle " + cycleId + ".",
+                HttpStatus.CONFLICT,
+                cause
+        );
     }
 
     private static String errorCode(CapitalKind capitalKind) {

@@ -1,11 +1,11 @@
 package com.lifebalance.resourcecapital.domain.capitalcycle.exception;
 
-import com.lifebalance.common.error.AppException;
+import com.lifebalance.resourcecapital.domain.exception.CapitalDomainException;
 import org.springframework.http.HttpStatus;
 
 import java.util.UUID;
 
-public class CapitalCycleNotFoundException extends AppException {
+public class CapitalCycleNotFoundException extends CapitalDomainException {
 
     public static final String ERROR_CODE = "CAPITAL_CYCLE_NOT_FOUND";
 
