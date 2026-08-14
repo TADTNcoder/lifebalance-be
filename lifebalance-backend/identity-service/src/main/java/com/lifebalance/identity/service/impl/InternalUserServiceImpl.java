@@ -213,10 +213,23 @@ public class InternalUserServiceImpl implements InternalUserService {
         }
 
         return roles.stream()
-                .map(InternalUserServiceImpl::normalize)
+                .map(InternalUserServiceImpl::normalizeRoleCode)
                 .filter(Objects::nonNull)
-                .map(value -> value.toLowerCase(Locale.ROOT))
                 .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    private static String normalizeRoleCode(String role) {
+        String normalized = normalize(role);
+        if (normalized == null) {
+            return null;
+        }
+
+        String lowerCaseRole = normalized.toLowerCase(Locale.ROOT);
+        if (lowerCaseRole.startsWith("role_") || lowerCaseRole.startsWith("role-")) {
+            return lowerCaseRole.substring(5);
+        }
+
+        return lowerCaseRole;
     }
 
     private static void validateCurrentUser(CurrentUser currentUser) {
