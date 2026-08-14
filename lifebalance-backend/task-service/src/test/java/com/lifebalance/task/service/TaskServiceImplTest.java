@@ -98,10 +98,12 @@ class TaskServiceImplTest {
     // 3. KỊCH BẢN: TEST RESTORE (KHÔI PHỤC)
     @Test
     void restore_Success() {
+        mockTask.archive();
         when(taskRepository.findById(TASK_ID)).thenReturn(Optional.of(mockTask));
 
         taskService.restore(TASK_ID);
 
+        assertEquals(TaskStatus.PLANNED, mockTask.getStatus());
         verify(taskRepository, times(1)).save(mockTask);
     }
 }
