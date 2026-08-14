@@ -1,29 +1,47 @@
 package com.lifebalance.task.service;
 
-import com.lifebalance.task.dto.request.CreateTaskRequest;
-import com.lifebalance.task.dto.response.TaskResponse;
 import java.util.UUID;
-import com.lifebalance.task.dto.request.UpdateTaskRequest;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import com.lifebalance.task.dto.request.CreateTaskRequest;
+import com.lifebalance.task.dto.request.UpdateTaskRequest;
+import com.lifebalance.task.dto.response.TaskResponse;
+
 public interface TaskService {
 
-    TaskResponse create(CreateTaskRequest request);
+        TaskResponse create(
+                        UUID ownerId,
+                        CreateTaskRequest request);
 
-    TaskResponse update(UUID id, UpdateTaskRequest request);
+        TaskResponse update(
+                        UUID id,
+                        UUID ownerId,
+                        UpdateTaskRequest request);
 
-    Page<TaskResponse> search(
-            String keyword,
-            Pageable pageable);
+        Page<TaskResponse> search(
+                        UUID ownerId,
+                        String keyword,
+                        Pageable pageable);
 
-    void archive(UUID id);
+        void archive(
+                        UUID id,
+                        UUID ownerId);
 
-    void restore(UUID id);
+        void restore(
+                        UUID id,
+                        UUID ownerId);
 
-    void delete(UUID id);
+        void delete(
+                        UUID id,
+                        UUID ownerId);
 
-    TaskResponse duplicate(UUID id);
+        TaskResponse duplicate(
+                        UUID id,
+                        UUID ownerId);
 
-    TaskResponse getById(UUID id);
+        TaskResponse getById(
+                        UUID id,
+                        UUID ownerId);
 }

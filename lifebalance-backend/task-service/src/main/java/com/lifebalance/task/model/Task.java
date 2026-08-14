@@ -58,6 +58,9 @@ public class Task extends BaseAuditableEntity {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Column(name = "owner_id", nullable = false)
+    private UUID ownerId;
+
     @NotNull
     @Column(name = "user_id", nullable = false)
     private UUID userId;
@@ -124,8 +127,7 @@ public class Task extends BaseAuditableEntity {
             LocalDate deadline,
             Integer estimatedMinutes,
             BigDecimal estimatedCost,
-            Category category
-    ) {
+            Category category) {
         ensurePlanningEditable();
         this.name = requireName(name);
         this.description = optionalText(description, "description", DESCRIPTION_MAX_LENGTH);
@@ -141,8 +143,7 @@ public class Task extends BaseAuditableEntity {
             LocalDate deadline,
             Integer estimatedMinutes,
             BigDecimal estimatedCost,
-            Category category
-    ) {
+            Category category) {
         ensureStatusAllows("plan", TaskStatus.DRAFT, TaskStatus.PLANNED);
         updateDetails(name, description, priority, deadline, estimatedMinutes, estimatedCost, category);
         this.status = TaskStatus.PLANNED;
@@ -182,8 +183,7 @@ public class Task extends BaseAuditableEntity {
                 TaskStatus.PLANNED,
                 TaskStatus.SCHEDULED,
                 TaskStatus.IN_PROGRESS,
-                TaskStatus.ON_HOLD
-        );
+                TaskStatus.ON_HOLD);
         this.status = TaskStatus.COMPLETED;
     }
 
@@ -194,8 +194,7 @@ public class Task extends BaseAuditableEntity {
                 TaskStatus.PLANNED,
                 TaskStatus.SCHEDULED,
                 TaskStatus.IN_PROGRESS,
-                TaskStatus.ON_HOLD
-        );
+                TaskStatus.ON_HOLD);
         this.status = TaskStatus.CANCELLED;
     }
 
@@ -314,8 +313,9 @@ public class Task extends BaseAuditableEntity {
     }
 
     public void setEstimatedMinutes(Integer estimatedMinutes) {
-        if (estimatedMinutes != null && estimatedMinutes < 0) {
-            throw new IllegalArgumentException("Task estimatedMinutes must not be negative.");
+        if (estimatedMinutes == null || estimatedMinutes <= 0) {
+            throw new IllegalStateException(
+                    "Task estimatedMinutes must be greater than 0 before scheduling.");
         }
         this.estimatedMinutes = estimatedMinutes;
     }

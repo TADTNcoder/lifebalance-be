@@ -3,9 +3,9 @@ package com.lifebalance.task.repository;
 import java.util.Optional;
 import java.util.UUID;
 
-import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.lifebalance.task.model.Task;
 import com.lifebalance.task.model.enums.PriorityLevel;
@@ -13,17 +13,30 @@ import com.lifebalance.task.model.enums.TaskStatus;
 
 public interface TaskRepository extends JpaRepository<Task, UUID> {
 
-    Optional<Task> findByName(String name);
+        Optional<Task> findByNameAndOwnerId(
+                        String name,
+                        UUID ownerId);
 
-    Page<Task> findByNameContainingIgnoreCase(
-            String keyword,
-            Pageable pageable);
+        Optional<Task> findByIdAndOwnerId(
+                        UUID id,
+                        UUID ownerId);
 
-    Page<Task> findByStatus(
-            TaskStatus status,
-            Pageable pageable);
+        boolean existsByNameAndOwnerId(
+                        String name,
+                        UUID ownerId);
 
-    Page<Task> findByPriority(
-            PriorityLevel priority,
-            Pageable pageable);
+        Page<Task> findByOwnerIdAndNameContainingIgnoreCase(
+                        UUID ownerId,
+                        String keyword,
+                        Pageable pageable);
+
+        Page<Task> findByOwnerIdAndStatus(
+                        UUID ownerId,
+                        TaskStatus status,
+                        Pageable pageable);
+
+        Page<Task> findByOwnerIdAndPriority(
+                        UUID ownerId,
+                        PriorityLevel priority,
+                        Pageable pageable);
 }

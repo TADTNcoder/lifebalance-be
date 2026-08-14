@@ -1,23 +1,19 @@
 package com.lifebalance.task.dto.request;
 
-import java.time.LocalDate;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.UUID;
 
 import com.lifebalance.task.model.enums.PriorityLevel;
 
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
-import lombok.*;
+import lombok.Getter;
+import lombok.Setter;
 
 @Getter
 @Setter
 public class CreateTaskRequest {
-
-    @NotNull
-    private UUID userId;
 
     @NotBlank
     private String name;
@@ -28,7 +24,7 @@ public class CreateTaskRequest {
 
     private LocalDate deadline;
 
-    @Min(0)
+    @PositiveOrZero
     private Integer estimatedMinutes;
 
     @PositiveOrZero

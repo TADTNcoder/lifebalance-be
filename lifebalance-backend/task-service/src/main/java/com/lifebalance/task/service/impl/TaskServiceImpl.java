@@ -1,9 +1,14 @@
 package com.lifebalance.task.service.impl;
 
+import java.util.UUID;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.lifebalance.task.dto.request.CreateTaskRequest;
+import com.lifebalance.task.dto.request.UpdateTaskRequest;
 import com.lifebalance.task.dto.response.TaskResponse;
 import com.lifebalance.task.model.Category;
 import com.lifebalance.task.model.Task;
@@ -11,11 +16,8 @@ import com.lifebalance.task.model.enums.TaskStatus;
 import com.lifebalance.task.repository.CategoryRepository;
 import com.lifebalance.task.repository.TaskRepository;
 import com.lifebalance.task.service.TaskService;
-import java.util.UUID;
-import com.lifebalance.task.dto.request.UpdateTaskRequest;
+
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 
 @Service
 @RequiredArgsConstructor
@@ -26,12 +28,21 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     @Transactional
-    public TaskResponse create(CreateTaskRequest request) {
-        ensureNameAvailable(request.getName(), null);
-        Category category = resolveCategory(request.getCategoryId());
+    public TaskResponse create(
+            UUID ownerId,
+            CreateTaskRequest request) {
+
+        ensureNameAvailable(
+                request.getName(),
+                ownerId,
+                null);
+
+        Category category = resolveCategory(
+                request.getCategoryId());
 
         Task task = Task.builder()
-                .userId(request.getUserId())
+                .ownerId(ownerId)
+                .userId(ownerId)
                 .name(request.getName())
                 .description(request.getDescription())
                 .priority(request.getPriority())
@@ -43,18 +54,28 @@ public class TaskServiceImpl implements TaskService {
                 .build();
 
         task = taskRepository.save(task);
-        return mapToResponse(task);
 
+        return mapToResponse(task);
     }
 
-    @Transactional
     @Override
-    public TaskResponse update(UUID id, UpdateTaskRequest request) {
-        Task task = taskRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Task not found "));
+    @Transactional
+    public TaskResponse update(
+            UUID id,
+            UUID ownerId,
+            UpdateTaskRequest request) {
 
-        ensureNameAvailable(request.getName(), id);
-        Category category = resolveCategory(request.getCategoryId());
+        Task task = taskRepository
+                .findByIdAndOwnerId(id, ownerId)
+                .orElseThrow(() -> new RuntimeException("Task not found"));
+
+        ensureNameAvailable(
+                request.getName(),
+                ownerId,
+                id);
+
+        Category category = resolveCategory(
+                request.getCategoryId());
 
         task.updateDetails(
                 request.getName(),
@@ -63,32 +84,46 @@ public class TaskServiceImpl implements TaskService {
                 request.getDeadline(),
                 request.getEstimatedMinutes(),
                 request.getEstimatedCost(),
-                category
-        );
+                category);
+
         if (request.getProgress() != null) {
-            task.updateProgress(request.getProgress());
+            task.updateProgress(
+                    request.getProgress());
         }
-        task.transitionTo(request.getStatus());
+
+        if (request.getStatus() != null) {
+            task.transitionTo(
+                    request.getStatus());
+        }
 
         task = taskRepository.save(task);
+
         return mapToResponse(task);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Page<TaskResponse> search(
+            UUID ownerId,
             String keyword,
             Pageable pageable) {
 
         return taskRepository
-                .findByNameContainingIgnoreCase(keyword, pageable)
+                .findByOwnerIdAndNameContainingIgnoreCase(
+                        ownerId,
+                        keyword,
+                        pageable)
                 .map(this::mapToResponse);
     }
 
-    @Transactional
     @Override
-    public void archive(UUID id) {
+    @Transactional
+    public void archive(
+            UUID id,
+            UUID ownerId) {
 
-        Task task = taskRepository.findById(id)
+        Task task = taskRepository
+                .findByIdAndOwnerId(id, ownerId)
                 .orElseThrow(() -> new RuntimeException("Task not found"));
 
         task.archive();
@@ -96,11 +131,14 @@ public class TaskServiceImpl implements TaskService {
         taskRepository.save(task);
     }
 
-    @Transactional
     @Override
-    public void restore(UUID id) {
+    @Transactional
+    public void restore(
+            UUID id,
+            UUID ownerId) {
 
-        Task task = taskRepository.findById(id)
+        Task task = taskRepository
+                .findByIdAndOwnerId(id, ownerId)
                 .orElseThrow(() -> new RuntimeException("Task not found"));
 
         task.restore();
@@ -108,26 +146,40 @@ public class TaskServiceImpl implements TaskService {
         taskRepository.save(task);
     }
 
-    @Transactional
     @Override
-    public void delete(UUID id) {
+    @Transactional
+    public void delete(
+            UUID id,
+            UUID ownerId) {
 
-        Task task = taskRepository.findById(id)
+        Task task = taskRepository
+                .findByIdAndOwnerId(id, ownerId)
                 .orElseThrow(() -> new RuntimeException("Task not found"));
 
         taskRepository.delete(task);
     }
 
-    @Transactional
     @Override
-    public TaskResponse duplicate(UUID id) {
+    @Transactional
+    public TaskResponse duplicate(
+            UUID id,
+            UUID ownerId) {
 
-        Task source = taskRepository.findById(id)
+        Task source = taskRepository
+                .findByIdAndOwnerId(id, ownerId)
                 .orElseThrow(() -> new RuntimeException("Task not found"));
 
+        String copyName = source.getName() + " (Copy)";
+
+        ensureNameAvailable(
+                copyName,
+                ownerId,
+                null);
+
         Task copy = Task.builder()
-                .userId(source.getUserId())
-                .name(source.getName() + " (Copy)")
+                .ownerId(ownerId)
+                .userId(ownerId)
+                .name(copyName)
                 .description(source.getDescription())
                 .priority(source.getPriority())
                 .deadline(source.getDeadline())
@@ -144,51 +196,86 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     @Transactional(readOnly = true)
-    public TaskResponse getById(UUID id) {
-        Task task = taskRepository.findById(id)
+    public TaskResponse getById(
+            UUID id,
+            UUID ownerId) {
+
+        Task task = taskRepository
+                .findByIdAndOwnerId(id, ownerId)
                 .orElseThrow(() -> new RuntimeException("Task not found"));
 
         return mapToResponse(task);
     }
 
-    private TaskResponse mapToResponse(Task task) {
+    private void ensureNameAvailable(
+            String name,
+            UUID ownerId,
+            UUID currentTaskId) {
+
+        taskRepository
+                .findByNameAndOwnerId(name, ownerId)
+                .ifPresent(existingTask -> {
+
+                    if (currentTaskId == null
+                            || !existingTask.getId()
+                                    .equals(currentTaskId)) {
+
+                        throw new RuntimeException(
+                                "Task name already exists");
+                    }
+                });
+    }
+
+    private Category resolveCategory(
+            UUID categoryId) {
+
+        if (categoryId == null) {
+            return null;
+        }
+
+        return categoryRepository
+                .findById(categoryId)
+                .orElseThrow(() -> new RuntimeException(
+                        "Category not found"));
+    }
+
+    private TaskResponse mapToResponse(
+            Task task) {
 
         TaskResponse response = new TaskResponse();
 
         response.setId(task.getId());
         response.setUserId(task.getUserId());
         response.setName(task.getName());
-        response.setDescription(task.getDescription());
+        response.setDescription(
+                task.getDescription());
         response.setStatus(task.getStatus());
-        response.setPriority(task.getPriority());
-        response.setDeadline(task.getDeadline());
-        response.setProgress(task.getProgress());
-        response.setEstimatedMinutes(task.getEstimatedMinutes());
-        response.setEstimatedCost(task.getEstimatedCost());
+        response.setPriority(
+                task.getPriority());
+        response.setDeadline(
+                task.getDeadline());
+        response.setProgress(
+                task.getProgress());
+        response.setEstimatedMinutes(
+                task.getEstimatedMinutes());
+        response.setEstimatedCost(
+                task.getEstimatedCost());
+
         if (task.getCategory() != null) {
-            response.setCategoryId(task.getCategory().getId());
-            response.setCategoryName(task.getCategory().getName());
+
+            response.setCategoryId(
+                    task.getCategory().getId());
+
+            response.setCategoryName(
+                    task.getCategory().getName());
         }
-        response.setCreatedAt(task.getCreatedAt());
-        response.setUpdatedAt(task.getUpdatedAt());
+
+        response.setCreatedAt(
+                task.getCreatedAt());
+
+        response.setUpdatedAt(
+                task.getUpdatedAt());
 
         return response;
-    }
-
-    private void ensureNameAvailable(String name, UUID currentTaskId) {
-        taskRepository.findByName(name)
-                .ifPresent(existingTask -> {
-                    if (currentTaskId == null || !existingTask.getId().equals(currentTaskId)) {
-                        throw new RuntimeException("Task name already exists");
-                    }
-                });
-    }
-
-    private Category resolveCategory(UUID categoryId) {
-        if (categoryId == null) {
-            return null;
-        }
-        return categoryRepository.findById(categoryId)
-                .orElseThrow(() -> new RuntimeException("Category not found"));
     }
 }
