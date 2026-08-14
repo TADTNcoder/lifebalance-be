@@ -40,6 +40,14 @@
     <properties>
         <java.version>21</java.version>
         <spring-cloud.version>2025.0.3</spring-cloud.version>
+        <bouncycastle.version>1.85.2</bouncycastle.version>
+        <commons-io.version>2.22.0</commons-io.version>
+        <commons-lang3.version>3.20.0</commons-lang3.version>
+        <httpclient.version>4.5.14</httpclient.version>
+        <jackson-bom.version>2.22.1</jackson-bom.version>
+        <keycloak-admin-client.version>26.0.12</keycloak-admin-client.version>
+        <netty.version>4.1.137.Final</netty.version>
+        <postgresql.version>42.7.13</postgresql.version>
     </properties>
 
     <dependencyManagement>
@@ -52,6 +60,30 @@
                 <version>${spring-cloud.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcprov-jdk18on</artifactId>
+                <version>${bouncycastle.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>commons-io</groupId>
+                <artifactId>commons-io</artifactId>
+                <version>${commons-io.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.apache.httpcomponents</groupId>
+                <artifactId>httpclient</artifactId>
+                <version>${httpclient.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.keycloak</groupId>
+                <artifactId>keycloak-admin-client</artifactId>
+                <version>${keycloak-admin-client.version}</version>
             </dependency>
 
         </dependencies>

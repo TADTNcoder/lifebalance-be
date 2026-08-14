@@ -6,13 +6,13 @@
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
+        <module name="resource-capital-service" />
         <module name="discovery-server" />
         <module name="timeline-service" />
         <module name="finance-service" />
         <module name="analytics-service" />
         <module name="lifebalance-common" />
         <module name="lifebalance-security" />
-        <module name="task-service" />
         <module name="ai-service" />
         <module name="gateway" />
         <module name="notification-service" />
@@ -25,6 +25,7 @@
           <entry name="$MAVEN_REPOSITORY$/org/projectlombok/lombok/1.18.46/lombok-1.18.46.jar" />
         </processorPath>
         <module name="identity-service" />
+        <module name="task-service" />
       </profile>
     </annotationProcessing>
   </component>
@@ -39,6 +40,7 @@
       <module name="lifebalance-common" options="-parameters" />
       <module name="lifebalance-security" options="-parameters" />
       <module name="notification-service" options="-parameters" />
+      <module name="resource-capital-service" options="-parameters" />
       <module name="task-service" options="-parameters" />
       <module name="timeline-service" options="-parameters" />
     </option>
