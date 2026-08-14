@@ -3,13 +3,16 @@ package com.lifebalance.resourcecapital.infrastructure.persistence;
 import com.lifebalance.resourcecapital.domain.capital.CapitalKind;
 import com.lifebalance.resourcecapital.domain.capitaladjustment.CapitalAdjustment;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.UUID;
 
-public interface CapitalAdjustmentRepository extends JpaRepository<CapitalAdjustment, Long> {
+public interface CapitalAdjustmentRepository extends
+        JpaRepository<CapitalAdjustment, Long>,
+        JpaSpecificationExecutor<CapitalAdjustment> {
 
     @Query("""
             select adjustment

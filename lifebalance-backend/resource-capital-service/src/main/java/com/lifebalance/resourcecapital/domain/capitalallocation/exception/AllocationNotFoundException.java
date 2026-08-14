@@ -11,6 +11,14 @@ public class AllocationNotFoundException extends CapitalDomainException {
 
     public static final String ERROR_CODE = "CAPITAL_ALLOCATION_NOT_FOUND";
 
+    public AllocationNotFoundException(UUID allocationId) {
+        super(
+                ERROR_CODE,
+                "Capital allocation " + allocationId + " was not found.",
+                HttpStatus.NOT_FOUND
+        );
+    }
+
     public AllocationNotFoundException(
             UUID cycleId,
             CapitalKind capitalType,

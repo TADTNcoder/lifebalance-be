@@ -1,6 +1,7 @@
 package com.lifebalance.resourcecapital.service.impl;
 
 import com.lifebalance.resourcecapital.domain.capital.CapitalKind;
+import com.lifebalance.resourcecapital.domain.capitalallocation.AllocationStatus;
 import com.lifebalance.resourcecapital.domain.capitalallocation.AllocationTargetType;
 import com.lifebalance.resourcecapital.domain.capitalallocation.CapitalAllocation;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InsufficientAllocatedCapitalException;
@@ -331,7 +332,7 @@ class AllocationServiceImplTest {
     }
 
     @Test
-    void releaseCapitalDeletesStateRowWhenAllocationIsFullyReleased() {
+    void releaseCapitalMarksStateRowReleasedWhenAllocationIsFullyReleased() {
         CapitalCycle cycle = draftCycle();
         TimeCapital timeCapital = TimeCapital.create(cycle, 100L);
         CapitalAllocation allocation = CapitalAllocation.create(
@@ -365,9 +366,10 @@ class AllocationServiceImplTest {
                 )
         );
 
-        verify(capitalAllocationRepository).delete(allocation);
+        verify(capitalAllocationRepository, never()).delete(allocation);
         ArgumentCaptor<CapitalHistory> historyCaptor = ArgumentCaptor.forClass(CapitalHistory.class);
         verify(capitalHistoryRepository).saveAndFlush(historyCaptor.capture());
+        assertThat(allocation.getStatus()).isEqualTo(AllocationStatus.RELEASED);
         assertThat(historyCaptor.getValue().getActionType()).isEqualTo(CapitalActionType.RELEASE);
         assertThat(historyCaptor.getValue().getBeforeAmount()).isEqualByComparingTo("40.0000");
         assertThat(historyCaptor.getValue().getAfterAmount()).isEqualByComparingTo("0.0000");

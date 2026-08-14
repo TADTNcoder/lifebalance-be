@@ -129,7 +129,11 @@ public class CapitalAllocation {
     }
 
     public void increase(BigDecimal amount) {
-        ensureActive("increase allocation");
+        if (status == AllocationStatus.RELEASED && isDepleted()) {
+            status = AllocationStatus.ACTIVE;
+        } else {
+            ensureActive("increase allocation");
+        }
         BigDecimal normalizedAmount = normalizePositiveAmount(amount);
         BigDecimal nextAmount = allocatedAmount.add(normalizedAmount);
         validateColumnPrecision(nextAmount, "allocated amount after increase");

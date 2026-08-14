@@ -18,6 +18,7 @@ import com.lifebalance.resourcecapital.dto.AdjustMoneyCapitalRequest;
 import com.lifebalance.resourcecapital.dto.AdjustTimeCapitalRequest;
 import com.lifebalance.resourcecapital.dto.MoneyCapitalAdjustmentResponse;
 import com.lifebalance.resourcecapital.dto.TimeCapitalAdjustmentResponse;
+import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalAdjustmentRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalCycleRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalHistoryRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.MoneyCapitalRepository;
@@ -61,6 +62,9 @@ class CapitalAdjustmentServiceImplTest {
 
     @Mock
     private MoneyCapitalRepository moneyCapitalRepository;
+
+    @Mock
+    private CapitalAdjustmentRepository capitalAdjustmentRepository;
 
     @Mock
     private CapitalHistoryRepository capitalHistoryRepository;
@@ -307,6 +311,7 @@ class CapitalAdjustmentServiceImplTest {
                 capitalCycleRepository,
                 timeCapitalRepository,
                 moneyCapitalRepository,
+                capitalAdjustmentRepository,
                 capitalHistoryRepository,
                 capitalAllocationReader
         );

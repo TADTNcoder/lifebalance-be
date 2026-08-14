@@ -76,10 +76,54 @@ public class CapitalAdjustment {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    public static CapitalAdjustment record(
+            CapitalCycle capitalCycle,
+            CapitalKind capitalType,
+            CapitalAdjustmentType adjustmentType,
+            BigDecimal amount,
+            String reason
+    ) {
+        CapitalAdjustment adjustment = new CapitalAdjustment();
+        adjustment.capitalCycle = capitalCycle;
+        adjustment.capitalType = capitalType;
+        adjustment.adjustmentType = adjustmentType;
+        adjustment.amount = amount;
+        adjustment.reason = reason;
+        return adjustment;
+    }
+
     @PrePersist
     void onCreate() {
         if (createdAt == null) {
             createdAt = LocalDateTime.now();
         }
+    }
+
+    public Long getId() {
+        return id;
+    }
+
+    public CapitalCycle getCapitalCycle() {
+        return capitalCycle;
+    }
+
+    public CapitalKind getCapitalType() {
+        return capitalType;
+    }
+
+    public CapitalAdjustmentType getAdjustmentType() {
+        return adjustmentType;
+    }
+
+    public BigDecimal getAmount() {
+        return amount;
+    }
+
+    public String getReason() {
+        return reason;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
     }
 }
