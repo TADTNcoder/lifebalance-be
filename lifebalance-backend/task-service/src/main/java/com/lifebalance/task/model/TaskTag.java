@@ -27,11 +27,7 @@ import lombok.Setter;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(
-        name = "task_tags",
-        schema = "task",
-        indexes = @Index(name = "idx_task_tags_tag_task", columnList = "tag_id,task_id")
-)
+@Table(name = "task_tags", schema = "task", indexes = @Index(name = "idx_task_tags_tag_task", columnList = "tag_id,task_id"))
 public class TaskTag {
 
     @EmbeddedId
@@ -59,6 +55,9 @@ public class TaskTag {
                 .tag(tag)
                 .build();
     }
+
+    @Column(name = "assigned_at", nullable = false)
+    private OffsetDateTime assignedAt;
 
     public boolean referencesTag(Tag tag) {
         if (tag == null) {
