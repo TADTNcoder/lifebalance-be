@@ -5,16 +5,26 @@ import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 
+import com.lifebalance.identity.audit.AuditActor;
+import com.lifebalance.identity.audit.AuditRequestMetadata;
+import com.lifebalance.identity.audit.CurrentAuditActorResolver;
+import com.lifebalance.identity.audit.CurrentAuditRequestMetadataResolver;
 import com.lifebalance.identity.dto.AssignPermissionRequest;
 import com.lifebalance.identity.dto.PermissionResponse;
 import com.lifebalance.identity.model.Permission;
 import com.lifebalance.identity.model.Role;
 import com.lifebalance.identity.model.RolePermission;
 import com.lifebalance.identity.model.RolePermissionId;
+import com.lifebalance.identity.model.enums.AuditAction;
+import com.lifebalance.identity.model.enums.AuditEntityName;
+import com.lifebalance.identity.model.enums.AuditStatus;
 import com.lifebalance.identity.repository.PermissionRepository;
 import com.lifebalance.identity.repository.RolePermissionRepository;
 import com.lifebalance.identity.repository.RoleRepository;
+import com.lifebalance.identity.service.AuditLogCommand;
+import com.lifebalance.identity.service.AuditLogService;
 import com.lifebalance.identity.service.RolePermissionService;
+import com.lifebalance.identity.service.UserAuthorizationCacheService;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +38,14 @@ public class RolePermissionServiceImpl implements RolePermissionService {
     private final PermissionRepository permissionRepository;
 
     private final RolePermissionRepository rolePermissionRepository;
+
+    private final UserAuthorizationCacheService userAuthorizationCacheService;
+
+    private final AuditLogService auditLogService;
+
+    private final CurrentAuditActorResolver currentAuditActorResolver;
+
+    private final CurrentAuditRequestMetadataResolver currentAuditRequestMetadataResolver;
 
     @Transactional
     @Override
@@ -58,6 +76,15 @@ public class RolePermissionServiceImpl implements RolePermissionService {
                 .build();
 
         rolePermissionRepository.save(rolePermission);
+        userAuthorizationCacheService.evictUsersByRoleId(roleId);
+        saveAudit(
+                AuditAction.ASSIGN_PERMISSION,
+                role,
+                permission,
+                null,
+                permission.getCode(),
+                "Permission assigned to role"
+        );
     }
 
     @Transactional
@@ -65,6 +92,11 @@ public class RolePermissionServiceImpl implements RolePermissionService {
     public void removePermission(
             UUID roleId,
             UUID permissionId) {
+
+        Role role = roleRepository.findById(roleId)
+                .orElseThrow(() -> new RuntimeException("Role not found"));
+        Permission permission = permissionRepository.findById(permissionId)
+                .orElseThrow(() -> new RuntimeException("Permission not found"));
 
         if (!rolePermissionRepository.existsByIdRoleIdAndIdPermissionId(
                 roleId,
@@ -76,6 +108,15 @@ public class RolePermissionServiceImpl implements RolePermissionService {
         rolePermissionRepository.deleteByIdRoleIdAndIdPermissionId(
                 roleId,
                 permissionId);
+        userAuthorizationCacheService.evictUsersByRoleId(roleId);
+        saveAudit(
+                AuditAction.REVOKE_PERMISSION,
+                role,
+                permission,
+                permission.getCode(),
+                null,
+                "Permission revoked from role"
+        );
     }
 
     @Override
@@ -101,5 +142,38 @@ public class RolePermissionServiceImpl implements RolePermissionService {
         response.setUpdatedAt(permission.getUpdatedAt());
 
         return response;
+    }
+
+    private void saveAudit(
+            AuditAction action,
+            Role role,
+            Permission permission,
+            String oldValue,
+            String newValue,
+            String details
+    ) {
+        AuditActor actor = currentAuditActorResolver.resolve();
+        AuditRequestMetadata metadata = currentAuditRequestMetadataResolver.resolve();
+
+        auditLogService.saveAudit(new AuditLogCommand(
+                AuditEntityName.ROLE_PERMISSION,
+                entityId(role.getId(), permission.getId()),
+                actor.id(),
+                actor.keycloakId(),
+                actor.username(),
+                null,
+                null,
+                action,
+                AuditStatus.SUCCESS,
+                metadata.ipAddress(),
+                metadata.userAgent(),
+                oldValue,
+                newValue,
+                details
+        ));
+    }
+
+    private String entityId(UUID roleId, UUID permissionId) {
+        return roleId + ":" + permissionId;
     }
 }
