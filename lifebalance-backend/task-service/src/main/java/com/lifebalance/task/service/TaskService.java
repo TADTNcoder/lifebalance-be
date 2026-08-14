@@ -25,10 +25,6 @@ public interface TaskService {
                         String keyword,
                         Pageable pageable);
 
-        TaskResponse getById(
-                        UUID id,
-                        UUID ownerId);
-
         void archive(
                         UUID id,
                         UUID ownerId);
@@ -42,6 +38,10 @@ public interface TaskService {
                         UUID ownerId);
 
         TaskResponse duplicate(
+                        UUID id,
+                        UUID ownerId);
+
+        TaskResponse getById(
                         UUID id,
                         UUID ownerId);
 }

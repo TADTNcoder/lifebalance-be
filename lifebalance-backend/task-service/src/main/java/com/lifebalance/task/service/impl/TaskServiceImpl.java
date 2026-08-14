@@ -37,10 +37,12 @@ public class TaskServiceImpl implements TaskService {
                 ownerId,
                 null);
 
-        Category category = resolveCategory(request.getCategoryId());
+        Category category = resolveCategory(
+                request.getCategoryId());
 
         Task task = Task.builder()
                 .ownerId(ownerId)
+                .userId(ownerId)
                 .name(request.getName())
                 .description(request.getDescription())
                 .priority(request.getPriority())
@@ -72,7 +74,8 @@ public class TaskServiceImpl implements TaskService {
                 ownerId,
                 id);
 
-        Category category = resolveCategory(request.getCategoryId());
+        Category category = resolveCategory(
+                request.getCategoryId());
 
         task.updateDetails(
                 request.getName(),
@@ -84,27 +87,16 @@ public class TaskServiceImpl implements TaskService {
                 category);
 
         if (request.getProgress() != null) {
-            task.updateProgress(request.getProgress());
+            task.updateProgress(
+                    request.getProgress());
         }
 
         if (request.getStatus() != null) {
-            task.transitionTo(request.getStatus());
+            task.transitionTo(
+                    request.getStatus());
         }
 
         task = taskRepository.save(task);
-
-        return mapToResponse(task);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public TaskResponse getById(
-            UUID id,
-            UUID ownerId) {
-
-        Task task = taskRepository
-                .findByIdAndOwnerId(id, ownerId)
-                .orElseThrow(() -> new RuntimeException("Task not found"));
 
         return mapToResponse(task);
     }
@@ -186,6 +178,7 @@ public class TaskServiceImpl implements TaskService {
 
         Task copy = Task.builder()
                 .ownerId(ownerId)
+                .userId(ownerId)
                 .name(copyName)
                 .description(source.getDescription())
                 .priority(source.getPriority())
@@ -199,6 +192,19 @@ public class TaskServiceImpl implements TaskService {
         copy = taskRepository.save(copy);
 
         return mapToResponse(copy);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public TaskResponse getById(
+            UUID id,
+            UUID ownerId) {
+
+        Task task = taskRepository
+                .findByIdAndOwnerId(id, ownerId)
+                .orElseThrow(() -> new RuntimeException("Task not found"));
+
+        return mapToResponse(task);
     }
 
     private void ensureNameAvailable(
@@ -220,7 +226,8 @@ public class TaskServiceImpl implements TaskService {
                 });
     }
 
-    private Category resolveCategory(UUID categoryId) {
+    private Category resolveCategory(
+            UUID categoryId) {
 
         if (categoryId == null) {
             return null;
@@ -232,24 +239,30 @@ public class TaskServiceImpl implements TaskService {
                         "Category not found"));
     }
 
-    private TaskResponse mapToResponse(Task task) {
+    private TaskResponse mapToResponse(
+            Task task) {
 
         TaskResponse response = new TaskResponse();
 
         response.setId(task.getId());
         response.setUserId(task.getUserId());
         response.setName(task.getName());
-        response.setDescription(task.getDescription());
+        response.setDescription(
+                task.getDescription());
         response.setStatus(task.getStatus());
-        response.setPriority(task.getPriority());
-        response.setDeadline(task.getDeadline());
-        response.setProgress(task.getProgress());
+        response.setPriority(
+                task.getPriority());
+        response.setDeadline(
+                task.getDeadline());
+        response.setProgress(
+                task.getProgress());
         response.setEstimatedMinutes(
                 task.getEstimatedMinutes());
         response.setEstimatedCost(
                 task.getEstimatedCost());
 
         if (task.getCategory() != null) {
+
             response.setCategoryId(
                     task.getCategory().getId());
 
@@ -257,8 +270,11 @@ public class TaskServiceImpl implements TaskService {
                     task.getCategory().getName());
         }
 
-        response.setCreatedAt(task.getCreatedAt());
-        response.setUpdatedAt(task.getUpdatedAt());
+        response.setCreatedAt(
+                task.getCreatedAt());
+
+        response.setUpdatedAt(
+                task.getUpdatedAt());
 
         return response;
     }

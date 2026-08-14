@@ -7,11 +7,14 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.bind.annotation.*;
 
+import com.lifebalance.security.keycloak.KeycloakUserMappingFilter;
+import com.lifebalance.security.keycloak.KeycloakUserPrincipal;
 import com.lifebalance.task.dto.request.CreateTaskRequest;
 import com.lifebalance.task.dto.request.UpdateTaskRequest;
 import com.lifebalance.task.dto.response.TaskResponse;
 import com.lifebalance.task.service.TaskService;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -24,18 +27,36 @@ public class TaskController {
 
     @PostMapping
     public TaskResponse create(
-            @RequestHeader("X-User-Id") UUID ownerId,
-            @Valid @RequestBody CreateTaskRequest request) {
+            @Valid @RequestBody CreateTaskRequest request,
+            HttpServletRequest httpRequest) {
 
-        return taskService.create(ownerId, request);
+        UUID ownerId = getCurrentUserId(httpRequest);
+
+        return taskService.create(
+                ownerId,
+                request);
+    }
+
+    @PostMapping("/{id}/duplicate")
+    public TaskResponse duplicate(
+            @PathVariable UUID id,
+            HttpServletRequest httpRequest) {
+
+        UUID ownerId = getCurrentUserId(httpRequest);
+
+        return taskService.duplicate(
+                id,
+                ownerId);
     }
 
     @GetMapping
     public Page<TaskResponse> search(
-            @RequestHeader("X-User-Id") UUID ownerId,
             @RequestParam(defaultValue = "") String keyword,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @RequestParam(defaultValue = "10") int size,
+            HttpServletRequest httpRequest) {
+
+        UUID ownerId = getCurrentUserId(httpRequest);
 
         Pageable pageable = PageRequest.of(page, size);
 
@@ -47,17 +68,23 @@ public class TaskController {
 
     @GetMapping("/{id}")
     public TaskResponse getById(
-            @RequestHeader("X-User-Id") UUID ownerId,
-            @PathVariable UUID id) {
+            @PathVariable UUID id,
+            HttpServletRequest httpRequest) {
 
-        return taskService.getById(id, ownerId);
+        UUID ownerId = getCurrentUserId(httpRequest);
+
+        return taskService.getById(
+                id,
+                ownerId);
     }
 
     @PutMapping("/{id}")
     public TaskResponse update(
-            @RequestHeader("X-User-Id") UUID ownerId,
             @PathVariable UUID id,
-            @Valid @RequestBody UpdateTaskRequest request) {
+            @Valid @RequestBody UpdateTaskRequest request,
+            HttpServletRequest httpRequest) {
+
+        UUID ownerId = getCurrentUserId(httpRequest);
 
         return taskService.update(
                 id,
@@ -67,33 +94,53 @@ public class TaskController {
 
     @PatchMapping("/{id}/archive")
     public void archive(
-            @RequestHeader("X-User-Id") UUID ownerId,
-            @PathVariable UUID id) {
+            @PathVariable UUID id,
+            HttpServletRequest httpRequest) {
 
-        taskService.archive(id, ownerId);
+        UUID ownerId = getCurrentUserId(httpRequest);
+
+        taskService.archive(
+                id,
+                ownerId);
     }
 
     @PatchMapping("/{id}/restore")
     public void restore(
-            @RequestHeader("X-User-Id") UUID ownerId,
-            @PathVariable UUID id) {
+            @PathVariable UUID id,
+            HttpServletRequest httpRequest) {
 
-        taskService.restore(id, ownerId);
+        UUID ownerId = getCurrentUserId(httpRequest);
+
+        taskService.restore(
+                id,
+                ownerId);
     }
 
     @DeleteMapping("/{id}")
     public void delete(
-            @RequestHeader("X-User-Id") UUID ownerId,
-            @PathVariable UUID id) {
+            @PathVariable UUID id,
+            HttpServletRequest httpRequest) {
 
-        taskService.delete(id, ownerId);
+        UUID ownerId = getCurrentUserId(httpRequest);
+
+        taskService.delete(
+                id,
+                ownerId);
     }
 
-    @PostMapping("/{id}/duplicate")
-    public TaskResponse duplicate(
-            @RequestHeader("X-User-Id") UUID ownerId,
-            @PathVariable UUID id) {
+    private UUID getCurrentUserId(
+            HttpServletRequest request) {
 
-        return taskService.duplicate(id, ownerId);
+        KeycloakUserPrincipal currentUser = (KeycloakUserPrincipal) request.getAttribute(
+                KeycloakUserMappingFilter.CURRENT_USER_ATTRIBUTE);
+
+        if (currentUser == null
+                || currentUser.userId() == null) {
+
+            throw new RuntimeException(
+                    "Authenticated user not found");
+        }
+
+        return currentUser.userId();
     }
 }

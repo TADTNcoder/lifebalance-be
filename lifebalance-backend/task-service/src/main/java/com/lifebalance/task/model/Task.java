@@ -313,8 +313,9 @@ public class Task extends BaseAuditableEntity {
     }
 
     public void setEstimatedMinutes(Integer estimatedMinutes) {
-        if (estimatedMinutes != null && estimatedMinutes < 0) {
-            throw new IllegalArgumentException("Task estimatedMinutes must not be negative.");
+        if (estimatedMinutes == null || estimatedMinutes <= 0) {
+            throw new IllegalStateException(
+                    "Task estimatedMinutes must be greater than 0 before scheduling.");
         }
         this.estimatedMinutes = estimatedMinutes;
     }

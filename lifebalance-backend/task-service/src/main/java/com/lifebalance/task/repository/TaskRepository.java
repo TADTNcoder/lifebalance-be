@@ -13,20 +13,6 @@ import com.lifebalance.task.model.enums.TaskStatus;
 
 public interface TaskRepository extends JpaRepository<Task, UUID> {
 
-        Optional<Task> findByName(String name);
-
-        Page<Task> findByNameContainingIgnoreCase(
-                        String keyword,
-                        Pageable pageable);
-
-        Page<Task> findByStatus(
-                        TaskStatus status,
-                        Pageable pageable);
-
-        Page<Task> findByPriority(
-                        PriorityLevel priority,
-                        Pageable pageable);
-
         Optional<Task> findByNameAndOwnerId(
                         String name,
                         UUID ownerId);
@@ -42,5 +28,15 @@ public interface TaskRepository extends JpaRepository<Task, UUID> {
         Page<Task> findByOwnerIdAndNameContainingIgnoreCase(
                         UUID ownerId,
                         String keyword,
+                        Pageable pageable);
+
+        Page<Task> findByOwnerIdAndStatus(
+                        UUID ownerId,
+                        TaskStatus status,
+                        Pageable pageable);
+
+        Page<Task> findByOwnerIdAndPriority(
+                        UUID ownerId,
+                        PriorityLevel priority,
                         Pageable pageable);
 }
