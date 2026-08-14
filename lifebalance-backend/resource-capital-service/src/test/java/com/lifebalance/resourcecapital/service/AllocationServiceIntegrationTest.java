@@ -1,6 +1,7 @@
 package com.lifebalance.resourcecapital.service;
 
 import com.lifebalance.resourcecapital.domain.capital.CapitalKind;
+import com.lifebalance.resourcecapital.domain.capitalallocation.AllocationStatus;
 import com.lifebalance.resourcecapital.domain.capitalallocation.AllocationTargetType;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationConfirmationRequiredException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
@@ -220,7 +221,12 @@ class AllocationServiceIntegrationTest {
                 CapitalKind.TIME,
                 AllocationTargetType.TASK,
                 DESTINATION_TASK_ID
-        )).isEmpty();
+        )).isPresent()
+                .get()
+                .satisfies(allocation -> {
+                    assertThat(allocation.getAllocatedAmount()).isEqualByComparingTo("0.0000");
+                    assertThat(allocation.getStatus()).isEqualTo(AllocationStatus.RELEASED);
+                });
         assertThat(capitalAllocationReader.getAllocatedMinutes(cycle.getId())).isEqualTo(50L);
         assertThat(capitalHistoryRepository.findByCapitalCycleIdAndActionType(
                 cycle.getId(),

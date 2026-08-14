@@ -221,9 +221,6 @@ public class AllocationServiceImpl implements AllocationService {
         BigDecimal destinationAfter = destinationBefore.add(amount).setScale(MONEY_SCALE, RoundingMode.UNNECESSARY);
 
         sourceAllocation.decrease(amount);
-        if (sourceAllocation.isDepleted()) {
-            capitalAllocationRepository.delete(sourceAllocation);
-        }
 
         CapitalAllocation destination = destinationAllocation.orElseGet(() -> CapitalAllocation.create(
                 cycle,
@@ -314,9 +311,6 @@ public class AllocationServiceImpl implements AllocationService {
         BigDecimal targetAfter = targetBefore.subtract(amount).setScale(MONEY_SCALE, RoundingMode.UNNECESSARY);
 
         allocation.decrease(amount);
-        if (allocation.isDepleted()) {
-            capitalAllocationRepository.delete(allocation);
-        }
 
         BigDecimal totalAfter = totalBefore.subtract(amount).setScale(MONEY_SCALE, RoundingMode.UNNECESSARY);
         UUID historyId = recordHistory(
