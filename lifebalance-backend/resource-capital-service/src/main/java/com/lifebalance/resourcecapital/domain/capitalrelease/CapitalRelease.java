@@ -66,9 +66,6 @@ public class CapitalRelease {
     @Column(name = "released_at", nullable = false, updatable = false)
     private Instant releasedAt;
 
-    protected CapitalRelease() {
-    }
-
     private CapitalRelease(CapitalAllocation allocation, BigDecimal releasedAmount, String reason) {
         this.allocation = requireAllocation(allocation);
         this.releasedAmount = normalizePositiveAmount(releasedAmount);
