@@ -1,6 +1,7 @@
 package com.lifebalance.task.service.impl;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -23,13 +24,15 @@ public class TagServiceImpl implements TagService {
 
     @Override
     @Transactional
-    public TagResponse create(CreateTagRequest request) {
+    public TagResponse create(UUID userId, CreateTagRequest request) {
+        Objects.requireNonNull(userId, "User id is required");
 
-        if (tagRepository.existsByName(request.getName())) {
+        if (tagRepository.existsByUserIdAndName(userId, request.getName())) {
             throw new RuntimeException("Tag name already exists");
         }
 
         Tag tag = Tag.builder()
+                .userId(userId)
                 .name(request.getName())
                 .description(request.getDescription())
                 .build();
@@ -39,9 +42,10 @@ public class TagServiceImpl implements TagService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<TagResponse> getAll() {
+    public List<TagResponse> getAll(UUID userId) {
+        Objects.requireNonNull(userId, "User id is required");
 
-        return tagRepository.findAll()
+        return tagRepository.findByUserIdOrderByNameAsc(userId)
                 .stream()
                 .map(this::mapToResponse)
                 .toList();
@@ -49,20 +53,23 @@ public class TagServiceImpl implements TagService {
 
     @Override
     @Transactional(readOnly = true)
-    public TagResponse getById(UUID id) {
+    public TagResponse getById(UUID userId, UUID id) {
+        Objects.requireNonNull(userId, "User id is required");
 
-        return mapToResponse(getTagOrThrow(id));
+        return mapToResponse(getTagOrThrow(userId, id));
     }
 
     @Override
     @Transactional
     public TagResponse update(
+            UUID userId,
             UUID id,
             UpdateTagRequest request) {
+        Objects.requireNonNull(userId, "User id is required");
 
-        Tag tag = getTagOrThrow(id);
+        Tag tag = getTagOrThrow(userId, id);
 
-        tagRepository.findByName(request.getName())
+        tagRepository.findByUserIdAndName(userId, request.getName())
                 .ifPresent(existing -> {
                     if (!existing.getId().equals(id)) {
                         throw new RuntimeException("Tag name already exists");
@@ -77,16 +84,17 @@ public class TagServiceImpl implements TagService {
 
     @Override
     @Transactional
-    public void delete(UUID id) {
+    public void delete(UUID userId, UUID id) {
+        Objects.requireNonNull(userId, "User id is required");
 
-        Tag tag = getTagOrThrow(id);
+        Tag tag = getTagOrThrow(userId, id);
 
         tagRepository.delete(tag);
     }
 
-    private Tag getTagOrThrow(UUID id) {
+    private Tag getTagOrThrow(UUID userId, UUID id) {
 
-        return tagRepository.findById(id)
+        return tagRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new RuntimeException("Tag not found"));
     }
 
