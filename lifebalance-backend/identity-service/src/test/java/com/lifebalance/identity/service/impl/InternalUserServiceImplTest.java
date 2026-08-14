@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -213,6 +214,45 @@ class InternalUserServiceImplTest {
         assertThat(assignedRole.getId().getUserId()).isEqualTo(userId);
         assertThat(assignedRole.getId().getRoleId()).isEqualTo(roleId);
         assertThat(assignedRole.getRole()).isSameAs(userRole);
+        verify(userAuthorizationCacheService).evictUser(userId);
+    }
+
+    @Test
+    void shouldAssignPrefixedKeycloakRolesWhenCreatingUserFromToken() {
+        UUID userId = UUID.randomUUID();
+        UUID adminRoleId = UUID.randomUUID();
+        UUID userRoleId = UUID.randomUUID();
+        CurrentUser currentUser = createCurrentUser(
+                "kc-user-1",
+                "alice",
+                "alice@example.com",
+                List.of("ROLE_ADMIN", "ROLE-user", "offline_access")
+        );
+        Role adminRole = createRole(adminRoleId, "admin");
+        Role standardUserRole = createRole(userRoleId, "user");
+
+        when(userRepository.findByKeycloakId("kc-user-1")).thenReturn(Optional.empty());
+        when(userRepository.existsDeletedByKeycloakId("kc-user-1")).thenReturn(false);
+        when(userRepository.existsByEmail("alice@example.com")).thenReturn(false);
+        when(userRepository.existsByUsername("alice")).thenReturn(false);
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+            User user = invocation.getArgument(0);
+            user.setId(userId);
+            return user;
+        });
+        when(roleRepository.findByCodesIgnoreCase(any())).thenReturn(List.of(adminRole, standardUserRole));
+
+        createService().findOrCreate(currentUser);
+
+        ArgumentCaptor<Collection<String>> roleCodesCaptor = ArgumentCaptor.forClass(Collection.class);
+        verify(roleRepository).findByCodesIgnoreCase(roleCodesCaptor.capture());
+        assertThat(roleCodesCaptor.getValue()).containsExactly("admin", "user", "offline_access");
+
+        ArgumentCaptor<List<UserRole>> userRolesCaptor = ArgumentCaptor.forClass(List.class);
+        verify(userRoleRepository).saveAll(userRolesCaptor.capture());
+        assertThat(userRolesCaptor.getValue())
+                .extracting(userRole -> userRole.getRole().getId())
+                .containsExactlyInAnyOrder(adminRoleId, userRoleId);
         verify(userAuthorizationCacheService).evictUser(userId);
     }
 

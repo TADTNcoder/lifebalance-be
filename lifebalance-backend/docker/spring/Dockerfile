@@ -19,6 +19,7 @@ COPY gateway/pom.xml gateway/pom.xml
 COPY identity-service/pom.xml identity-service/pom.xml
 COPY task-service/pom.xml task-service/pom.xml
 COPY timeline-service/pom.xml timeline-service/pom.xml
+COPY resource-capital-service/pom.xml resource-capital-service/pom.xml
 COPY finance-service/pom.xml finance-service/pom.xml
 COPY notification-service/pom.xml notification-service/pom.xml
 COPY analytics-service/pom.xml analytics-service/pom.xml

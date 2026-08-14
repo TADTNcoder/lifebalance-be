@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.UUID;
 
 import org.flywaydb.core.Flyway;
+import org.flywaydb.core.api.configuration.FluentConfiguration;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -32,6 +33,8 @@ import javax.sql.DataSource;
         "spring.security.oauth2.resourceserver.jwt.jwk-set-uri=http://localhost/.well-known/jwks.json"
 })
 class TaskFlywayMigrationTest {
+
+    private static final String TASK_MIGRATION_LOCATION = "classpath:db/migration/postgresql";
 
     @Container
     private static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16.4-alpine")
@@ -240,9 +243,7 @@ class TaskFlywayMigrationTest {
             dataSource.setDriverClassName("org.postgresql.Driver");
             JdbcTemplate jdbc = new JdbcTemplate(dataSource);
 
-            Flyway.configure()
-                    .dataSource(dataSource)
-                    .locations("classpath:db/migration/postgresql")
+            flywayConfiguration(dataSource)
                     .target("4")
                     .load()
                     .migrate();
@@ -255,9 +256,7 @@ class TaskFlywayMigrationTest {
             insertLegacyTag(jdbc, cPlusPlusTagId, userId, "C++");
             insertLegacyTag(jdbc, cSharpTagId, userId, "C#");
 
-            Flyway.configure()
-                    .dataSource(dataSource)
-                    .locations("classpath:db/migration/postgresql")
+            flywayConfiguration(dataSource)
                     .load()
                     .migrate();
 
@@ -297,9 +296,7 @@ class TaskFlywayMigrationTest {
             dataSource.setDriverClassName("org.postgresql.Driver");
             JdbcTemplate jdbc = new JdbcTemplate(dataSource);
 
-            Flyway.configure()
-                    .dataSource(dataSource)
-                    .locations("classpath:db/migration/postgresql")
+            flywayConfiguration(dataSource)
                     .target("7")
                     .load()
                     .migrate();
@@ -311,9 +308,7 @@ class TaskFlywayMigrationTest {
             insertLegacyCategory(jdbc, cPlusPlusCategoryId, "C++");
             insertLegacyCategory(jdbc, cSharpCategoryId, "C#");
 
-            Flyway.configure()
-                    .dataSource(dataSource)
-                    .locations("classpath:db/migration/postgresql")
+            flywayConfiguration(dataSource)
                     .load()
                     .migrate();
 
@@ -354,9 +349,7 @@ class TaskFlywayMigrationTest {
             dataSource.setDriverClassName("org.postgresql.Driver");
             JdbcTemplate jdbc = new JdbcTemplate(dataSource);
 
-            Flyway.configure()
-                    .dataSource(dataSource)
-                    .locations("classpath:db/migration/postgresql")
+            flywayConfiguration(dataSource)
                     .target("8")
                     .load()
                     .migrate();
@@ -367,9 +360,7 @@ class TaskFlywayMigrationTest {
                     VALUES (?, 'Archived Work', 'work', '#000000', 'archive', false, now())
                     """, deletedWorkId);
 
-            Flyway.configure()
-                    .dataSource(dataSource)
-                    .locations("classpath:db/migration/postgresql")
+            flywayConfiguration(dataSource)
                     .load()
                     .migrate();
 
@@ -404,6 +395,14 @@ class TaskFlywayMigrationTest {
                 INSERT INTO task.tags (user_id, name, slug)
                 VALUES (?, ?, ?)
                 """, userId, name, slug);
+    }
+
+    private FluentConfiguration flywayConfiguration(DataSource dataSource) {
+        return Flyway.configure()
+                .dataSource(dataSource)
+                .locations(TASK_MIGRATION_LOCATION)
+                .defaultSchema("public")
+                .schemas("public");
     }
 
     private UUID insertTagReturningId(UUID userId, String name, String slug) {

@@ -102,6 +102,7 @@ INSERT INTO resourcecapital.money_capitals (
     capital_cycle_id,
     planned_amount,
     currency_code,
+    currency,
     created_at,
     updated_at,
     version
@@ -110,6 +111,7 @@ SELECT
     '81100000-0000-4000-8000-000000000002'::uuid,
     active_august_cycle.id,
     15000000.0000,
+    'VND',
     'VND',
     now(),
     now(),

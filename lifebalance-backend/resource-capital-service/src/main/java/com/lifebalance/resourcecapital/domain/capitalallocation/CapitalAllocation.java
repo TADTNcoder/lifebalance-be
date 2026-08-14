@@ -5,6 +5,7 @@ import com.lifebalance.resourcecapital.domain.capital.exception.InvalidAdjustmen
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EntityListeners;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
@@ -20,6 +21,9 @@ import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import jakarta.persistence.Version;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -28,6 +32,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 @Entity
+@EntityListeners(AuditingEntityListener.class)
 @Table(
         name = "capital_allocations",
         schema = "resourcecapital",
@@ -39,7 +44,9 @@ import java.util.UUID;
         },
         indexes = {
                 @Index(name = "idx_capital_allocations_cycle_kind", columnList = "capital_cycle_id,capital_type"),
-                @Index(name = "idx_capital_allocations_target", columnList = "target_type,target_id")
+                @Index(name = "idx_capital_allocations_target", columnList = "target_type,target_id"),
+                @Index(name = "idx_capital_allocations_cycle_status", columnList = "capital_cycle_id,status"),
+                @Index(name = "idx_capital_allocations_status_kind", columnList = "status,capital_type")
         }
 )
 public class CapitalAllocation {
@@ -73,9 +80,18 @@ public class CapitalAllocation {
     @Column(name = "allocated_amount", precision = 19, scale = AMOUNT_SCALE, nullable = false)
     private BigDecimal allocatedAmount;
 
+    @Column(name = "spent_amount", precision = 19, scale = AMOUNT_SCALE, nullable = false)
+    private BigDecimal spentAmount;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 32)
+    private AllocationStatus status;
+
+    @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    @LastModifiedDate
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
@@ -98,6 +114,8 @@ public class CapitalAllocation {
         this.targetType = requireTargetType(targetType);
         this.targetId = requireTargetId(targetId);
         this.allocatedAmount = normalizePositiveAmount(allocatedAmount);
+        this.spentAmount = zeroAmount();
+        this.status = AllocationStatus.ACTIVE;
     }
 
     public static CapitalAllocation create(
@@ -111,6 +129,7 @@ public class CapitalAllocation {
     }
 
     public void increase(BigDecimal amount) {
+        ensureActive("increase allocation");
         BigDecimal normalizedAmount = normalizePositiveAmount(amount);
         BigDecimal nextAmount = allocatedAmount.add(normalizedAmount);
         validateColumnPrecision(nextAmount, "allocated amount after increase");
@@ -118,6 +137,7 @@ public class CapitalAllocation {
     }
 
     public void decrease(BigDecimal amount) {
+        ensureActive("decrease allocation");
         BigDecimal normalizedAmount = normalizePositiveAmount(amount);
         BigDecimal nextAmount = allocatedAmount.subtract(normalizedAmount);
         if (nextAmount.compareTo(BigDecimal.ZERO) < 0) {
@@ -126,10 +146,38 @@ public class CapitalAllocation {
             );
         }
         allocatedAmount = nextAmount;
+        if (isDepleted()) {
+            status = AllocationStatus.RELEASED;
+        }
+    }
+
+    public void spend(BigDecimal amount) {
+        ensureActive("record spent allocation");
+        BigDecimal normalizedAmount = normalizePositiveAmount(amount);
+        BigDecimal nextAmount = spentAmount.add(normalizedAmount);
+        validateColumnPrecision(nextAmount, "spent amount after increase");
+        spentAmount = nextAmount;
+    }
+
+    public void close() {
+        if (status == AllocationStatus.RELEASED) {
+            throw new IllegalStateException("Released allocation cannot be closed.");
+        }
+        status = AllocationStatus.CLOSED;
+    }
+
+    public void release() {
+        ensureActive("release allocation");
+        allocatedAmount = zeroAmount();
+        status = AllocationStatus.RELEASED;
     }
 
     public boolean isDepleted() {
         return allocatedAmount.compareTo(BigDecimal.ZERO) == 0;
+    }
+
+    public boolean isActive() {
+        return status == AllocationStatus.ACTIVE;
     }
 
     private static CapitalCycle requireCapitalCycle(CapitalCycle capitalCycle) {
@@ -186,9 +234,26 @@ public class CapitalAllocation {
         }
     }
 
+    private static BigDecimal zeroAmount() {
+        return BigDecimal.ZERO.setScale(AMOUNT_SCALE, RoundingMode.UNNECESSARY);
+    }
+
+    private void ensureActive(String action) {
+        if (status == AllocationStatus.ACTIVE) {
+            return;
+        }
+        throw new IllegalStateException("Only ACTIVE allocation can " + action + ".");
+    }
+
     @PrePersist
     void onCreate() {
         Instant now = Instant.now();
+        if (spentAmount == null) {
+            spentAmount = zeroAmount();
+        }
+        if (status == null) {
+            status = AllocationStatus.ACTIVE;
+        }
         if (createdAt == null) {
             createdAt = now;
         }
@@ -224,6 +289,18 @@ public class CapitalAllocation {
 
     public BigDecimal getAllocatedAmount() {
         return allocatedAmount;
+    }
+
+    public BigDecimal getSpentAmount() {
+        return spentAmount;
+    }
+
+    public AllocationStatus getStatus() {
+        return status;
+    }
+
+    public UUID getTaskId() {
+        return targetType == AllocationTargetType.TASK ? targetId : null;
     }
 
     public Instant getCreatedAt() {

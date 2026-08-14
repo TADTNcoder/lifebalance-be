@@ -217,9 +217,9 @@ class CapitalCyclePostgresConstraintTest {
 
         assertThatThrownBy(() -> jdbcTemplate.update("""
                         INSERT INTO resourcecapital.money_capitals (
-                            id, capital_cycle_id, planned_amount, currency_code, created_at, updated_at, version
+                            id, capital_cycle_id, planned_amount, currency_code, currency, created_at, updated_at, version
                         )
-                        VALUES (gen_random_uuid(), ?, -0.0001, 'VND', now(), now(), 0)
+                        VALUES (gen_random_uuid(), ?, -0.0001, 'VND', 'VND', now(), now(), 0)
                         """, cycleId))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("chk_money_capitals_planned_amount");
