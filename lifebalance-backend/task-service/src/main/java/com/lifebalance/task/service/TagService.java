@@ -9,13 +9,13 @@ import com.lifebalance.task.dto.response.TagResponse;
 
 public interface TagService {
 
-    TagResponse create(CreateTagRequest request);
+    TagResponse create(UUID userId, CreateTagRequest request);
 
-    List<TagResponse> getAll();
+    List<TagResponse> getAll(UUID userId);
 
-    TagResponse getById(UUID id);
+    TagResponse getById(UUID userId, UUID id);
 
-    TagResponse update(UUID id, UpdateTagRequest request);
+    TagResponse update(UUID userId, UUID id, UpdateTagRequest request);
 
-    void delete(UUID id);
+    void delete(UUID userId, UUID id);
 }
