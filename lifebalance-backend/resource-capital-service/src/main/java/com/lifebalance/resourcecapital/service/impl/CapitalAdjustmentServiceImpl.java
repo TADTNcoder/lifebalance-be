@@ -1,11 +1,13 @@
 package com.lifebalance.resourcecapital.service.impl;
 
 import com.lifebalance.resourcecapital.domain.capital.CapitalAdjustmentType;
+import com.lifebalance.common.web.PageableLimits;
 import com.lifebalance.resourcecapital.domain.capital.CapitalKind;
 import com.lifebalance.resourcecapital.domain.capital.exception.CapitalBelowAllocatedException;
 import com.lifebalance.resourcecapital.domain.capital.exception.CapitalNotSetupException;
 import com.lifebalance.resourcecapital.domain.capital.exception.InvalidAdjustmentAmountException;
 import com.lifebalance.resourcecapital.domain.capitaladjustment.CapitalAdjustment;
+import com.lifebalance.resourcecapital.domain.capitaladjustment.CapitalType;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleStatus;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.CapitalCycleNotFoundException;
@@ -398,9 +400,11 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
     ) {
         CapitalAdjustment adjustment = capitalAdjustmentRepository.saveAndFlush(CapitalAdjustment.record(
                 cycle,
+                ownerId,
                 capitalType,
                 adjustmentType,
-                amount,
+                beforeAmount,
+                afterAmount,
                 reason
         ));
 
@@ -442,8 +446,8 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
                 adjustment.getAdjustmentType(),
                 toHistoryActionType(adjustment.getAdjustmentType()),
                 adjustment.getAmount(),
-                null,
-                null,
+                adjustment.getPreviousAmount(),
+                adjustment.getNewAmount(),
                 adjustment.getReason(),
                 null,
                 adjustment.getCreatedAt()
@@ -617,19 +621,20 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
                 predicates.add(criteriaBuilder.equal(root.get("capitalCycle").get("id"), capitalCycleId));
             }
             if (capitalType != null) {
-                predicates.add(criteriaBuilder.equal(root.get("capitalType"), capitalType));
+                predicates.add(criteriaBuilder.equal(root.get("capitalType"), CapitalType.from(capitalType)));
             }
             return criteriaBuilder.and(predicates.toArray(Predicate[]::new));
         };
     }
 
     private Pageable pageableWithDefaultSort(Pageable pageable) {
-        if (pageable == null || pageable.isUnpaged()) {
+        Pageable normalized = PageableLimits.normalize(pageable);
+        if (normalized.isUnpaged()) {
             return PageRequest.of(0, DEFAULT_PAGE_SIZE, DEFAULT_SORT);
         }
-        if (pageable.getSort().isUnsorted()) {
-            return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), DEFAULT_SORT);
+        if (normalized.getSort().isUnsorted()) {
+            return PageRequest.of(normalized.getPageNumber(), normalized.getPageSize(), DEFAULT_SORT);
         }
-        return pageable;
+        return normalized;
     }
 }

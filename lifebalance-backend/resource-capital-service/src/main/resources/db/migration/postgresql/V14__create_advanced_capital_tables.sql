@@ -4,18 +4,24 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE TABLE IF NOT EXISTS resourcecapital.capital_adjustments (
     id BIGSERIAL PRIMARY KEY,
     capital_cycle_id UUID NOT NULL,
+    user_id UUID NOT NULL,
     capital_type VARCHAR(32) NOT NULL,
     adjustment_type VARCHAR(32) NOT NULL,
-    amount NUMERIC(19, 4) NOT NULL,
+    amount_delta NUMERIC(19, 4) NOT NULL,
+    previous_amount NUMERIC(19, 4) NOT NULL,
+    new_amount NUMERIC(19, 4) NOT NULL,
     reason VARCHAR(1000),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 ALTER TABLE resourcecapital.capital_adjustments
     ADD COLUMN IF NOT EXISTS capital_cycle_id UUID,
+    ADD COLUMN IF NOT EXISTS user_id UUID,
     ADD COLUMN IF NOT EXISTS capital_type VARCHAR(32),
     ADD COLUMN IF NOT EXISTS adjustment_type VARCHAR(32),
-    ADD COLUMN IF NOT EXISTS amount NUMERIC(19, 4),
+    ADD COLUMN IF NOT EXISTS amount_delta NUMERIC(19, 4),
+    ADD COLUMN IF NOT EXISTS previous_amount NUMERIC(19, 4),
+    ADD COLUMN IF NOT EXISTS new_amount NUMERIC(19, 4),
     ADD COLUMN IF NOT EXISTS reason VARCHAR(1000),
     ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 
@@ -23,7 +29,6 @@ ALTER TABLE resourcecapital.capital_adjustments
     ALTER COLUMN capital_cycle_id SET NOT NULL,
     ALTER COLUMN capital_type SET NOT NULL,
     ALTER COLUMN adjustment_type SET NOT NULL,
-    ALTER COLUMN amount SET NOT NULL,
     ALTER COLUMN created_at SET NOT NULL,
     ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP;
 
@@ -76,12 +81,45 @@ BEGIN
     IF NOT EXISTS (
         SELECT 1
         FROM pg_constraint
-        WHERE conname = 'chk_capital_adjustments_amount'
+        WHERE conname = 'chk_capital_adjustments_previous_amount'
           AND conrelid = 'resourcecapital.capital_adjustments'::regclass
     ) THEN
         ALTER TABLE resourcecapital.capital_adjustments
-            ADD CONSTRAINT chk_capital_adjustments_amount
-            CHECK (amount >= 0);
+            ADD CONSTRAINT chk_capital_adjustments_previous_amount
+            CHECK (previous_amount IS NULL OR previous_amount >= 0);
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'chk_capital_adjustments_new_amount'
+          AND conrelid = 'resourcecapital.capital_adjustments'::regclass
+    ) THEN
+        ALTER TABLE resourcecapital.capital_adjustments
+            ADD CONSTRAINT chk_capital_adjustments_new_amount
+            CHECK (new_amount IS NULL OR new_amount >= 0);
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'chk_capital_adjustments_amount_delta'
+          AND conrelid = 'resourcecapital.capital_adjustments'::regclass
+    ) THEN
+        ALTER TABLE resourcecapital.capital_adjustments
+            ADD CONSTRAINT chk_capital_adjustments_amount_delta
+            CHECK (
+                amount_delta IS NULL
+                OR previous_amount IS NULL
+                OR new_amount IS NULL
+                OR amount_delta = new_amount - previous_amount
+            );
     END IF;
 END $$;
 
