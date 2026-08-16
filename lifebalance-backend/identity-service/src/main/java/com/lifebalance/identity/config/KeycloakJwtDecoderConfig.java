@@ -15,8 +15,11 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 
+import com.lifebalance.security.keycloak.JwtAudienceValidator;
+import com.lifebalance.security.keycloak.KeycloakSecurityProperties;
+
 @Configuration
-@EnableConfigurationProperties(KeycloakJwtProperties.class)
+@EnableConfigurationProperties({KeycloakJwtProperties.class, KeycloakSecurityProperties.class})
 public class KeycloakJwtDecoderConfig {
 
     @Bean
@@ -24,7 +27,10 @@ public class KeycloakJwtDecoderConfig {
             prefix = "lifebalance.security.keycloak.jwt",
             name = "jwk-set-uri"
     )
-    JwtDecoder keycloakJwtDecoder(KeycloakJwtProperties properties) {
+    JwtDecoder keycloakJwtDecoder(
+            KeycloakJwtProperties properties,
+            KeycloakSecurityProperties keycloakSecurityProperties
+    ) {
         properties.validate();
 
         NimbusJwtDecoder decoder = NimbusJwtDecoder
@@ -32,7 +38,8 @@ public class KeycloakJwtDecoderConfig {
                 .build();
         decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
                 new JwtTimestampValidator(),
-                issuerValidator(properties.allowedIssuerSet())
+                issuerValidator(properties.allowedIssuerSet()),
+                JwtAudienceValidator.requireAudience(keycloakSecurityProperties.getClientId())
         ));
 
         return decoder;
