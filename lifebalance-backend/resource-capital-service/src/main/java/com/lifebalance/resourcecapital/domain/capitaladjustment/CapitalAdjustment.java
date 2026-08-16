@@ -47,7 +47,11 @@ import java.util.UUID;
         schema = "resourcecapital",
         indexes = {
                 @Index(name = "idx_capital_adjustments_cycle_created_at", columnList = "capital_cycle_id,created_at"),
-                @Index(name = "idx_capital_adjustments_cycle_type_created_at", columnList = "capital_cycle_id,capital_type,created_at")
+                @Index(name = "idx_capital_adjustments_cycle_type_created_at", columnList = "capital_cycle_id,capital_type,created_at"),
+                @Index(name = "idx_capital_adjustments_user_cycle_created_at", columnList = "user_id,capital_cycle_id,created_at,id"),
+                @Index(name = "idx_capital_adjustments_user_cycle_type_created_at", columnList = "user_id,capital_cycle_id,capital_type,created_at,id"),
+                @Index(name = "idx_capital_adjustments_user_adjustment_created_at", columnList = "user_id,adjustment_type,created_at,id"),
+                @Index(name = "idx_capital_adjustments_user_created_at", columnList = "user_id,created_at,id")
         }
 )
 public class CapitalAdjustment {
