@@ -12,6 +12,16 @@ public class NoAllocationPersistenceReader implements CapitalAllocationReader {
     private static final BigDecimal ZERO_MONEY = BigDecimal.ZERO.setScale(4, RoundingMode.UNNECESSARY);
 
     @Override
+    public long getAllocatedMinutes(UUID ownerId, UUID cycleId) {
+        return 0L;
+    }
+
+    @Override
+    public BigDecimal getAllocatedAmount(UUID ownerId, UUID cycleId) {
+        return ZERO_MONEY;
+    }
+
+    @Override
     public long getAllocatedMinutes(UUID cycleId) {
         return 0L;
     }

@@ -22,24 +22,21 @@ import com.lifebalance.resourcecapital.dto.CapitalReallocationRequest;
 import com.lifebalance.resourcecapital.dto.CreateCapitalAllocationRequest;
 import com.lifebalance.resourcecapital.dto.ReallocateCapitalRequest;
 import com.lifebalance.resourcecapital.dto.ReleaseCapitalRequest;
+import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalAllocationSpecification;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalAllocationRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalCycleRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalReallocationRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalReleaseRepository;
 import com.lifebalance.resourcecapital.service.AllocationService;
 import com.lifebalance.resourcecapital.service.CapitalAllocationService;
-import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -139,12 +136,14 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
                 )
         );
         CapitalAllocation sourceAllocation = findTargetAllocation(
+                ownerId,
                 cycle.getId(),
                 capitalType,
                 sourceTarget.targetType(),
                 sourceTarget.targetId()
         );
         CapitalAllocation destinationAllocation = findTargetAllocation(
+                ownerId,
                 cycle.getId(),
                 capitalType,
                 destinationTarget.targetType(),
@@ -205,7 +204,14 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
         }
 
         return capitalAllocationRepository.findAll(
-                        specification(ownerId, capitalCycleId, taskId, capitalType, status),
+                        CapitalAllocationSpecification.filter(
+                                ownerId,
+                                capitalCycleId,
+                                taskId == null ? null : AllocationTargetType.TASK,
+                                taskId,
+                                capitalType,
+                                status
+                        ),
                         pageableWithDefaultSort(pageable)
                 )
                 .map(this::toResponse);
@@ -268,22 +274,23 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
         if (allocationId == null) {
             throw new InvalidAllocationTargetException("Allocation id is required.");
         }
-        return capitalAllocationRepository.findById(allocationId)
-                .filter(allocation -> allocation.getCapitalCycle().belongsTo(ownerId))
+        return capitalAllocationRepository.findByIdAndUserId(allocationId, ownerId)
                 .orElseThrow(() -> new AllocationNotFoundException(allocationId));
     }
 
     private CapitalAllocation findTargetAllocation(
+            UUID ownerId,
             UUID cycleId,
             CapitalKind capitalType,
             AllocationTargetType targetType,
             UUID targetId
     ) {
-        return capitalAllocationRepository.findByCapitalCycleIdAndCapitalTypeAndTargetTypeAndTargetId(
+        return capitalAllocationRepository.findByUserIdAndCapitalCycleIdAndTargetTypeAndTargetIdAndCapitalType(
+                ownerId,
                 cycleId,
-                capitalType,
                 targetType,
-                targetId
+                targetId,
+                capitalType
         ).orElseThrow(() -> new AllocationNotFoundException(cycleId, capitalType, targetType, targetId));
     }
 
@@ -327,33 +334,6 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
             throw new InvalidAllocationTargetException("Only TASK allocation targets are supported.");
         }
         return targetType;
-    }
-
-    private Specification<CapitalAllocation> specification(
-            UUID ownerId,
-            UUID capitalCycleId,
-            UUID taskId,
-            CapitalKind capitalType,
-            AllocationStatus status
-    ) {
-        return (root, query, criteriaBuilder) -> {
-            List<Predicate> predicates = new ArrayList<>();
-            predicates.add(criteriaBuilder.equal(root.get("capitalCycle").get("ownerId"), ownerId));
-            if (capitalCycleId != null) {
-                predicates.add(criteriaBuilder.equal(root.get("capitalCycle").get("id"), capitalCycleId));
-            }
-            if (taskId != null) {
-                predicates.add(criteriaBuilder.equal(root.get("targetType"), AllocationTargetType.TASK));
-                predicates.add(criteriaBuilder.equal(root.get("targetId"), taskId));
-            }
-            if (capitalType != null) {
-                predicates.add(criteriaBuilder.equal(root.get("capitalType"), capitalType));
-            }
-            if (status != null) {
-                predicates.add(criteriaBuilder.equal(root.get("status"), status));
-            }
-            return criteriaBuilder.and(predicates.toArray(Predicate[]::new));
-        };
     }
 
     private Pageable pageableWithDefaultSort(Pageable pageable) {
