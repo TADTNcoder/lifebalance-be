@@ -79,12 +79,13 @@ class AllocationServiceImplTest {
         whenOwnedCycle(cycle);
         when(timeCapitalRepository.findByCapitalCycleIdForUpdate(CYCLE_ID)).thenReturn(Optional.of(timeCapital));
         when(capitalAllocationRepository.findTargetForUpdate(
+                OWNER_ID,
                 CYCLE_ID,
                 CapitalKind.TIME,
                 AllocationTargetType.TASK,
                 SOURCE_TASK_ID
         )).thenReturn(Optional.empty());
-        when(capitalAllocationRepository.sumAllocatedAmount(CYCLE_ID, CapitalKind.TIME))
+        when(capitalAllocationRepository.sumAllocatedAmount(OWNER_ID, CYCLE_ID, CapitalKind.TIME))
                 .thenReturn(new BigDecimal("30.0000"));
         when(capitalAllocationRepository.saveAndFlush(any(CapitalAllocation.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -125,12 +126,13 @@ class AllocationServiceImplTest {
         whenOwnedCycle(cycle);
         when(timeCapitalRepository.findByCapitalCycleIdForUpdate(CYCLE_ID)).thenReturn(Optional.of(timeCapital));
         when(capitalAllocationRepository.findTargetForUpdate(
+                OWNER_ID,
                 CYCLE_ID,
                 CapitalKind.TIME,
                 AllocationTargetType.TASK,
                 SOURCE_TASK_ID
         )).thenReturn(Optional.empty());
-        when(capitalAllocationRepository.sumAllocatedAmount(CYCLE_ID, CapitalKind.TIME))
+        when(capitalAllocationRepository.sumAllocatedAmount(OWNER_ID, CYCLE_ID, CapitalKind.TIME))
                 .thenReturn(new BigDecimal("90.0000"));
 
         assertThatThrownBy(() -> createService().allocateCapital(
@@ -157,12 +159,13 @@ class AllocationServiceImplTest {
         whenOwnedCycle(cycle);
         when(timeCapitalRepository.findByCapitalCycleIdForUpdate(CYCLE_ID)).thenReturn(Optional.of(timeCapital));
         when(capitalAllocationRepository.findTargetForUpdate(
+                OWNER_ID,
                 CYCLE_ID,
                 CapitalKind.TIME,
                 AllocationTargetType.TASK,
                 SOURCE_TASK_ID
         )).thenReturn(Optional.empty());
-        when(capitalAllocationRepository.sumAllocatedAmount(CYCLE_ID, CapitalKind.TIME))
+        when(capitalAllocationRepository.sumAllocatedAmount(OWNER_ID, CYCLE_ID, CapitalKind.TIME))
                 .thenReturn(new BigDecimal("90.0000"));
 
         assertThatThrownBy(() -> createService().allocateCapital(
@@ -197,12 +200,13 @@ class AllocationServiceImplTest {
         whenOwnedCycle(cycle);
         when(timeCapitalRepository.findByCapitalCycleIdForUpdate(CYCLE_ID)).thenReturn(Optional.of(timeCapital));
         when(capitalAllocationRepository.findTargetForUpdate(
+                OWNER_ID,
                 CYCLE_ID,
                 CapitalKind.TIME,
                 AllocationTargetType.TASK,
                 SOURCE_TASK_ID
         )).thenReturn(Optional.of(existing));
-        when(capitalAllocationRepository.sumAllocatedAmount(CYCLE_ID, CapitalKind.TIME))
+        when(capitalAllocationRepository.sumAllocatedAmount(OWNER_ID, CYCLE_ID, CapitalKind.TIME))
                 .thenReturn(new BigDecimal("90.0000"));
         when(capitalAllocationRepository.saveAndFlush(any(CapitalAllocation.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -255,13 +259,14 @@ class AllocationServiceImplTest {
         whenOwnedCycle(cycle);
         when(timeCapitalRepository.findByCapitalCycleIdForUpdate(CYCLE_ID)).thenReturn(Optional.of(timeCapital));
         when(capitalAllocationRepository.findTargetsForUpdate(
+                OWNER_ID,
                 CYCLE_ID,
                 CapitalKind.TIME,
                 AllocationTargetType.TASK,
                 List.of(SOURCE_TASK_ID, DESTINATION_TASK_ID).stream().sorted().toList()
         )).thenReturn(List.of(source, destination));
         when(capitalAllocationRepository.saveAndFlush(destination)).thenReturn(destination);
-        when(capitalAllocationRepository.sumAllocatedAmount(CYCLE_ID, CapitalKind.TIME))
+        when(capitalAllocationRepository.sumAllocatedAmount(OWNER_ID, CYCLE_ID, CapitalKind.TIME))
                 .thenReturn(new BigDecimal("120.0000"));
         stubHistoryIds();
 
@@ -308,6 +313,7 @@ class AllocationServiceImplTest {
         whenOwnedCycle(cycle);
         when(timeCapitalRepository.findByCapitalCycleIdForUpdate(CYCLE_ID)).thenReturn(Optional.of(timeCapital));
         when(capitalAllocationRepository.findTargetsForUpdate(
+                OWNER_ID,
                 CYCLE_ID,
                 CapitalKind.TIME,
                 AllocationTargetType.TASK,
@@ -345,12 +351,13 @@ class AllocationServiceImplTest {
         whenOwnedCycle(cycle);
         when(timeCapitalRepository.findByCapitalCycleIdForUpdate(CYCLE_ID)).thenReturn(Optional.of(timeCapital));
         when(capitalAllocationRepository.findTargetForUpdate(
+                OWNER_ID,
                 CYCLE_ID,
                 CapitalKind.TIME,
                 AllocationTargetType.TASK,
                 SOURCE_TASK_ID
         )).thenReturn(Optional.of(allocation));
-        when(capitalAllocationRepository.sumAllocatedAmount(CYCLE_ID, CapitalKind.TIME))
+        when(capitalAllocationRepository.sumAllocatedAmount(OWNER_ID, CYCLE_ID, CapitalKind.TIME))
                 .thenReturn(new BigDecimal("40.0000"));
         stubHistoryIds();
 

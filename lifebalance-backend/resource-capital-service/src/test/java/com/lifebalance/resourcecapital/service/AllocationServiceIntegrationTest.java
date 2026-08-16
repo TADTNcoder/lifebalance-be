@@ -93,11 +93,12 @@ class AllocationServiceIntegrationTest {
         assertThat(response.totalAllocatedAmount()).isEqualByComparingTo("45.0000");
         assertThat(response.remainingAmount()).isEqualByComparingTo("75.0000");
         assertThat(capitalAllocationReader.getAllocatedMinutes(cycle.getId())).isEqualTo(45L);
-        assertThat(capitalAllocationRepository.findByCapitalCycleIdAndCapitalTypeAndTargetTypeAndTargetId(
+        assertThat(capitalAllocationRepository.findByUserIdAndCapitalCycleIdAndTargetTypeAndTargetIdAndCapitalType(
+                OWNER_ID,
                 cycle.getId(),
-                CapitalKind.TIME,
                 AllocationTargetType.TASK,
-                SOURCE_TASK_ID
+                SOURCE_TASK_ID,
+                CapitalKind.TIME
         )).isPresent()
                 .get()
                 .satisfies(allocation -> assertThat(allocation.getAllocatedAmount()).isEqualByComparingTo("45.0000"));
@@ -220,11 +221,12 @@ class AllocationServiceIntegrationTest {
         assertThat(reallocateResponse.targetAllocatedAmount()).isEqualByComparingTo("30.0000");
         assertThat(releaseResponse.targetAllocatedAmount()).isEqualByComparingTo("0.0000");
         assertThat(releaseResponse.totalAllocatedAmount()).isEqualByComparingTo("50.0000");
-        assertThat(capitalAllocationRepository.findByCapitalCycleIdAndCapitalTypeAndTargetTypeAndTargetId(
+        assertThat(capitalAllocationRepository.findByUserIdAndCapitalCycleIdAndTargetTypeAndTargetIdAndCapitalType(
+                OWNER_ID,
                 cycle.getId(),
-                CapitalKind.TIME,
                 AllocationTargetType.TASK,
-                DESTINATION_TASK_ID
+                DESTINATION_TASK_ID,
+                CapitalKind.TIME
         )).isPresent()
                 .get()
                 .satisfies(allocation -> {

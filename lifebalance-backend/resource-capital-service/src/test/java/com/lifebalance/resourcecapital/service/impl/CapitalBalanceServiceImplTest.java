@@ -57,9 +57,9 @@ class CapitalBalanceServiceImplTest {
         when(timeCapitalRepository.findByCapitalCycleId(CYCLE_ID)).thenReturn(Optional.of(TimeCapital.create(cycle, 480L)));
         when(moneyCapitalRepository.findByCapitalCycleId(CYCLE_ID))
                 .thenReturn(Optional.of(MoneyCapital.create(cycle, new BigDecimal("1000.0000"), "VND")));
-        when(capitalAllocationRepository.sumAllocatedAmount(CYCLE_ID, CapitalKind.TIME))
+        when(capitalAllocationRepository.sumAllocatedAmount(OWNER_ID, CYCLE_ID, CapitalKind.TIME))
                 .thenReturn(new BigDecimal("120.0000"));
-        when(capitalAllocationRepository.sumAllocatedAmount(CYCLE_ID, CapitalKind.MONEY))
+        when(capitalAllocationRepository.sumAllocatedAmount(OWNER_ID, CYCLE_ID, CapitalKind.MONEY))
                 .thenReturn(new BigDecimal("1250.0000"));
 
         CapitalBalanceResponse response = createService().getCycleBalance(OWNER_ID, CYCLE_ID);
@@ -83,8 +83,8 @@ class CapitalBalanceServiceImplTest {
         when(capitalCycleRepository.findByIdAndOwnerId(CYCLE_ID, OWNER_ID)).thenReturn(Optional.of(draftCycle()));
         when(timeCapitalRepository.findByCapitalCycleId(CYCLE_ID)).thenReturn(Optional.empty());
         when(moneyCapitalRepository.findByCapitalCycleId(CYCLE_ID)).thenReturn(Optional.empty());
-        when(capitalAllocationRepository.sumAllocatedAmount(CYCLE_ID, CapitalKind.TIME)).thenReturn(BigDecimal.ZERO);
-        when(capitalAllocationRepository.sumAllocatedAmount(CYCLE_ID, CapitalKind.MONEY)).thenReturn(BigDecimal.ZERO);
+        when(capitalAllocationRepository.sumAllocatedAmount(OWNER_ID, CYCLE_ID, CapitalKind.TIME)).thenReturn(BigDecimal.ZERO);
+        when(capitalAllocationRepository.sumAllocatedAmount(OWNER_ID, CYCLE_ID, CapitalKind.MONEY)).thenReturn(BigDecimal.ZERO);
 
         CapitalBalanceResponse response = createService().getCycleBalance(OWNER_ID, CYCLE_ID);
 
@@ -102,11 +102,11 @@ class CapitalBalanceServiceImplTest {
         when(timeCapitalRepository.findByCapitalCycleId(CYCLE_ID)).thenReturn(Optional.of(TimeCapital.create(cycle, 480L)));
         when(moneyCapitalRepository.findByCapitalCycleId(CYCLE_ID))
                 .thenReturn(Optional.of(MoneyCapital.create(cycle, new BigDecimal("1000.0000"), "VND")));
-        when(capitalAllocationRepository.sumAllocatedAmount(CYCLE_ID, CapitalKind.TIME))
+        when(capitalAllocationRepository.sumAllocatedAmount(OWNER_ID, CYCLE_ID, CapitalKind.TIME))
                 .thenReturn(new BigDecimal("240.0000"));
-        when(capitalAllocationRepository.sumAllocatedAmount(CYCLE_ID, CapitalKind.MONEY))
+        when(capitalAllocationRepository.sumAllocatedAmount(OWNER_ID, CYCLE_ID, CapitalKind.MONEY))
                 .thenReturn(new BigDecimal("500.0000"));
-        when(capitalAllocationRepository.findAllocationBreakdownByTargetType(CYCLE_ID, AllocationTargetType.TASK))
+        when(capitalAllocationRepository.findAllocationBreakdownByUserIdAndTargetType(OWNER_ID, CYCLE_ID, AllocationTargetType.TASK))
                 .thenReturn(List.of(projection(CapitalKind.TIME, TASK_ID, new BigDecimal("120.0000"))));
 
         List<ResourceBreakdownDto> breakdown = createService().getAllocationBreakdownByTarget(
