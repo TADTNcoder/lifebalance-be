@@ -135,12 +135,17 @@ CREATE INDEX IF NOT EXISTS idx_capital_adjustments_created_at
 CREATE TABLE IF NOT EXISTS resourcecapital.capital_allocations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     capital_cycle_id UUID NOT NULL,
+    user_id UUID NOT NULL,
     capital_type VARCHAR(32) NOT NULL,
     target_type VARCHAR(64) NOT NULL,
     target_id UUID NOT NULL,
     allocated_amount NUMERIC(19, 4) NOT NULL,
     spent_amount NUMERIC(19, 4) NOT NULL DEFAULT 0,
+    released_amount NUMERIC(19, 4) NOT NULL DEFAULT 0,
     status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
+    is_over_allocated BOOLEAN NOT NULL DEFAULT FALSE,
+    over_allocation_confirmed BOOLEAN NOT NULL DEFAULT FALSE,
+    note VARCHAR(1000),
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     version BIGINT NOT NULL DEFAULT 0
@@ -148,23 +153,46 @@ CREATE TABLE IF NOT EXISTS resourcecapital.capital_allocations (
 
 ALTER TABLE resourcecapital.capital_allocations
     ADD COLUMN IF NOT EXISTS capital_cycle_id UUID,
+    ADD COLUMN IF NOT EXISTS user_id UUID,
     ADD COLUMN IF NOT EXISTS capital_type VARCHAR(32),
     ADD COLUMN IF NOT EXISTS target_type VARCHAR(64),
     ADD COLUMN IF NOT EXISTS target_id UUID,
     ADD COLUMN IF NOT EXISTS allocated_amount NUMERIC(19, 4),
     ADD COLUMN IF NOT EXISTS spent_amount NUMERIC(19, 4) DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS released_amount NUMERIC(19, 4) DEFAULT 0,
     ADD COLUMN IF NOT EXISTS status VARCHAR(32) DEFAULT 'ACTIVE',
+    ADD COLUMN IF NOT EXISTS is_over_allocated BOOLEAN DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS over_allocation_confirmed BOOLEAN DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS note VARCHAR(1000),
     ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     ADD COLUMN IF NOT EXISTS version BIGINT DEFAULT 0;
+
+UPDATE resourcecapital.capital_allocations allocation
+SET user_id = cycle.owner_id
+FROM resourcecapital.capital_cycles cycle
+WHERE allocation.capital_cycle_id = cycle.id
+  AND allocation.user_id IS NULL;
 
 UPDATE resourcecapital.capital_allocations
 SET spent_amount = 0
 WHERE spent_amount IS NULL;
 
 UPDATE resourcecapital.capital_allocations
+SET released_amount = 0
+WHERE released_amount IS NULL;
+
+UPDATE resourcecapital.capital_allocations
 SET status = 'ACTIVE'
 WHERE status IS NULL;
+
+UPDATE resourcecapital.capital_allocations
+SET is_over_allocated = FALSE
+WHERE is_over_allocated IS NULL;
+
+UPDATE resourcecapital.capital_allocations
+SET over_allocation_confirmed = FALSE
+WHERE over_allocation_confirmed IS NULL;
 
 UPDATE resourcecapital.capital_allocations
 SET created_at = CURRENT_TIMESTAMP
@@ -181,14 +209,21 @@ WHERE version IS NULL;
 ALTER TABLE resourcecapital.capital_allocations
     ALTER COLUMN id SET DEFAULT gen_random_uuid(),
     ALTER COLUMN capital_cycle_id SET NOT NULL,
+    ALTER COLUMN user_id SET NOT NULL,
     ALTER COLUMN capital_type SET NOT NULL,
     ALTER COLUMN target_type SET NOT NULL,
     ALTER COLUMN target_id SET NOT NULL,
     ALTER COLUMN allocated_amount SET NOT NULL,
     ALTER COLUMN spent_amount SET NOT NULL,
     ALTER COLUMN spent_amount SET DEFAULT 0,
+    ALTER COLUMN released_amount SET NOT NULL,
+    ALTER COLUMN released_amount SET DEFAULT 0,
     ALTER COLUMN status SET NOT NULL,
     ALTER COLUMN status SET DEFAULT 'ACTIVE',
+    ALTER COLUMN is_over_allocated SET NOT NULL,
+    ALTER COLUMN is_over_allocated SET DEFAULT FALSE,
+    ALTER COLUMN over_allocation_confirmed SET NOT NULL,
+    ALTER COLUMN over_allocation_confirmed SET DEFAULT FALSE,
     ALTER COLUMN created_at SET NOT NULL,
     ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP,
     ALTER COLUMN updated_at SET NOT NULL,
@@ -250,7 +285,7 @@ BEGIN
     ) THEN
         ALTER TABLE resourcecapital.capital_allocations
             ADD CONSTRAINT chk_capital_allocations_target_type
-            CHECK (target_type IN ('TASK'));
+            CHECK (target_type IN ('TASK', 'TASK_CATALOG', 'PROJECT'));
     END IF;
 END $$;
 
@@ -287,12 +322,40 @@ BEGIN
     IF NOT EXISTS (
         SELECT 1
         FROM pg_constraint
+        WHERE conname = 'chk_capital_allocations_released_amount'
+          AND conrelid = 'resourcecapital.capital_allocations'::regclass
+    ) THEN
+        ALTER TABLE resourcecapital.capital_allocations
+            ADD CONSTRAINT chk_capital_allocations_released_amount
+            CHECK (released_amount >= 0);
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
         WHERE conname = 'chk_capital_allocations_status'
           AND conrelid = 'resourcecapital.capital_allocations'::regclass
     ) THEN
         ALTER TABLE resourcecapital.capital_allocations
             ADD CONSTRAINT chk_capital_allocations_status
-            CHECK (status IN ('ACTIVE', 'CLOSED', 'RELEASED'));
+            CHECK (status IN ('ACTIVE', 'REALLOCATED', 'RELEASED', 'CLOSED'));
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'chk_capital_allocations_over_allocation_flags'
+          AND conrelid = 'resourcecapital.capital_allocations'::regclass
+    ) THEN
+        ALTER TABLE resourcecapital.capital_allocations
+            ADD CONSTRAINT chk_capital_allocations_over_allocation_flags
+            CHECK (over_allocation_confirmed = FALSE OR is_over_allocated = TRUE);
     END IF;
 END $$;
 
