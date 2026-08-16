@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.lifebalance.task.dto.request.CreateTaskRequest;
 import com.lifebalance.task.dto.request.UpdateTaskRequest;
 import com.lifebalance.task.dto.response.TaskResponse;
+import com.lifebalance.task.error.TaskExceptions;
 import com.lifebalance.task.model.Category;
 import com.lifebalance.task.model.Task;
 import com.lifebalance.task.model.enums.TaskStatus;
@@ -67,7 +68,7 @@ public class TaskServiceImpl implements TaskService {
 
         Task task = taskRepository
                 .findByIdAndOwnerId(id, ownerId)
-                .orElseThrow(() -> new RuntimeException("Task not found"));
+                .orElseThrow(TaskExceptions::taskNotFound);
 
         ensureNameAvailable(
                 request.getName(),
@@ -124,7 +125,7 @@ public class TaskServiceImpl implements TaskService {
 
         Task task = taskRepository
                 .findByIdAndOwnerId(id, ownerId)
-                .orElseThrow(() -> new RuntimeException("Task not found"));
+                .orElseThrow(TaskExceptions::taskNotFound);
 
         task.archive();
 
@@ -139,7 +140,7 @@ public class TaskServiceImpl implements TaskService {
 
         Task task = taskRepository
                 .findByIdAndOwnerId(id, ownerId)
-                .orElseThrow(() -> new RuntimeException("Task not found"));
+                .orElseThrow(TaskExceptions::taskNotFound);
 
         task.restore();
 
@@ -154,7 +155,7 @@ public class TaskServiceImpl implements TaskService {
 
         Task task = taskRepository
                 .findByIdAndOwnerId(id, ownerId)
-                .orElseThrow(() -> new RuntimeException("Task not found"));
+                .orElseThrow(TaskExceptions::taskNotFound);
 
         taskRepository.delete(task);
     }
@@ -167,7 +168,7 @@ public class TaskServiceImpl implements TaskService {
 
         Task source = taskRepository
                 .findByIdAndOwnerId(id, ownerId)
-                .orElseThrow(() -> new RuntimeException("Task not found"));
+                .orElseThrow(TaskExceptions::taskNotFound);
 
         String copyName = source.getName() + " (Copy)";
 
@@ -202,7 +203,7 @@ public class TaskServiceImpl implements TaskService {
 
         Task task = taskRepository
                 .findByIdAndOwnerId(id, ownerId)
-                .orElseThrow(() -> new RuntimeException("Task not found"));
+                .orElseThrow(TaskExceptions::taskNotFound);
 
         return mapToResponse(task);
     }
@@ -220,8 +221,7 @@ public class TaskServiceImpl implements TaskService {
                             || !existingTask.getId()
                                     .equals(currentTaskId)) {
 
-                        throw new RuntimeException(
-                                "Task name already exists");
+                        throw TaskExceptions.taskNameAlreadyExists();
                     }
                 });
     }
@@ -235,8 +235,7 @@ public class TaskServiceImpl implements TaskService {
 
         return categoryRepository
                 .findById(categoryId)
-                .orElseThrow(() -> new RuntimeException(
-                        "Category not found"));
+                .orElseThrow(TaskExceptions::categoryNotFound);
     }
 
     private TaskResponse mapToResponse(

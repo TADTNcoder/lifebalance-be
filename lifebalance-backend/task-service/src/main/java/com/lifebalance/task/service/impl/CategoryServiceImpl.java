@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.lifebalance.task.dto.request.CreateCategoryRequest;
 import com.lifebalance.task.dto.request.UpdateCategoryRequest;
 import com.lifebalance.task.dto.response.CategoryResponse;
+import com.lifebalance.task.error.TaskExceptions;
 import com.lifebalance.task.model.Category;
 import com.lifebalance.task.repository.CategoryRepository;
 import com.lifebalance.task.service.CategoryService;
@@ -27,12 +28,12 @@ public class CategoryServiceImpl implements CategoryService {
     public CategoryResponse create(CreateCategoryRequest request) {
 
         if (categoryRepository.existsByName(request.getName())) {
-            throw new RuntimeException("Category name already exists");
+            throw TaskExceptions.categoryNameAlreadyExists();
         }
 
         String slug = resolveSlug(request.getSlug(), request.getName());
         if (categoryRepository.existsBySlug(slug)) {
-            throw new RuntimeException("Category slug already exists");
+            throw TaskExceptions.categorySlugAlreadyExists();
         }
 
         Category category = Category.builder()
@@ -75,7 +76,7 @@ public class CategoryServiceImpl implements CategoryService {
         categoryRepository.findByName(request.getName())
                 .ifPresent(existing -> {
                     if (!existing.getId().equals(id)) {
-                        throw new RuntimeException("Category name already exists");
+                        throw TaskExceptions.categoryNameAlreadyExists();
                     }
                 });
 
@@ -83,7 +84,7 @@ public class CategoryServiceImpl implements CategoryService {
         categoryRepository.findBySlug(slug)
                 .ifPresent(existing -> {
                     if (!existing.getId().equals(id)) {
-                        throw new RuntimeException("Category slug already exists");
+                        throw TaskExceptions.categorySlugAlreadyExists();
                     }
                 });
 
@@ -109,7 +110,7 @@ public class CategoryServiceImpl implements CategoryService {
 
     private Category getCategoryOrThrow(UUID id) {
         return categoryRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Category not found"));
+                .orElseThrow(TaskExceptions::categoryNotFound);
     }
 
     private CategoryResponse mapToResponse(Category category) {

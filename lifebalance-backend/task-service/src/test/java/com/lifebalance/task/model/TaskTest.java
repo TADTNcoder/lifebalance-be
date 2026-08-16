@@ -88,7 +88,7 @@ class TaskTest {
     @Test
     void completedTaskCannotEditPlanningBeforeReopen() {
         Task task = baseTask();
-        task.plan(PriorityLevel.MEDIUM, LocalDate.now().plusDays(1), null, null, null);
+        task.plan(PriorityLevel.MEDIUM, LocalDate.now().plusDays(1), 30, null, null);
         task.markAsCompleted();
 
         assertThatThrownBy(() -> task.updateDetails(
@@ -102,7 +102,7 @@ class TaskTest {
         )).isInstanceOf(IllegalStateException.class);
 
         task.reopen();
-        task.updateDetails("Changed", null, PriorityLevel.LOW, null, null, null, null);
+        task.updateDetails("Changed", null, PriorityLevel.LOW, null, 30, null, null);
 
         assertThat(task.getName()).isEqualTo("Changed");
     }
@@ -115,7 +115,7 @@ class TaskTest {
 
         assertThat(task.isOverdue(today)).isTrue();
 
-        task.plan(PriorityLevel.LOW, today.minusDays(1), null, null, null);
+        task.plan(PriorityLevel.LOW, today.minusDays(1), 30, null, null);
         task.markAsCompleted();
 
         assertThat(task.isOverdue(today)).isFalse();
@@ -138,6 +138,7 @@ class TaskTest {
     void beanValidationCatchesRequiredAndRangeConstraints() {
         Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
         Task task = Task.builder()
+                .ownerId(userId)
                 .userId(userId)
                 .name(" ")
                 .status(TaskStatus.DRAFT)
@@ -153,6 +154,7 @@ class TaskTest {
 
     private Task baseTask() {
         return Task.builder()
+                .ownerId(userId)
                 .userId(userId)
                 .name("Morning planning")
                 .build();

@@ -39,6 +39,7 @@ class TaskServiceImplTest {
     @BeforeEach
     void setUp() {
         mockTask = Task.builder()
+                .ownerId(USER_ID)
                 .userId(USER_ID)
                 .name("Học Spring Boot")
                 .description("Học để làm đồ án")
@@ -59,13 +60,15 @@ class TaskServiceImplTest {
     // 1. KỊCH BẢN: TEST DUPLICATE TASK (NHÂN BẢN)
     @Test
     void duplicate_Success() {
-        when(taskRepository.findById(TASK_ID)).thenReturn(Optional.of(mockTask));
+        when(taskRepository.findByIdAndOwnerId(TASK_ID, USER_ID)).thenReturn(Optional.of(mockTask));
+        when(taskRepository.findByNameAndOwnerId("Học Spring Boot (Copy)", USER_ID))
+                .thenReturn(Optional.empty());
         when(taskRepository.save(any(Task.class))).thenAnswer(i -> {
             Task savedTask = i.getArgument(0);
             return savedTask;
         });
 
-        TaskResponse response = taskService.duplicate(TASK_ID);
+        TaskResponse response = taskService.duplicate(TASK_ID, USER_ID);
 
         assertNotNull(response);
         assertEquals("Học Spring Boot (Copy)", response.getName()); // Kiểm tra có chữ (Copy) không
@@ -77,20 +80,20 @@ class TaskServiceImplTest {
 
     @Test
     void duplicate_TaskNotFound_ThrowsException() {
-        when(taskRepository.findById(TASK_ID)).thenReturn(Optional.empty());
+        when(taskRepository.findByIdAndOwnerId(TASK_ID, USER_ID)).thenReturn(Optional.empty());
 
-        Exception exception = assertThrows(RuntimeException.class, () -> taskService.duplicate(TASK_ID));
+        Exception exception = assertThrows(RuntimeException.class, () -> taskService.duplicate(TASK_ID, USER_ID));
         assertEquals("Task not found", exception.getMessage());
     }
 
     // 2. KỊCH BẢN: TEST ARCHIVE (LƯU TRỮ)
     @Test
     void archive_Success() {
-        when(taskRepository.findById(TASK_ID)).thenReturn(Optional.of(mockTask));
+        when(taskRepository.findByIdAndOwnerId(TASK_ID, USER_ID)).thenReturn(Optional.of(mockTask));
 
         // Gọi hàm giả lập task.archive() vì không thấy ruột của hàm này trong file gửi
         // Thông thường hàm này sẽ đổi trạng thái hoặc set deleted_at
-        taskService.archive(TASK_ID);
+        taskService.archive(TASK_ID, USER_ID);
 
         verify(taskRepository, times(1)).save(mockTask);
     }
@@ -99,9 +102,9 @@ class TaskServiceImplTest {
     @Test
     void restore_Success() {
         mockTask.archive();
-        when(taskRepository.findById(TASK_ID)).thenReturn(Optional.of(mockTask));
+        when(taskRepository.findByIdAndOwnerId(TASK_ID, USER_ID)).thenReturn(Optional.of(mockTask));
 
-        taskService.restore(TASK_ID);
+        taskService.restore(TASK_ID, USER_ID);
 
         assertEquals(TaskStatus.PLANNED, mockTask.getStatus());
         verify(taskRepository, times(1)).save(mockTask);

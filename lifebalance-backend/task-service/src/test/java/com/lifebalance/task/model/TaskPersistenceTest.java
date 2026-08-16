@@ -38,6 +38,7 @@ class TaskPersistenceTest {
 
         UUID userId = UUID.randomUUID();
         Task task = Task.builder()
+                .ownerId(userId)
                 .userId(userId)
                 .name("Exercise")
                 .description("Strength training")
@@ -68,6 +69,7 @@ class TaskPersistenceTest {
     @Test
     void validationRunsBeforePersistingInvalidTask() {
         Task task = Task.builder()
+                .ownerId(UUID.randomUUID())
                 .userId(UUID.randomUUID())
                 .name("")
                 .progress(0)

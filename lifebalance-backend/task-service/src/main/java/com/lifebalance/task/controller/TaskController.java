@@ -2,9 +2,10 @@ package com.lifebalance.task.controller;
 
 import java.util.UUID;
 
+import com.lifebalance.common.web.PageableLimits;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.web.bind.annotation.*;
 
 import com.lifebalance.security.keycloak.KeycloakUserMappingFilter;
@@ -58,7 +59,7 @@ public class TaskController {
 
         UUID ownerId = getCurrentUserId(httpRequest);
 
-        Pageable pageable = PageRequest.of(page, size);
+        Pageable pageable = PageableLimits.of(page, size);
 
         return taskService.search(
                 ownerId,
@@ -137,8 +138,8 @@ public class TaskController {
         if (currentUser == null
                 || currentUser.userId() == null) {
 
-            throw new RuntimeException(
-                    "Authenticated user not found");
+            throw new AuthenticationCredentialsNotFoundException(
+                    "Authenticated internal user id is required.");
         }
 
         return currentUser.userId();

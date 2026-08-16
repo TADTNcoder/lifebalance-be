@@ -53,6 +53,7 @@ public class TaskTag {
                 .id(new TaskTagId(task.getId(), tag.getId()))
                 .task(task)
                 .tag(tag)
+                .assignedAt(OffsetDateTime.now())
                 .build();
     }
 
