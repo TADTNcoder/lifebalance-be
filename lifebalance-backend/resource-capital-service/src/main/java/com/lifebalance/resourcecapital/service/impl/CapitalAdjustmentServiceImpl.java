@@ -9,19 +9,17 @@ import com.lifebalance.resourcecapital.domain.capital.exception.InvalidAdjustmen
 import com.lifebalance.resourcecapital.domain.capitaladjustment.CapitalAdjustment;
 import com.lifebalance.resourcecapital.domain.capitaladjustment.CapitalType;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
-import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleStatus;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.CapitalCycleNotFoundException;
-import com.lifebalance.resourcecapital.domain.capitalcycle.exception.InvalidCapitalCycleStateException;
 import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalActionType;
 import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalActorType;
 import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalHistory;
 import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalReferenceType;
 import com.lifebalance.resourcecapital.domain.moneycapital.MoneyCapital;
 import com.lifebalance.resourcecapital.domain.timecapital.TimeCapital;
+import com.lifebalance.resourcecapital.dto.AdjustCapitalRequestDTO;
 import com.lifebalance.resourcecapital.dto.AdjustMoneyCapitalRequest;
 import com.lifebalance.resourcecapital.dto.AdjustTimeCapitalRequest;
-import com.lifebalance.resourcecapital.dto.CapitalAdjustmentRequest;
-import com.lifebalance.resourcecapital.dto.CapitalAdjustmentResponse;
+import com.lifebalance.resourcecapital.dto.CapitalAdjustmentResponseDTO;
 import com.lifebalance.resourcecapital.dto.MoneyCapitalAdjustmentResponse;
 import com.lifebalance.resourcecapital.dto.TimeCapitalAdjustmentResponse;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalAdjustmentRepository;
@@ -80,13 +78,14 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
 
     @Transactional
     @Override
-    public CapitalAdjustmentResponse adjustCapital(UUID ownerId, CapitalAdjustmentRequest request) {
+    public CapitalAdjustmentResponseDTO adjustCapital(UUID ownerId, AdjustCapitalRequestDTO request) {
+        Objects.requireNonNull(ownerId, "Owner id is required.");
         Objects.requireNonNull(request, "Capital adjustment request is required.");
         UUID cycleId = requireCapitalCycleId(request.capitalCycleId());
         CapitalKind capitalType = requireCapitalType(request.capitalType());
         CapitalAdjustmentType adjustmentType = requireApiAdjustmentType(request.adjustmentType());
         String reason = requireReason(request.reason());
-        CapitalCycle cycle = findActiveOwnedCycle(ownerId, cycleId);
+        CapitalCycle cycle = findAdjustableOwnedCycle(ownerId, cycleId);
 
         return switch (capitalType) {
             case TIME -> adjustTimeCapital(cycle, ownerId, adjustmentType, request.amount(), reason);
@@ -127,20 +126,16 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
             timeCapital.decreasePlannedMinutes(amountInMinutes);
         }
 
-        CapitalHistory history = capitalHistoryRepository.saveAndFlush(CapitalHistory.record(
+        CapitalAdjustmentResponseDTO adjustment = recordAdjustmentAndHistory(
                 cycle,
+                ownerId,
                 CapitalKind.TIME,
+                adjustmentType,
                 actionType,
-                money(amountInMinutes),
                 money(beforeMinutes),
                 money(timeCapital.getPlannedMinutes()),
-                reason,
-                null,
-                CapitalReferenceType.MANUAL,
-                null,
-                CapitalActorType.USER,
-                ownerId
-        ));
+                reason
+        );
 
         return new TimeCapitalAdjustmentResponse(
                 cycleId,
@@ -149,7 +144,7 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
                 beforeMinutes,
                 timeCapital.getPlannedMinutes(),
                 reason,
-                history.getId()
+                adjustment.historyId()
         );
     }
 
@@ -186,20 +181,16 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
             moneyCapital.decreasePlannedAmount(amount);
         }
 
-        CapitalHistory history = capitalHistoryRepository.saveAndFlush(CapitalHistory.record(
+        CapitalAdjustmentResponseDTO adjustment = recordAdjustmentAndHistory(
                 cycle,
+                ownerId,
                 CapitalKind.MONEY,
+                adjustmentType,
                 actionType,
-                amount,
                 beforeAmount,
                 moneyCapital.getPlannedAmount(),
-                reason,
-                null,
-                CapitalReferenceType.MANUAL,
-                null,
-                CapitalActorType.USER,
-                ownerId
-        ));
+                reason
+        );
 
         return new MoneyCapitalAdjustmentResponse(
                 cycleId,
@@ -209,13 +200,13 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
                 moneyCapital.getPlannedAmount(),
                 moneyCapital.getCurrencyCode(),
                 reason,
-                history.getId()
+                adjustment.historyId()
         );
     }
 
     @Transactional(readOnly = true)
     @Override
-    public Page<CapitalAdjustmentResponse> getAdjustments(
+    public Page<CapitalAdjustmentResponseDTO> getAdjustmentHistory(
             UUID ownerId,
             UUID capitalCycleId,
             CapitalKind capitalType,
@@ -240,7 +231,7 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
                 .map(this::toResponse);
     }
 
-    private CapitalAdjustmentResponse adjustTimeCapital(
+    private CapitalAdjustmentResponseDTO adjustTimeCapital(
             CapitalCycle cycle,
             UUID ownerId,
             CapitalAdjustmentType adjustmentType,
@@ -248,7 +239,9 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
             String reason
     ) {
         TimeCapital timeCapital = findTimeCapital(cycle.getId());
-        long amountInMinutes = requireWholePositiveMinutes(requestedAmount);
+        long amountInMinutes = adjustmentType == CapitalAdjustmentType.OVERRIDE
+                ? requireWholeZeroOrPositiveMinutes(requestedAmount)
+                : requireWholePositiveMinutes(requestedAmount);
         long beforeMinutes = timeCapital.getPlannedMinutes();
         long afterMinutes = switch (adjustmentType) {
             case INCREASE -> increaseTimeCapital(timeCapital, amountInMinutes);
@@ -262,14 +255,13 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
                 CapitalKind.TIME,
                 adjustmentType,
                 toHistoryActionType(adjustmentType),
-                money(amountInMinutes),
                 money(beforeMinutes),
                 money(afterMinutes),
                 reason
         );
     }
 
-    private CapitalAdjustmentResponse adjustMoneyCapital(
+    private CapitalAdjustmentResponseDTO adjustMoneyCapital(
             CapitalCycle cycle,
             UUID ownerId,
             CapitalAdjustmentType adjustmentType,
@@ -277,7 +269,9 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
             String reason
     ) {
         MoneyCapital moneyCapital = findMoneyCapital(cycle.getId());
-        BigDecimal amount = requirePositiveMoney(requestedAmount);
+        BigDecimal amount = adjustmentType == CapitalAdjustmentType.OVERRIDE
+                ? requireZeroOrPositiveMoney(requestedAmount)
+                : requirePositiveMoney(requestedAmount);
         BigDecimal beforeAmount = moneyCapital.getPlannedAmount();
         BigDecimal afterAmount = switch (adjustmentType) {
             case INCREASE -> increaseMoneyCapital(moneyCapital, beforeAmount, amount);
@@ -291,7 +285,6 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
                 CapitalKind.MONEY,
                 adjustmentType,
                 toHistoryActionType(adjustmentType),
-                amount,
                 beforeAmount,
                 afterAmount,
                 reason
@@ -395,17 +388,17 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
         }
     }
 
-    private CapitalAdjustmentResponse recordAdjustmentAndHistory(
+    private CapitalAdjustmentResponseDTO recordAdjustmentAndHistory(
             CapitalCycle cycle,
             UUID ownerId,
             CapitalKind capitalType,
             CapitalAdjustmentType adjustmentType,
             CapitalActionType actionType,
-            BigDecimal amount,
             BigDecimal beforeAmount,
             BigDecimal afterAmount,
             String reason
     ) {
+        BigDecimal amountDelta = afterAmount.subtract(beforeAmount).setScale(MONEY_SCALE, RoundingMode.UNNECESSARY);
         CapitalAdjustment adjustment = capitalAdjustmentRepository.saveAndFlush(CapitalAdjustment.record(
                 cycle,
                 ownerId,
@@ -420,7 +413,7 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
                 cycle,
                 capitalType,
                 actionType,
-                amount,
+                amountDelta.abs(),
                 beforeAmount,
                 afterAmount,
                 reason,
@@ -431,13 +424,13 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
                 ownerId
         ));
 
-        return new CapitalAdjustmentResponse(
+        return new CapitalAdjustmentResponseDTO(
                 adjustment.getId(),
                 cycle.getId(),
                 capitalType,
                 adjustmentType,
                 actionType,
-                amount,
+                amountDelta,
                 beforeAmount,
                 afterAmount,
                 reason,
@@ -446,33 +439,20 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
         );
     }
 
-    private CapitalAdjustmentResponse toResponse(CapitalAdjustment adjustment) {
-        return new CapitalAdjustmentResponse(
+    private CapitalAdjustmentResponseDTO toResponse(CapitalAdjustment adjustment) {
+        return new CapitalAdjustmentResponseDTO(
                 adjustment.getId(),
                 adjustment.getCapitalCycle().getId(),
                 adjustment.getCapitalType(),
                 adjustment.getAdjustmentType(),
                 toHistoryActionType(adjustment.getAdjustmentType()),
-                adjustment.getAmount(),
+                adjustment.getAmountDelta(),
                 adjustment.getPreviousAmount(),
                 adjustment.getNewAmount(),
                 adjustment.getReason(),
                 null,
                 adjustment.getCreatedAt()
         );
-    }
-
-    private CapitalCycle findActiveOwnedCycle(UUID ownerId, UUID cycleId) {
-        CapitalCycle cycle = findOwnedCycle(ownerId, cycleId);
-        if (cycle.getStatus() != CapitalCycleStatus.ACTIVE) {
-            throw new InvalidCapitalCycleStateException(
-                    cycle.getId(),
-                    cycle.getStatus(),
-                    "adjust capital",
-                    "capital adjustment APIs require an ACTIVE cycle"
-            );
-        }
-        return cycle;
     }
 
     private CapitalCycle findAdjustableOwnedCycle(UUID ownerId, UUID cycleId) {
@@ -557,6 +537,17 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
         }
     }
 
+    private long requireWholeZeroOrPositiveMinutes(BigDecimal amount) {
+        BigDecimal normalizedAmount = requireZeroOrPositiveMoney(amount);
+        try {
+            return normalizedAmount.toBigIntegerExact().longValueExact();
+        } catch (ArithmeticException exception) {
+            throw InvalidAdjustmentAmountException.invalidMoney(
+                    "Time adjustment amount must be whole minutes."
+            );
+        }
+    }
+
     private long requirePositiveMinutes(Long amountInMinutes) {
         if (amountInMinutes == null) {
             throw new InvalidAdjustmentAmountException("Time adjustment amount is required.");
@@ -568,6 +559,14 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
     }
 
     private BigDecimal requirePositiveMoney(BigDecimal amount) {
+        BigDecimal normalizedAmount = requireZeroOrPositiveMoney(amount);
+        if (normalizedAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw InvalidAdjustmentAmountException.invalidMoney("amount must be greater than zero");
+        }
+        return normalizedAmount;
+    }
+
+    private BigDecimal requireZeroOrPositiveMoney(BigDecimal amount) {
         if (amount == null) {
             throw InvalidAdjustmentAmountException.invalidMoney("amount is required");
         }
@@ -576,8 +575,8 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
         } catch (ArithmeticException exception) {
             throw InvalidAdjustmentAmountException.invalidMoney("amount scale must not exceed " + MONEY_SCALE);
         }
-        if (amount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw InvalidAdjustmentAmountException.invalidMoney("amount must be greater than zero");
+        if (amount.compareTo(BigDecimal.ZERO) < 0) {
+            throw InvalidAdjustmentAmountException.invalidMoney("amount must be greater than or equal to zero");
         }
         return amount;
     }

@@ -21,4 +21,20 @@ public record CapitalAdjustmentResponse(
         UUID historyId,
         LocalDateTime createdAt
 ) {
+
+    public static CapitalAdjustmentResponse from(CapitalAdjustmentResponseDTO response) {
+        return new CapitalAdjustmentResponse(
+                response.id(),
+                response.capitalCycleId(),
+                response.capitalType(),
+                response.adjustmentType(),
+                response.historyActionType(),
+                response.amountDelta() == null ? null : response.amountDelta().abs(),
+                response.previousAmount(),
+                response.newAmount(),
+                response.reason(),
+                response.historyId(),
+                response.createdAt()
+        );
+    }
 }
