@@ -3,6 +3,7 @@ package com.lifebalance.resourcecapital.controller;
 import static com.lifebalance.security.keycloak.KeycloakUserMappingFilter.CURRENT_USER_ATTRIBUTE;
 
 import com.lifebalance.common.api.ApiResponse;
+import com.lifebalance.common.web.PageableLimits;
 import com.lifebalance.resourcecapital.domain.capital.CapitalKind;
 import com.lifebalance.resourcecapital.domain.capitalallocation.AllocationStatus;
 import com.lifebalance.resourcecapital.dto.AllocationResponse;
@@ -112,7 +113,7 @@ public class CapitalAllocationController {
                 taskId,
                 capitalType,
                 status,
-                pageable
+                PageableLimits.normalize(pageable)
         );
 
         return ResponseEntity.ok(ApiResponse.success(PageResponseDTO.from(allocations)));

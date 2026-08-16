@@ -1,5 +1,6 @@
 package com.lifebalance.resourcecapital.service.impl;
 
+import com.lifebalance.common.web.PageableLimits;
 import com.lifebalance.resourcecapital.domain.capital.CapitalKind;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.CapitalCycleNotFoundException;
@@ -202,13 +203,14 @@ public class CapitalHistoryServiceImpl implements CapitalHistoryService {
     }
 
     private Pageable pageableWithDefaultSort(Pageable pageable) {
-        if (pageable == null || pageable.isUnpaged()) {
+        Pageable normalized = PageableLimits.normalize(pageable);
+        if (normalized.isUnpaged()) {
             return PageRequest.of(0, DEFAULT_PAGE_SIZE, DEFAULT_SORT);
         }
-        if (pageable.getSort().isUnsorted()) {
-            return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), DEFAULT_SORT);
+        if (normalized.getSort().isUnsorted()) {
+            return PageRequest.of(normalized.getPageNumber(), normalized.getPageSize(), DEFAULT_SORT);
         }
-        return pageable;
+        return normalized;
     }
 
     private CapitalHistoryResponseDTO toDto(CapitalHistory history) {
