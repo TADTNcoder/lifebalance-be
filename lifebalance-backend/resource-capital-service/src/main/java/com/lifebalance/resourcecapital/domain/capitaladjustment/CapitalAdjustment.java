@@ -76,6 +76,12 @@ public class CapitalAdjustment {
     @Column(name = "user_id", nullable = false, updatable = false)
     private UUID userId;
 
+    @Column(name = "created_by", updatable = false)
+    private UUID createdBy;
+
+    @Column(name = "updated_by", updatable = false)
+    private UUID updatedBy;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "capital_type", nullable = false, updatable = false, length = 32)
     private CapitalType capitalType;
@@ -100,6 +106,9 @@ public class CapitalAdjustment {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "updated_at", nullable = false, updatable = false)
+    private LocalDateTime updatedAt;
+
     public static CapitalAdjustment record(
             CapitalCycle capitalCycle,
             UUID userId,
@@ -112,6 +121,8 @@ public class CapitalAdjustment {
         CapitalAdjustment adjustment = new CapitalAdjustment();
         adjustment.capitalCycle = Objects.requireNonNull(capitalCycle, "Capital cycle is required.");
         adjustment.userId = Objects.requireNonNull(userId, "Adjustment owner id is required.");
+        adjustment.createdBy = adjustment.userId;
+        adjustment.updatedBy = adjustment.userId;
         adjustment.capitalType = Objects.requireNonNull(CapitalType.from(capitalType), "Capital type is required.");
         adjustment.adjustmentType = Objects.requireNonNull(
                 AdjustmentType.from(adjustmentType),
@@ -127,8 +138,17 @@ public class CapitalAdjustment {
 
     @PrePersist
     void onCreate() {
+        if (createdBy == null) {
+            createdBy = userId;
+        }
+        if (updatedBy == null) {
+            updatedBy = createdBy;
+        }
         if (createdAt == null) {
             createdAt = LocalDateTime.now();
+        }
+        if (updatedAt == null) {
+            updatedAt = createdAt;
         }
     }
 
@@ -142,6 +162,14 @@ public class CapitalAdjustment {
 
     public UUID getUserId() {
         return userId;
+    }
+
+    public UUID getCreatedBy() {
+        return createdBy;
+    }
+
+    public UUID getUpdatedBy() {
+        return updatedBy;
     }
 
     public CapitalKind getCapitalType() {
@@ -174,6 +202,10 @@ public class CapitalAdjustment {
 
     public LocalDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
     }
 
     public CapitalType getCapitalTypeValue() {
