@@ -1,7 +1,7 @@
 package com.lifebalance.resourcecapital.service;
 
 import com.lifebalance.resourcecapital.domain.capital.CapitalKind;
-import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InsufficientAvailableCapitalException;
+import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationConfirmationRequiredException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationNotAllowedException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
 import org.springframework.stereotype.Component;
@@ -42,22 +42,22 @@ public class DefaultAllocationValidator {
             return new AllocationValidationResult(availableCapital, remainingAfterAllocation, false);
         }
 
-        if (!allowOverAllocation) {
-            throw new InsufficientAvailableCapitalException(
-                    cycle.getId(),
-                    capitalType,
-                    availableCapital,
-                    normalizedRequestedAmount
-            );
-        }
         if (!cycle.isOverAllocationAllowed()) {
-            BigDecimal projectedAllocatedAmount = normalizedActiveAllocations.add(normalizedRequestedAmount)
-                    .setScale(MONEY_SCALE, RoundingMode.UNNECESSARY);
             throw new OverAllocationNotAllowedException(
                     cycle.getId(),
                     capitalType,
-                    normalizedTotalCapital,
-                    projectedAllocatedAmount
+                    availableCapital,
+                    normalizedRequestedAmount,
+                    remainingAfterAllocation
+            );
+        }
+        if (!allowOverAllocation) {
+            throw new OverAllocationConfirmationRequiredException(
+                    cycle.getId(),
+                    capitalType,
+                    availableCapital,
+                    normalizedRequestedAmount,
+                    remainingAfterAllocation
             );
         }
 

@@ -5,8 +5,8 @@ import com.lifebalance.resourcecapital.domain.capitalallocation.AllocationStatus
 import com.lifebalance.resourcecapital.domain.capitalallocation.AllocationTargetType;
 import com.lifebalance.resourcecapital.domain.capitalallocation.CapitalAllocation;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InsufficientAllocatedCapitalException;
-import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InsufficientAvailableCapitalException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InvalidAllocationAmountException;
+import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationConfirmationRequiredException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationNotAllowedException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleStatus;
@@ -161,10 +161,10 @@ class AllocationServiceImplTest {
                         false,
                         "Needs confirmation"
                 )
-        )).isInstanceOf(InsufficientAvailableCapitalException.class)
-                .satisfies(exception -> assertThat((InsufficientAvailableCapitalException) exception)
-                        .extracting(InsufficientAvailableCapitalException::getCode)
-                        .isEqualTo(InsufficientAvailableCapitalException.ERROR_CODE));
+        )).isInstanceOf(OverAllocationConfirmationRequiredException.class)
+                .satisfies(exception -> assertThat((OverAllocationConfirmationRequiredException) exception)
+                        .extracting(OverAllocationConfirmationRequiredException::getCode)
+                        .isEqualTo(OverAllocationConfirmationRequiredException.ERROR_CODE));
 
         verify(capitalAllocationRepository, never()).saveAndFlush(any());
         verifyNoInteractions(capitalHistoryRepository);
@@ -173,6 +173,7 @@ class AllocationServiceImplTest {
     @Test
     void allocateCapitalRejectsWhenRequestedAmountExceedsAvailableAfterSpentWithoutMutatingAllocation() {
         CapitalCycle cycle = draftCycle();
+        cycle.allowOverAllocation();
         TimeCapital timeCapital = TimeCapital.create(cycle, 100L);
         CapitalAllocation existing = CapitalAllocation.create(
                 cycle,
@@ -217,7 +218,7 @@ class AllocationServiceImplTest {
                         false,
                         "Should fail before mutation"
                 )
-        )).isInstanceOf(InsufficientAvailableCapitalException.class);
+        )).isInstanceOf(OverAllocationConfirmationRequiredException.class);
 
         assertThat(existing.getAllocatedAmount()).isEqualByComparingTo("20.0000");
         assertThat(existing.getSpentAmount()).isEqualByComparingTo("5.0000");

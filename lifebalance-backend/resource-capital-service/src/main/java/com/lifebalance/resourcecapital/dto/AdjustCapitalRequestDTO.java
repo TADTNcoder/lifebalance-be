@@ -29,7 +29,9 @@ public record AdjustCapitalRequestDTO(
 
         @NotBlank
         @Size(max = 1000)
-        String reason
+        String reason,
+
+        boolean overAllocationConfirmed
 ) {
 
     public static AdjustCapitalRequestDTO from(CapitalAdjustmentRequest request) {
@@ -39,7 +41,8 @@ public record AdjustCapitalRequestDTO(
                 request.capitalType(),
                 request.adjustmentType(),
                 request.amount(),
-                request.reason()
+                request.reason(),
+                request.allowOverAllocation()
         );
     }
 }

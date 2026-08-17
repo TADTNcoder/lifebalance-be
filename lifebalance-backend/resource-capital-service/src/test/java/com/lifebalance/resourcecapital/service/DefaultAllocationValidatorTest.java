@@ -1,7 +1,7 @@
 package com.lifebalance.resourcecapital.service;
 
 import com.lifebalance.resourcecapital.domain.capital.CapitalKind;
-import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InsufficientAvailableCapitalException;
+import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationConfirmationRequiredException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationNotAllowedException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleType;
@@ -22,8 +22,8 @@ class DefaultAllocationValidatorTest {
     private final DefaultAllocationValidator validator = new DefaultAllocationValidator();
 
     @Test
-    void rejectsAllocationAboveAvailableCapitalWithoutOverAllocationConfirmation() {
-        CapitalCycle cycle = activeCycle(false);
+    void requiresConfirmationWhenAllocationExceedsAvailableCapitalAndPolicyAllowsIt() {
+        CapitalCycle cycle = activeCycle(true);
 
         assertThatThrownBy(() -> validator.validateNewAllocation(
                 cycle,
@@ -33,14 +33,16 @@ class DefaultAllocationValidatorTest {
                 new BigDecimal("10.0000"),
                 new BigDecimal("15.0000"),
                 false
-        )).isInstanceOf(InsufficientAvailableCapitalException.class)
+        )).isInstanceOf(OverAllocationConfirmationRequiredException.class)
                 .satisfies(exception -> {
-                    InsufficientAvailableCapitalException capitalException =
-                            (InsufficientAvailableCapitalException) exception;
-                    assertThat(capitalException.getCode()).isEqualTo("INSUFFICIENT_AVAILABLE_CAPITAL");
+                    OverAllocationConfirmationRequiredException capitalException =
+                            (OverAllocationConfirmationRequiredException) exception;
+                    assertThat(capitalException.getCode())
+                            .isEqualTo(OverAllocationConfirmationRequiredException.ERROR_CODE);
                     assertThat(capitalException.getMessage()).contains("TIME");
                     assertThat(capitalException.getMessage()).contains("Available amount: 10.0000");
                     assertThat(capitalException.getMessage()).contains("requested amount: 15.0000");
+                    assertThat(capitalException.getMessage()).contains("projected remaining amount: -5.0000");
                 });
     }
 
