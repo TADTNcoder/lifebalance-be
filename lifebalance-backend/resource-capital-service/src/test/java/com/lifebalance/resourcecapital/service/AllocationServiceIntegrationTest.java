@@ -25,6 +25,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -73,6 +74,7 @@ class AllocationServiceIntegrationTest {
     void allocateCapitalPersistsAllocationStateAndHistory() {
         CapitalCycle cycle = createCycle("August 4", LocalDate.of(2026, 8, 4), false);
         capitalService.setupTimeCapital(OWNER_ID, cycle.getId(), new SetupTimeCapitalRequest(120L));
+        activateCycle(cycle);
 
         AllocationResponse response = allocationService.allocateCapital(
                 OWNER_ID,
@@ -118,6 +120,7 @@ class AllocationServiceIntegrationTest {
     void approvedOverAllocationPersistsAllocateAndApprovalHistories() {
         CapitalCycle cycle = createCycle("August 5", LocalDate.of(2026, 8, 5), true);
         capitalService.setupTimeCapital(OWNER_ID, cycle.getId(), new SetupTimeCapitalRequest(60L));
+        activateCycle(cycle);
         allocationService.allocateCapital(
                 OWNER_ID,
                 cycle.getId(),
@@ -177,6 +180,7 @@ class AllocationServiceIntegrationTest {
     void reallocateAndReleaseUpdateStateAndHistory() {
         CapitalCycle cycle = createCycle("August 6", LocalDate.of(2026, 8, 6), false);
         capitalService.setupTimeCapital(OWNER_ID, cycle.getId(), new SetupTimeCapitalRequest(120L));
+        activateCycle(cycle);
         allocationService.allocateCapital(
                 OWNER_ID,
                 cycle.getId(),
@@ -251,6 +255,7 @@ class AllocationServiceIntegrationTest {
     void capitalOverviewUsesPersistedAllocatedAmount() {
         CapitalCycle cycle = createCycle("August 7", LocalDate.of(2026, 8, 7), false);
         capitalService.setupTimeCapital(OWNER_ID, cycle.getId(), new SetupTimeCapitalRequest(90L));
+        activateCycle(cycle);
         allocationService.allocateCapital(
                 OWNER_ID,
                 cycle.getId(),
@@ -287,5 +292,10 @@ class AllocationServiceIntegrationTest {
             cycle.allowOverAllocation();
         }
         return capitalCycleRepository.saveAndFlush(cycle);
+    }
+
+    private void activateCycle(CapitalCycle cycle) {
+        cycle.activate(Instant.parse("2026-08-04T00:00:00Z"));
+        capitalCycleRepository.saveAndFlush(cycle);
     }
 }

@@ -9,6 +9,7 @@ import com.lifebalance.resourcecapital.domain.capitalallocation.exception.Invali
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationConfirmationRequiredException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationNotAllowedException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
+import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleStatus;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleType;
 import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalActionType;
 import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalHistory;
@@ -32,6 +33,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -414,6 +416,9 @@ class AllocationServiceImplTest {
     }
 
     private void whenOwnedCycle(CapitalCycle cycle) {
+        if (cycle.getStatus() != CapitalCycleStatus.ACTIVE) {
+            cycle.activate(Instant.parse("2026-08-04T00:00:00Z"));
+        }
         when(capitalCycleRepository.findByIdAndOwnerId(CYCLE_ID, OWNER_ID)).thenReturn(Optional.of(cycle));
     }
 
