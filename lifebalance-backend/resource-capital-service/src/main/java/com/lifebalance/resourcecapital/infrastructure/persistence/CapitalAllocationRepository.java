@@ -27,6 +27,18 @@ public interface CapitalAllocationRepository extends
 
     Optional<CapitalAllocation> findByIdAndUserId(UUID id, UUID userId);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select allocation
+            from CapitalAllocation allocation
+            where allocation.id = :id
+              and allocation.userId = :userId
+            """)
+    Optional<CapitalAllocation> findByIdAndUserIdForUpdate(
+            @Param("id") UUID id,
+            @Param("userId") UUID userId
+    );
+
     /**
      * Reads allocation records only inside the owner boundary to avoid cross-user data exposure.
      */

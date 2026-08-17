@@ -5,9 +5,11 @@ import com.lifebalance.resourcecapital.domain.capitalallocation.AllocationStatus
 import com.lifebalance.resourcecapital.dto.AllocateCapitalRequestDTO;
 import com.lifebalance.resourcecapital.dto.AllocationResponse;
 import com.lifebalance.resourcecapital.dto.AllocationResponseDTO;
+import com.lifebalance.resourcecapital.dto.CapitalAllocationChangeRequest;
 import com.lifebalance.resourcecapital.dto.CapitalAllocationReleaseRequest;
 import com.lifebalance.resourcecapital.dto.CapitalAllocationResponse;
 import com.lifebalance.resourcecapital.dto.CapitalReallocationRequest;
+import com.lifebalance.resourcecapital.dto.ChangeCapitalAllocationRequestDTO;
 import com.lifebalance.resourcecapital.dto.CreateCapitalAllocationRequest;
 import com.lifebalance.resourcecapital.dto.ReallocateCapitalRequestDTO;
 import com.lifebalance.resourcecapital.dto.ReleaseCapitalRequestDTO;
@@ -26,6 +28,10 @@ public interface CapitalAllocationService {
     AllocationResponse reallocateCapital(UUID ownerId, CapitalReallocationRequest request);
 
     AllocationResponseDTO reallocateCapital(UUID ownerId, ReallocateCapitalRequestDTO request);
+
+    AllocationResponse changeAllocation(UUID ownerId, UUID allocationId, CapitalAllocationChangeRequest request);
+
+    AllocationResponseDTO changeAllocation(UUID ownerId, ChangeCapitalAllocationRequestDTO request);
 
     AllocationResponse releaseCapital(UUID ownerId, UUID allocationId, CapitalAllocationReleaseRequest request);
 

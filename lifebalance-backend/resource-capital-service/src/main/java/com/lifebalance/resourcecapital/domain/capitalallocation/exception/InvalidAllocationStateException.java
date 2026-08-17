@@ -16,7 +16,7 @@ public class InvalidAllocationStateException extends CapitalDomainException {
                 "Capital allocation " + allocationId
                         + " is in status " + status
                         + " and cannot " + action
-                        + ". Only ACTIVE allocations can be released.",
+                        + ". Only ACTIVE allocations are eligible for this action.",
                 HttpStatus.CONFLICT
         );
     }
