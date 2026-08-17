@@ -2,6 +2,7 @@ package com.lifebalance.resourcecapital.service.impl;
 
 import com.lifebalance.common.web.PageableLimits;
 import com.lifebalance.resourcecapital.domain.capital.CapitalKind;
+import com.lifebalance.resourcecapital.domain.capital.exception.CapitalNotSetupException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.AllocationStatus;
 import com.lifebalance.resourcecapital.domain.capitalallocation.AllocationTargetType;
 import com.lifebalance.resourcecapital.domain.capitalallocation.CapitalAllocation;
@@ -14,19 +15,27 @@ import com.lifebalance.resourcecapital.domain.capitalcycle.exception.CapitalCycl
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.InvalidCapitalCycleStateException;
 import com.lifebalance.resourcecapital.domain.capitalreallocation.CapitalReallocation;
 import com.lifebalance.resourcecapital.domain.capitalrelease.CapitalRelease;
+import com.lifebalance.resourcecapital.domain.moneycapital.MoneyCapital;
+import com.lifebalance.resourcecapital.domain.timecapital.TimeCapital;
 import com.lifebalance.resourcecapital.dto.AllocateCapitalRequest;
+import com.lifebalance.resourcecapital.dto.AllocateCapitalRequestDTO;
 import com.lifebalance.resourcecapital.dto.AllocationResponse;
+import com.lifebalance.resourcecapital.dto.AllocationResponseDTO;
 import com.lifebalance.resourcecapital.dto.CapitalAllocationReleaseRequest;
 import com.lifebalance.resourcecapital.dto.CapitalAllocationResponse;
 import com.lifebalance.resourcecapital.dto.CapitalReallocationRequest;
 import com.lifebalance.resourcecapital.dto.CreateCapitalAllocationRequest;
 import com.lifebalance.resourcecapital.dto.ReallocateCapitalRequest;
+import com.lifebalance.resourcecapital.dto.ReallocateCapitalRequestDTO;
 import com.lifebalance.resourcecapital.dto.ReleaseCapitalRequest;
+import com.lifebalance.resourcecapital.dto.ReleaseCapitalRequestDTO;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalAllocationSpecification;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalAllocationRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalCycleRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalReallocationRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalReleaseRepository;
+import com.lifebalance.resourcecapital.infrastructure.persistence.MoneyCapitalRepository;
+import com.lifebalance.resourcecapital.infrastructure.persistence.TimeCapitalRepository;
 import com.lifebalance.resourcecapital.service.AllocationService;
 import com.lifebalance.resourcecapital.service.CapitalAllocationService;
 import org.springframework.data.domain.Page;
@@ -37,6 +46,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -54,19 +65,25 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
     private final CapitalAllocationRepository capitalAllocationRepository;
     private final CapitalReallocationRepository capitalReallocationRepository;
     private final CapitalReleaseRepository capitalReleaseRepository;
+    private final TimeCapitalRepository timeCapitalRepository;
+    private final MoneyCapitalRepository moneyCapitalRepository;
 
     public CapitalAllocationServiceImpl(
             AllocationService allocationService,
             CapitalCycleRepository capitalCycleRepository,
             CapitalAllocationRepository capitalAllocationRepository,
             CapitalReallocationRepository capitalReallocationRepository,
-            CapitalReleaseRepository capitalReleaseRepository
+            CapitalReleaseRepository capitalReleaseRepository,
+            TimeCapitalRepository timeCapitalRepository,
+            MoneyCapitalRepository moneyCapitalRepository
     ) {
         this.allocationService = allocationService;
         this.capitalCycleRepository = capitalCycleRepository;
         this.capitalAllocationRepository = capitalAllocationRepository;
         this.capitalReallocationRepository = capitalReallocationRepository;
         this.capitalReleaseRepository = capitalReleaseRepository;
+        this.timeCapitalRepository = timeCapitalRepository;
+        this.moneyCapitalRepository = moneyCapitalRepository;
     }
 
     @Transactional
@@ -78,7 +95,8 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
                 request.targetType(),
                 request.targetId(),
                 request.taskId(),
-                request.taskCatalogId()
+                request.taskCatalogId(),
+                null
         );
 
         return allocationService.allocateCapital(
@@ -97,6 +115,34 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
 
     @Transactional
     @Override
+    public AllocationResponseDTO allocateCapital(UUID ownerId, AllocateCapitalRequestDTO request) {
+        Objects.requireNonNull(request, "Allocate capital request is required.");
+        CapitalCycle cycle = findActiveOwnedCycle(ownerId, request.capitalCycleId(), "allocate capital");
+        AllocationTarget target = resolveTarget(
+                request.targetType(),
+                request.targetId(),
+                request.taskId(),
+                request.taskCatalogId(),
+                request.projectId()
+        );
+
+        AllocationResponse response = allocationService.allocateCapital(
+                ownerId,
+                cycle.getId(),
+                new AllocateCapitalRequest(
+                        request.capitalType(),
+                        target.targetType(),
+                        target.targetId(),
+                        request.amount(),
+                        request.overAllocationConfirmed(),
+                        request.reason()
+                )
+        );
+        return AllocationResponseDTO.from(response);
+    }
+
+    @Transactional
+    @Override
     public AllocationResponse reallocateCapital(UUID ownerId, CapitalReallocationRequest request) {
         Objects.requireNonNull(request, "Capital reallocation request is required.");
         CapitalCycle cycle = findActiveOwnedCycle(ownerId, request.capitalCycleId(), "reallocate capital");
@@ -109,6 +155,8 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
                 request.sourceTargetType(),
                 request.sourceTargetId(),
                 request.sourceTaskId(),
+                null,
+                null,
                 "Source"
         );
         AllocationTarget destinationTarget = resolveReallocationTarget(
@@ -119,6 +167,8 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
                 request.destinationTargetType(),
                 request.destinationTargetId(),
                 request.destinationTaskId(),
+                null,
+                null,
                 "Destination"
         );
 
@@ -160,6 +210,73 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
 
     @Transactional
     @Override
+    public AllocationResponseDTO reallocateCapital(UUID ownerId, ReallocateCapitalRequestDTO request) {
+        Objects.requireNonNull(request, "Reallocate capital request is required.");
+        CapitalCycle cycle = findActiveOwnedCycle(ownerId, request.capitalCycleId(), "reallocate capital");
+        CapitalKind capitalType = requireCapitalType(request.capitalType());
+        AllocationTarget sourceTarget = resolveReallocationTarget(
+                ownerId,
+                cycle.getId(),
+                capitalType,
+                request.sourceAllocationId(),
+                request.sourceTargetType(),
+                request.sourceTargetId(),
+                request.sourceTaskId(),
+                request.sourceTaskCatalogId(),
+                request.sourceProjectId(),
+                "Source"
+        );
+        AllocationTarget destinationTarget = resolveReallocationTarget(
+                ownerId,
+                cycle.getId(),
+                capitalType,
+                request.destinationAllocationId(),
+                request.destinationTargetType(),
+                request.destinationTargetId(),
+                request.destinationTaskId(),
+                request.destinationTaskCatalogId(),
+                request.destinationProjectId(),
+                "Destination"
+        );
+
+        AllocationResponse response = allocationService.reallocateCapital(
+                ownerId,
+                cycle.getId(),
+                new ReallocateCapitalRequest(
+                        capitalType,
+                        sourceTarget.targetType(),
+                        sourceTarget.targetId(),
+                        destinationTarget.targetType(),
+                        destinationTarget.targetId(),
+                        request.amount(),
+                        request.reason()
+                )
+        );
+        CapitalAllocation sourceAllocation = findTargetAllocation(
+                ownerId,
+                cycle.getId(),
+                capitalType,
+                sourceTarget.targetType(),
+                sourceTarget.targetId()
+        );
+        CapitalAllocation destinationAllocation = findTargetAllocation(
+                ownerId,
+                cycle.getId(),
+                capitalType,
+                destinationTarget.targetType(),
+                destinationTarget.targetId()
+        );
+        capitalReallocationRepository.saveAndFlush(CapitalReallocation.record(
+                sourceAllocation,
+                destinationAllocation,
+                request.amount(),
+                request.reason()
+        ));
+        return AllocationResponseDTO.from(response);
+    }
+
+    @Transactional
+    @Override
     public AllocationResponse releaseCapital(
             UUID ownerId,
             UUID allocationId,
@@ -186,6 +303,37 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
                 request.reason()
         ));
         return response;
+    }
+
+    @Transactional
+    @Override
+    public AllocationResponseDTO releaseCapital(UUID ownerId, ReleaseCapitalRequestDTO request) {
+        Objects.requireNonNull(request, "Release capital request is required.");
+        CapitalAllocation allocation = findOwnedAllocation(ownerId, request.allocationId());
+        validateReleaseRequestMatchesAllocation(request, allocation);
+
+        AllocationResponse response = releaseCapital(
+                ownerId,
+                allocation.getId(),
+                new CapitalAllocationReleaseRequest(request.amount(), request.reason())
+        );
+        return AllocationResponseDTO.from(response);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public List<AllocationResponseDTO> getAllocationsByCycle(UUID ownerId, UUID cycleId, CapitalKind capitalType) {
+        Objects.requireNonNull(ownerId, "Owner id is required.");
+        CapitalKind requiredCapitalType = requireCapitalType(capitalType);
+        findActiveOwnedCycle(ownerId, cycleId, "get allocations by cycle");
+        BigDecimal plannedAmount = plannedAmount(cycleId, requiredCapitalType);
+        BigDecimal totalAllocatedAmount = sumAllocated(ownerId, cycleId, requiredCapitalType);
+
+        return capitalAllocationRepository.findByUserIdAndCapitalCycleId(ownerId, cycleId)
+                .stream()
+                .filter(allocation -> allocation.getCapitalType() == requiredCapitalType)
+                .map(allocation -> toDto(allocation, plannedAmount, totalAllocatedAmount))
+                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -246,10 +394,12 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
             AllocationTargetType targetType,
             UUID targetId,
             UUID taskId,
+            UUID taskCatalogId,
+            UUID projectId,
             String label
     ) {
         if (allocationId == null) {
-            return resolveTarget(targetType, targetId, taskId, null);
+            return resolveTarget(targetType, targetId, taskId, taskCatalogId, projectId);
         }
 
         CapitalAllocation allocation = findOwnedAllocation(ownerId, allocationId);
@@ -261,9 +411,13 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
         }
 
         AllocationTarget resolvedTarget = new AllocationTarget(allocation.getTargetType(), allocation.getTargetId());
-        AllocationTarget explicitTarget = targetType == null && targetId == null && taskId == null
+        AllocationTarget explicitTarget = targetType == null
+                && targetId == null
+                && taskId == null
+                && taskCatalogId == null
+                && projectId == null
                 ? null
-                : resolveTarget(targetType, targetId, taskId, null);
+                : resolveTarget(targetType, targetId, taskId, taskCatalogId, projectId);
         if (explicitTarget != null && !resolvedTarget.equals(explicitTarget)) {
             throw new InvalidAllocationTargetException(label + " allocation id does not match the requested target.");
         }
@@ -298,25 +452,95 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
             AllocationTargetType targetType,
             UUID targetId,
             UUID taskId,
-            UUID taskCatalogId
+            UUID taskCatalogId,
+            UUID projectId
     ) {
-        if (taskCatalogId != null) {
-            throw new InvalidAllocationTargetException("Task catalog allocation targets are not supported yet.");
-        }
-        AllocationTargetType resolvedTargetType = targetType == null && taskId != null
-                ? AllocationTargetType.TASK
+        AllocationTarget shortcutTarget = resolveShortcutTarget(taskId, taskCatalogId, projectId);
+        AllocationTargetType resolvedTargetType = targetType == null && shortcutTarget != null
+                ? shortcutTarget.targetType()
                 : requireTargetType(targetType);
         UUID resolvedTargetId = targetId;
-        if (resolvedTargetType == AllocationTargetType.TASK && taskId != null) {
-            if (resolvedTargetId != null && !resolvedTargetId.equals(taskId)) {
-                throw new InvalidAllocationTargetException("targetId and taskId must reference the same task.");
+        if (shortcutTarget != null) {
+            if (resolvedTargetType != shortcutTarget.targetType()) {
+                throw new InvalidAllocationTargetException(
+                        "Shortcut target id does not match allocation target type."
+                );
             }
-            resolvedTargetId = taskId;
+            if (resolvedTargetId != null && !resolvedTargetId.equals(shortcutTarget.targetId())) {
+                throw new InvalidAllocationTargetException(
+                        "targetId and shortcut target id must reference the same allocation target."
+                );
+            }
+            resolvedTargetId = shortcutTarget.targetId();
         }
         if (resolvedTargetId == null) {
             throw new InvalidAllocationTargetException("Allocation target id is required.");
         }
         return new AllocationTarget(resolvedTargetType, resolvedTargetId);
+    }
+
+    private AllocationTarget resolveShortcutTarget(UUID taskId, UUID taskCatalogId, UUID projectId) {
+        AllocationTarget shortcutTarget = null;
+        if (taskId != null) {
+            shortcutTarget = new AllocationTarget(AllocationTargetType.TASK, taskId);
+        }
+        if (taskCatalogId != null) {
+            shortcutTarget = mergeShortcutTarget(
+                    shortcutTarget,
+                    new AllocationTarget(AllocationTargetType.TASK_CATALOG, taskCatalogId)
+            );
+        }
+        if (projectId != null) {
+            shortcutTarget = mergeShortcutTarget(
+                    shortcutTarget,
+                    new AllocationTarget(AllocationTargetType.PROJECT, projectId)
+            );
+        }
+        return shortcutTarget;
+    }
+
+    private AllocationTarget mergeShortcutTarget(AllocationTarget current, AllocationTarget candidate) {
+        if (current == null) {
+            return candidate;
+        }
+        if (current.equals(candidate)) {
+            return current;
+        }
+        throw new InvalidAllocationTargetException("Only one allocation target shortcut id can be provided.");
+    }
+
+    private void validateReleaseRequestMatchesAllocation(
+            ReleaseCapitalRequestDTO request,
+            CapitalAllocation allocation
+    ) {
+        if (request.capitalCycleId() != null
+                && !request.capitalCycleId().equals(allocation.getCapitalCycle().getId())) {
+            throw new InvalidAllocationTargetException("Release allocation must belong to the requested cycle.");
+        }
+        if (request.capitalType() != null && request.capitalType() != allocation.getCapitalType()) {
+            throw new InvalidAllocationTargetException("Release allocation capital type must match the request.");
+        }
+
+        boolean hasExplicitTarget = request.targetType() != null
+                || request.targetId() != null
+                || request.taskId() != null
+                || request.taskCatalogId() != null
+                || request.projectId() != null;
+        if (!hasExplicitTarget) {
+            return;
+        }
+
+        AllocationTarget explicitTarget = resolveTarget(
+                request.targetType(),
+                request.targetId(),
+                request.taskId(),
+                request.taskCatalogId(),
+                request.projectId()
+        );
+        if (explicitTarget.targetType() != allocation.getTargetType()
+                || !explicitTarget.targetId().equals(allocation.getTargetId())) {
+            throw new InvalidAllocationTargetException("Release allocation target must match the request.");
+        }
     }
 
     private CapitalKind requireCapitalType(CapitalKind capitalType) {
@@ -330,10 +554,63 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
         if (targetType == null) {
             throw new InvalidAllocationTargetException("Allocation target type is required.");
         }
-        if (targetType != AllocationTargetType.TASK) {
-            throw new InvalidAllocationTargetException("Only TASK allocation targets are supported.");
-        }
         return targetType;
+    }
+
+    private BigDecimal plannedAmount(UUID cycleId, CapitalKind capitalType) {
+        return switch (capitalType) {
+            case TIME -> timeCapitalRepository.findByCapitalCycleId(cycleId)
+                    .map(TimeCapital::getPlannedMinutes)
+                    .map(this::money)
+                    .orElseThrow(() -> new CapitalNotSetupException(cycleId, CapitalKind.TIME));
+            case MONEY -> moneyCapitalRepository.findByCapitalCycleId(cycleId)
+                    .map(MoneyCapital::getPlannedAmount)
+                    .orElseThrow(() -> new CapitalNotSetupException(cycleId, CapitalKind.MONEY));
+        };
+    }
+
+    private BigDecimal sumAllocated(UUID ownerId, UUID cycleId, CapitalKind capitalType) {
+        BigDecimal total = capitalAllocationRepository.sumAllocatedAmount(ownerId, cycleId, capitalType);
+        if (total == null) {
+            return zero();
+        }
+        return total.setScale(CapitalAllocation.AMOUNT_SCALE, RoundingMode.UNNECESSARY);
+    }
+
+    private BigDecimal money(long amount) {
+        return BigDecimal.valueOf(amount).setScale(CapitalAllocation.AMOUNT_SCALE, RoundingMode.UNNECESSARY);
+    }
+
+    private BigDecimal zero() {
+        return BigDecimal.ZERO.setScale(CapitalAllocation.AMOUNT_SCALE, RoundingMode.UNNECESSARY);
+    }
+
+    private AllocationResponseDTO toDto(
+            CapitalAllocation allocation,
+            BigDecimal plannedAmount,
+            BigDecimal totalAllocatedAmount
+    ) {
+        BigDecimal remainingAmount = plannedAmount.subtract(totalAllocatedAmount)
+                .setScale(CapitalAllocation.AMOUNT_SCALE, RoundingMode.UNNECESSARY);
+        return new AllocationResponseDTO(
+                allocation.getId(),
+                allocation.getCapitalCycle().getId(),
+                allocation.getCapitalType(),
+                allocation.getTargetType(),
+                allocation.getTargetId(),
+                allocation.getAllocatedAmount(),
+                allocation.getSpentAmount(),
+                allocation.getReleasedAmount(),
+                allocation.getStatus(),
+                plannedAmount,
+                totalAllocatedAmount,
+                remainingAmount,
+                Boolean.TRUE.equals(allocation.getIsOverAllocated()),
+                Boolean.TRUE.equals(allocation.getOverAllocationConfirmed()),
+                List.of(),
+                allocation.getCreatedAt(),
+                allocation.getUpdatedAt()
+        );
     }
 
     private Pageable pageableWithDefaultSort(Pageable pageable) {
