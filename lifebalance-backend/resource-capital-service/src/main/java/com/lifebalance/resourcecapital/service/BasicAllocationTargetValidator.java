@@ -43,11 +43,9 @@ public class BasicAllocationTargetValidator implements AllocationTargetValidator
         if (targetId == null) {
             throw new InvalidAllocationTargetException("Allocation target id is required.");
         }
-        if (targetType != AllocationTargetType.TASK) {
-            throw new InvalidAllocationTargetException("Only TASK allocation targets are supported.");
+        if (targetType == AllocationTargetType.TASK) {
+            validateTaskOwnership(ownerId, targetId);
         }
-
-        validateTaskOwnership(ownerId, targetId);
     }
 
     private void validateTaskOwnership(UUID ownerId, UUID targetId) {

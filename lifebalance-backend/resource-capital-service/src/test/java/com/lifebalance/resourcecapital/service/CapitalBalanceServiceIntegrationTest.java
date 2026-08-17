@@ -23,6 +23,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -72,6 +73,7 @@ class CapitalBalanceServiceIntegrationTest {
                 cycle.getId(),
                 new SetupMoneyCapitalRequest(new BigDecimal("1000.0000"), "VND")
         );
+        activateCycle(cycle);
         allocationService.allocateCapital(
                 OWNER_ID,
                 cycle.getId(),
@@ -121,6 +123,7 @@ class CapitalBalanceServiceIntegrationTest {
     void getCycleBalanceReflectsCapitalAdjustmentsInRemainingAmount() {
         CapitalCycle cycle = capitalCycleRepository.saveAndFlush(dailyCycle("September 1", LocalDate.of(2026, 9, 1)));
         capitalService.setupTimeCapital(OWNER_ID, cycle.getId(), new SetupTimeCapitalRequest(480L));
+        activateCycle(cycle);
         allocationService.allocateCapital(
                 OWNER_ID,
                 cycle.getId(),
@@ -163,6 +166,7 @@ class CapitalBalanceServiceIntegrationTest {
     void getCycleBalanceReflectsReleasedAllocationsInRemainingAmount() {
         CapitalCycle cycle = capitalCycleRepository.saveAndFlush(dailyCycle("September 2", LocalDate.of(2026, 9, 2)));
         capitalService.setupTimeCapital(OWNER_ID, cycle.getId(), new SetupTimeCapitalRequest(300L));
+        activateCycle(cycle);
         allocationService.allocateCapital(
                 OWNER_ID,
                 cycle.getId(),
@@ -201,6 +205,7 @@ class CapitalBalanceServiceIntegrationTest {
     void getCycleBalanceReflectsReallocatedCapitalWithoutChangingRemainingAmount() {
         CapitalCycle cycle = capitalCycleRepository.saveAndFlush(dailyCycle("September 3", LocalDate.of(2026, 9, 3)));
         capitalService.setupTimeCapital(OWNER_ID, cycle.getId(), new SetupTimeCapitalRequest(300L));
+        activateCycle(cycle);
         allocationService.allocateCapital(
                 OWNER_ID,
                 cycle.getId(),
@@ -250,6 +255,7 @@ class CapitalBalanceServiceIntegrationTest {
         cycle.allowOverAllocation();
         cycle = capitalCycleRepository.saveAndFlush(cycle);
         capitalService.setupTimeCapital(OWNER_ID, cycle.getId(), new SetupTimeCapitalRequest(600L));
+        activateCycle(cycle);
 
         allocationService.allocateCapital(
                 OWNER_ID,
@@ -283,5 +289,10 @@ class CapitalBalanceServiceIntegrationTest {
                 date,
                 date
         );
+    }
+
+    private void activateCycle(CapitalCycle cycle) {
+        cycle.activate(Instant.parse("2026-08-04T00:00:00Z"));
+        capitalCycleRepository.saveAndFlush(cycle);
     }
 }

@@ -11,7 +11,9 @@ import com.lifebalance.resourcecapital.domain.capitalallocation.exception.Invali
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationConfirmationRequiredException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationNotAllowedException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
+import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleStatus;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.CapitalCycleNotFoundException;
+import com.lifebalance.resourcecapital.domain.capitalcycle.exception.InvalidCapitalCycleStateException;
 import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalActionType;
 import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalActorType;
 import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalHistory;
@@ -82,7 +84,7 @@ public class AllocationServiceImpl implements AllocationService {
         String reason = optionalReason(request.reason());
 
         allocationTargetValidator.validateTarget(ownerId, targetType, targetId);
-        CapitalCycle cycle = findAdjustableOwnedCycle(ownerId, cycleId);
+        CapitalCycle cycle = findActiveOwnedCycle(ownerId, cycleId, "allocate capital");
         BigDecimal plannedAmount = lockCapitalAndGetPlannedAmount(cycleId, capitalType);
 
         Optional<CapitalAllocation> allocation = capitalAllocationRepository.findTargetForUpdate(
@@ -187,7 +189,7 @@ public class AllocationServiceImpl implements AllocationService {
 
         allocationTargetValidator.validateTarget(ownerId, sourceTargetType, sourceTargetId);
         allocationTargetValidator.validateTarget(ownerId, destinationTargetType, destinationTargetId);
-        CapitalCycle cycle = findAdjustableOwnedCycle(ownerId, cycleId);
+        CapitalCycle cycle = findActiveOwnedCycle(ownerId, cycleId, "reallocate capital");
         BigDecimal plannedAmount = lockCapitalAndGetPlannedAmount(cycleId, capitalType);
 
         List<CapitalAllocation> lockedAllocations = lockReallocationTargets(
@@ -216,14 +218,15 @@ public class AllocationServiceImpl implements AllocationService {
         );
 
         BigDecimal sourceBefore = sourceAllocation.getAllocatedAmount();
-        if (sourceBefore.compareTo(amount) < 0) {
+        BigDecimal sourceAvailable = availableUnspentAmount(sourceAllocation);
+        if (sourceAvailable.compareTo(amount) < 0) {
             throw new InsufficientAllocatedCapitalException(
                     cycleId,
                     capitalType,
                     sourceTargetType,
                     sourceTargetId,
                     amount,
-                    sourceBefore
+                    sourceAvailable
             );
         }
 
@@ -298,7 +301,7 @@ public class AllocationServiceImpl implements AllocationService {
         String reason = optionalReason(request.reason());
 
         allocationTargetValidator.validateTarget(ownerId, targetType, targetId);
-        CapitalCycle cycle = findAdjustableOwnedCycle(ownerId, cycleId);
+        CapitalCycle cycle = findActiveOwnedCycle(ownerId, cycleId, "release capital");
         BigDecimal plannedAmount = lockCapitalAndGetPlannedAmount(cycleId, capitalType);
         CapitalAllocation allocation = capitalAllocationRepository.findTargetForUpdate(
                 ownerId,
@@ -309,15 +312,16 @@ public class AllocationServiceImpl implements AllocationService {
         ).orElseThrow(() -> new AllocationNotFoundException(cycleId, capitalType, targetType, targetId));
 
         BigDecimal targetBefore = allocation.getAllocatedAmount();
+        BigDecimal releasableAmount = availableUnspentAmount(allocation);
         BigDecimal totalBefore = sumAllocated(ownerId, cycleId, capitalType);
-        if (targetBefore.compareTo(amount) < 0) {
+        if (releasableAmount.compareTo(amount) < 0) {
             throw new InsufficientAllocatedCapitalException(
                     cycleId,
                     capitalType,
                     targetType,
                     targetId,
                     amount,
-                    targetBefore
+                    releasableAmount
             );
         }
         BigDecimal targetAfter = targetBefore.subtract(amount).setScale(MONEY_SCALE, RoundingMode.UNNECESSARY);
@@ -351,10 +355,17 @@ public class AllocationServiceImpl implements AllocationService {
         );
     }
 
-    private CapitalCycle findAdjustableOwnedCycle(UUID ownerId, UUID cycleId) {
+    private CapitalCycle findActiveOwnedCycle(UUID ownerId, UUID cycleId, String action) {
         CapitalCycle cycle = capitalCycleRepository.findByIdAndOwnerId(cycleId, ownerId)
                 .orElseThrow(() -> new CapitalCycleNotFoundException(cycleId));
-        cycle.ensureCapitalAdjustmentAllowed();
+        if (cycle.getStatus() != CapitalCycleStatus.ACTIVE) {
+            throw new InvalidCapitalCycleStateException(
+                    cycle.getId(),
+                    cycle.getStatus(),
+                    action,
+                    "capital allocation operations require an ACTIVE cycle"
+            );
+        }
         return cycle;
     }
 
@@ -379,20 +390,40 @@ public class AllocationServiceImpl implements AllocationService {
             AllocationTargetType destinationTargetType,
             UUID destinationTargetId
     ) {
-        if (sourceTargetType != destinationTargetType) {
-            throw new InvalidAllocationTargetException("Reallocation between different target types is not supported.");
+        if (sourceTargetType == destinationTargetType) {
+            List<UUID> targetIds = List.of(sourceTargetId, destinationTargetId)
+                    .stream()
+                    .sorted(Comparator.naturalOrder())
+                    .toList();
+            return capitalAllocationRepository.findTargetsForUpdate(
+                    ownerId,
+                    cycleId,
+                    capitalType,
+                    sourceTargetType,
+                    targetIds
+            );
         }
-        List<UUID> targetIds = List.of(sourceTargetId, destinationTargetId)
+
+        List<AllocationLookup> lookups = List.of(
+                        new AllocationLookup(sourceTargetType, sourceTargetId),
+                        new AllocationLookup(destinationTargetType, destinationTargetId)
+                )
                 .stream()
-                .sorted(Comparator.naturalOrder())
+                .sorted(Comparator
+                        .comparing((AllocationLookup lookup) -> lookup.targetType().name())
+                        .thenComparing(AllocationLookup::targetId))
                 .toList();
-        return capitalAllocationRepository.findTargetsForUpdate(
-                ownerId,
-                cycleId,
-                capitalType,
-                sourceTargetType,
-                targetIds
-        );
+        List<CapitalAllocation> lockedAllocations = new ArrayList<>();
+        for (AllocationLookup lookup : lookups) {
+            capitalAllocationRepository.findTargetForUpdate(
+                    ownerId,
+                    cycleId,
+                    capitalType,
+                    lookup.targetType(),
+                    lookup.targetId()
+            ).ifPresent(lockedAllocations::add);
+        }
+        return lockedAllocations;
     }
 
     private Optional<CapitalAllocation> findLockedAllocation(
@@ -506,10 +537,14 @@ public class AllocationServiceImpl implements AllocationService {
         if (targetType == null) {
             throw new InvalidAllocationTargetException("Allocation target type is required.");
         }
-        if (targetType != AllocationTargetType.TASK) {
-            throw new InvalidAllocationTargetException("Only TASK allocation targets are supported.");
-        }
         return targetType;
+    }
+
+    private BigDecimal availableUnspentAmount(CapitalAllocation allocation) {
+        return allocation.getAllocatedAmount()
+                .subtract(allocation.getSpentAmount())
+                .subtract(allocation.getReleasedAmount())
+                .setScale(MONEY_SCALE, RoundingMode.UNNECESSARY);
     }
 
     private UUID requireTargetId(UUID targetId, String message) {
@@ -569,5 +604,8 @@ public class AllocationServiceImpl implements AllocationService {
 
     private BigDecimal zero() {
         return BigDecimal.ZERO.setScale(MONEY_SCALE, RoundingMode.UNNECESSARY);
+    }
+
+    private record AllocationLookup(AllocationTargetType targetType, UUID targetId) {
     }
 }
