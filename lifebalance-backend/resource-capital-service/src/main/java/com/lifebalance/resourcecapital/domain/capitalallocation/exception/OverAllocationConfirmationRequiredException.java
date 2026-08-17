@@ -14,6 +14,25 @@ public class OverAllocationConfirmationRequiredException extends CapitalDomainEx
     public OverAllocationConfirmationRequiredException(
             UUID cycleId,
             CapitalKind capitalType,
+            BigDecimal availableAmount,
+            BigDecimal requestedAmount,
+            BigDecimal projectedRemainingAmount
+    ) {
+        super(
+                ERROR_CODE,
+                capitalType + " capital change for cycle " + cycleId
+                        + " would exceed available capital. Available amount: " + availableAmount
+                        + ", requested amount: " + requestedAmount
+                        + ", projected remaining amount: " + projectedRemainingAmount
+                        + ". A negative remaining amount represents an over-allocation state, "
+                        + "not additional available capital; explicit confirmation is required.",
+                HttpStatus.CONFLICT
+        );
+    }
+
+    public OverAllocationConfirmationRequiredException(
+            UUID cycleId,
+            CapitalKind capitalType,
             BigDecimal plannedAmount,
             BigDecimal projectedAllocatedAmount
     ) {

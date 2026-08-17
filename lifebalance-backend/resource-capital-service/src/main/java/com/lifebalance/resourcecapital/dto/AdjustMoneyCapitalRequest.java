@@ -20,6 +20,8 @@ public record AdjustMoneyCapitalRequest(
 
         @NotBlank
         @Size(max = 1000)
-        String reason
+        String reason,
+
+        boolean allowOverAllocation
 ) {
 }
