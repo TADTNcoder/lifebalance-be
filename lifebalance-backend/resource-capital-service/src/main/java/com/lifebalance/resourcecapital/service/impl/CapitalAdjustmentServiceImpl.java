@@ -25,25 +25,22 @@ import com.lifebalance.resourcecapital.dto.CapitalAdjustmentResponse;
 import com.lifebalance.resourcecapital.dto.MoneyCapitalAdjustmentResponse;
 import com.lifebalance.resourcecapital.dto.TimeCapitalAdjustmentResponse;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalAdjustmentRepository;
+import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalAdjustmentSpecification;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalCycleRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalHistoryRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.MoneyCapitalRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.TimeCapitalRepository;
 import com.lifebalance.resourcecapital.service.CapitalAdjustmentService;
 import com.lifebalance.resourcecapital.service.CapitalAllocationReader;
-import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -230,7 +227,14 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
         }
 
         return capitalAdjustmentRepository.findAll(
-                        specification(ownerId, capitalCycleId, capitalType),
+                        CapitalAdjustmentSpecification.filter(
+                                ownerId,
+                                capitalCycleId,
+                                CapitalType.from(capitalType),
+                                null,
+                                null,
+                                null
+                        ),
                         pageableWithDefaultSort(pageable)
                 )
                 .map(this::toResponse);
@@ -607,24 +611,6 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
 
     private BigDecimal money(long amount) {
         return BigDecimal.valueOf(amount).setScale(MONEY_SCALE, RoundingMode.UNNECESSARY);
-    }
-
-    private Specification<CapitalAdjustment> specification(
-            UUID ownerId,
-            UUID capitalCycleId,
-            CapitalKind capitalType
-    ) {
-        return (root, query, criteriaBuilder) -> {
-            List<Predicate> predicates = new ArrayList<>();
-            predicates.add(criteriaBuilder.equal(root.get("capitalCycle").get("ownerId"), ownerId));
-            if (capitalCycleId != null) {
-                predicates.add(criteriaBuilder.equal(root.get("capitalCycle").get("id"), capitalCycleId));
-            }
-            if (capitalType != null) {
-                predicates.add(criteriaBuilder.equal(root.get("capitalType"), CapitalType.from(capitalType)));
-            }
-            return criteriaBuilder.and(predicates.toArray(Predicate[]::new));
-        };
     }
 
     private Pageable pageableWithDefaultSort(Pageable pageable) {
