@@ -17,6 +17,7 @@ class CapitalSeedDataProfileIsolationTest {
 
     private static final UUID ACTIVE_AUGUST_CYCLE_ID = UUID.fromString("81100000-0000-4000-8000-000000082026");
     private static final UUID DRAFT_SEPTEMBER_CYCLE_ID = UUID.fromString("81100000-0000-4000-8000-000000092026");
+    private static final UUID TEST_SCENARIO_CYCLE_ID = UUID.fromString("18300000-0000-4000-8000-000000000100");
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -26,8 +27,8 @@ class CapitalSeedDataProfileIsolationTest {
         Long count = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*)
                 FROM resourcecapital.capital_cycles
-                WHERE id IN (?, ?)
-                """, Long.class, ACTIVE_AUGUST_CYCLE_ID, DRAFT_SEPTEMBER_CYCLE_ID);
+                WHERE id IN (?, ?, ?)
+                """, Long.class, ACTIVE_AUGUST_CYCLE_ID, DRAFT_SEPTEMBER_CYCLE_ID, TEST_SCENARIO_CYCLE_ID);
 
         assertThat(count).isZero();
     }
