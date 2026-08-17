@@ -3,12 +3,16 @@ package com.lifebalance.resourcecapital.service;
 import com.lifebalance.resourcecapital.domain.capital.CapitalKind;
 import com.lifebalance.resourcecapital.domain.capitalallocation.AllocationStatus;
 import com.lifebalance.resourcecapital.domain.capitalallocation.AllocationTargetType;
+import com.lifebalance.resourcecapital.domain.capitalallocation.CapitalAllocation;
+import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InvalidAllocationStateException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationConfirmationRequiredException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleType;
 import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalActionType;
 import com.lifebalance.resourcecapital.dto.AllocateCapitalRequest;
 import com.lifebalance.resourcecapital.dto.AllocationResponse;
+import com.lifebalance.resourcecapital.dto.CapitalAllocationChangeRequest;
+import com.lifebalance.resourcecapital.dto.CapitalAllocationReleaseRequest;
 import com.lifebalance.resourcecapital.dto.ReallocateCapitalRequest;
 import com.lifebalance.resourcecapital.dto.ReleaseCapitalRequest;
 import com.lifebalance.resourcecapital.dto.SetupTimeCapitalRequest;
@@ -45,6 +49,9 @@ class AllocationServiceIntegrationTest {
 
     @Autowired
     private AllocationService allocationService;
+
+    @Autowired
+    private CapitalAllocationService capitalAllocationService;
 
     @MockitoBean
     private AllocationTargetValidator allocationTargetValidator;
@@ -252,6 +259,170 @@ class AllocationServiceIntegrationTest {
     }
 
     @Test
+    void changeAllocationIncreaseRequiresConfirmationAndAppendsHistory() {
+        CapitalCycle cycle = createCycle("August 8", LocalDate.of(2026, 8, 8), true);
+        capitalService.setupTimeCapital(OWNER_ID, cycle.getId(), new SetupTimeCapitalRequest(100L));
+        activateCycle(cycle);
+        allocationService.allocateCapital(
+                OWNER_ID,
+                cycle.getId(),
+                new AllocateCapitalRequest(
+                        CapitalKind.TIME,
+                        AllocationTargetType.TASK,
+                        SOURCE_TASK_ID,
+                        new BigDecimal("90.0000"),
+                        false,
+                        "Initial"
+                )
+        );
+
+        CapitalAllocation allocation = findTaskAllocation(cycle, SOURCE_TASK_ID);
+        assertThatThrownBy(() -> capitalAllocationService.changeAllocation(
+                OWNER_ID,
+                allocation.getId(),
+                new CapitalAllocationChangeRequest(
+                        new BigDecimal("120.0000"),
+                        false,
+                        "Needs confirmation"
+                )
+        )).isInstanceOf(OverAllocationConfirmationRequiredException.class);
+        entityManager.flush();
+        entityManager.clear();
+
+        CapitalAllocation afterRejectedChange = findTaskAllocation(cycle, SOURCE_TASK_ID);
+        assertThat(afterRejectedChange.getAllocatedAmount()).isEqualByComparingTo("90.0000");
+
+        AllocationResponse response = capitalAllocationService.changeAllocation(
+                OWNER_ID,
+                afterRejectedChange.getId(),
+                new CapitalAllocationChangeRequest(
+                        new BigDecimal("120.0000"),
+                        true,
+                        "Approved change"
+                )
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(response.targetAllocatedAmount()).isEqualByComparingTo("120.0000");
+        assertThat(response.totalAllocatedAmount()).isEqualByComparingTo("120.0000");
+        assertThat(response.remainingAmount()).isEqualByComparingTo("-20.0000");
+        assertThat(response.overAllocated()).isTrue();
+        assertThat(response.historyIds()).hasSize(2);
+        assertThat(findTaskAllocation(cycle, SOURCE_TASK_ID)).satisfies(changedAllocation -> {
+            assertThat(changedAllocation.getAllocatedAmount()).isEqualByComparingTo("120.0000");
+            assertThat(changedAllocation.getIsOverAllocated()).isTrue();
+            assertThat(changedAllocation.getOverAllocationConfirmed()).isTrue();
+        });
+        assertThat(capitalHistoryRepository.findByCapitalCycleIdAndActionType(
+                cycle.getId(),
+                CapitalActionType.ALLOCATE,
+                PageRequest.of(0, 10)
+        ).getContent()).hasSize(2);
+        assertThat(capitalHistoryRepository.findByCapitalCycleIdAndActionType(
+                cycle.getId(),
+                CapitalActionType.OVER_ALLOCATION_APPROVED,
+                PageRequest.of(0, 10)
+        ).getContent()).singleElement()
+                .satisfies(history -> assertThat(history.getReferenceId()).isEqualTo(SOURCE_TASK_ID));
+    }
+
+    @Test
+    void changeAllocationDecreaseReleasesDeltaAndKeepsAllocationHistory() {
+        CapitalCycle cycle = createCycle("August 9", LocalDate.of(2026, 8, 9), false);
+        capitalService.setupTimeCapital(OWNER_ID, cycle.getId(), new SetupTimeCapitalRequest(100L));
+        activateCycle(cycle);
+        allocationService.allocateCapital(
+                OWNER_ID,
+                cycle.getId(),
+                new AllocateCapitalRequest(
+                        CapitalKind.TIME,
+                        AllocationTargetType.TASK,
+                        SOURCE_TASK_ID,
+                        new BigDecimal("80.0000"),
+                        false,
+                        "Initial"
+                )
+        );
+        CapitalAllocation allocation = findTaskAllocation(cycle, SOURCE_TASK_ID);
+
+        AllocationResponse response = capitalAllocationService.changeAllocation(
+                OWNER_ID,
+                allocation.getId(),
+                new CapitalAllocationChangeRequest(
+                        new BigDecimal("50.0000"),
+                        false,
+                        "Reduce allocation"
+                )
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(response.targetAllocatedAmount()).isEqualByComparingTo("50.0000");
+        assertThat(response.totalAllocatedAmount()).isEqualByComparingTo("50.0000");
+        assertThat(response.remainingAmount()).isEqualByComparingTo("50.0000");
+        assertThat(response.historyIds()).hasSize(1);
+        assertThat(findTaskAllocation(cycle, SOURCE_TASK_ID)).satisfies(changedAllocation -> {
+            assertThat(changedAllocation.getAllocatedAmount()).isEqualByComparingTo("50.0000");
+            assertThat(changedAllocation.getReleasedAmount()).isEqualByComparingTo("30.0000");
+            assertThat(changedAllocation.getStatus()).isEqualTo(AllocationStatus.ACTIVE);
+        });
+        assertThat(capitalHistoryRepository.findByCapitalCycleIdAndActionType(
+                cycle.getId(),
+                CapitalActionType.ALLOCATE,
+                PageRequest.of(0, 10)
+        ).getContent()).hasSize(1);
+        assertThat(capitalHistoryRepository.findByCapitalCycleIdAndActionType(
+                cycle.getId(),
+                CapitalActionType.RELEASE,
+                PageRequest.of(0, 10)
+        ).getContent()).singleElement().satisfies(history -> {
+            assertThat(history.getReferenceId()).isEqualTo(SOURCE_TASK_ID);
+            assertThat(history.getBeforeAmount()).isEqualByComparingTo("80.0000");
+            assertThat(history.getAfterAmount()).isEqualByComparingTo("50.0000");
+        });
+    }
+
+    @Test
+    void changeAllocationRejectsReleasedAllocation() {
+        CapitalCycle cycle = createCycle("August 10", LocalDate.of(2026, 8, 10), false);
+        capitalService.setupTimeCapital(OWNER_ID, cycle.getId(), new SetupTimeCapitalRequest(100L));
+        activateCycle(cycle);
+        allocationService.allocateCapital(
+                OWNER_ID,
+                cycle.getId(),
+                new AllocateCapitalRequest(
+                        CapitalKind.TIME,
+                        AllocationTargetType.TASK,
+                        SOURCE_TASK_ID,
+                        new BigDecimal("40.0000"),
+                        false,
+                        "Initial"
+                )
+        );
+        CapitalAllocation allocation = findTaskAllocation(cycle, SOURCE_TASK_ID);
+        capitalAllocationService.releaseCapital(
+                OWNER_ID,
+                allocation.getId(),
+                new CapitalAllocationReleaseRequest(new BigDecimal("40.0000"), "Done")
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        CapitalAllocation releasedAllocation = findTaskAllocation(cycle, SOURCE_TASK_ID);
+        assertThat(releasedAllocation.getStatus()).isEqualTo(AllocationStatus.RELEASED);
+        assertThatThrownBy(() -> capitalAllocationService.changeAllocation(
+                OWNER_ID,
+                releasedAllocation.getId(),
+                new CapitalAllocationChangeRequest(
+                        new BigDecimal("10.0000"),
+                        false,
+                        "Too late"
+                )
+        )).isInstanceOf(InvalidAllocationStateException.class);
+    }
+
+    @Test
     void capitalOverviewUsesPersistedAllocatedAmount() {
         CapitalCycle cycle = createCycle("August 7", LocalDate.of(2026, 8, 7), false);
         capitalService.setupTimeCapital(OWNER_ID, cycle.getId(), new SetupTimeCapitalRequest(90L));
@@ -297,5 +468,15 @@ class AllocationServiceIntegrationTest {
     private void activateCycle(CapitalCycle cycle) {
         cycle.activate(Instant.parse("2026-08-04T00:00:00Z"));
         capitalCycleRepository.saveAndFlush(cycle);
+    }
+
+    private CapitalAllocation findTaskAllocation(CapitalCycle cycle, UUID taskId) {
+        return capitalAllocationRepository.findByUserIdAndCapitalCycleIdAndTargetTypeAndTargetIdAndCapitalType(
+                OWNER_ID,
+                cycle.getId(),
+                AllocationTargetType.TASK,
+                taskId,
+                CapitalKind.TIME
+        ).orElseThrow();
     }
 }

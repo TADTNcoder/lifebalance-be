@@ -8,6 +8,7 @@ import com.lifebalance.resourcecapital.domain.capitalallocation.AllocationTarget
 import com.lifebalance.resourcecapital.domain.capitalallocation.CapitalAllocation;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.AllocationNotFoundException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InvalidAllocationAmountException;
+import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InvalidAllocationStateException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InvalidAllocationTargetException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleStatus;
@@ -21,9 +22,11 @@ import com.lifebalance.resourcecapital.dto.AllocateCapitalRequest;
 import com.lifebalance.resourcecapital.dto.AllocateCapitalRequestDTO;
 import com.lifebalance.resourcecapital.dto.AllocationResponse;
 import com.lifebalance.resourcecapital.dto.AllocationResponseDTO;
+import com.lifebalance.resourcecapital.dto.CapitalAllocationChangeRequest;
 import com.lifebalance.resourcecapital.dto.CapitalAllocationReleaseRequest;
 import com.lifebalance.resourcecapital.dto.CapitalAllocationResponse;
 import com.lifebalance.resourcecapital.dto.CapitalReallocationRequest;
+import com.lifebalance.resourcecapital.dto.ChangeCapitalAllocationRequestDTO;
 import com.lifebalance.resourcecapital.dto.CreateCapitalAllocationRequest;
 import com.lifebalance.resourcecapital.dto.ReallocateCapitalRequest;
 import com.lifebalance.resourcecapital.dto.ReallocateCapitalRequestDTO;
@@ -277,6 +280,41 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
 
     @Transactional
     @Override
+    public AllocationResponse changeAllocation(
+            UUID ownerId,
+            UUID allocationId,
+            CapitalAllocationChangeRequest request
+    ) {
+        Objects.requireNonNull(request, "Capital allocation change request is required.");
+        CapitalAllocation allocation = findOwnedAllocationForUpdate(ownerId, allocationId);
+
+        return changeAllocationAmount(
+                ownerId,
+                allocation,
+                request.newAmount(),
+                request.overAllocationConfirmed(),
+                request.reason()
+        );
+    }
+
+    @Transactional
+    @Override
+    public AllocationResponseDTO changeAllocation(UUID ownerId, ChangeCapitalAllocationRequestDTO request) {
+        Objects.requireNonNull(request, "Change capital allocation request is required.");
+        CapitalAllocation allocation = findOwnedAllocationForUpdate(ownerId, request.allocationId());
+
+        AllocationResponse response = changeAllocationAmount(
+                ownerId,
+                allocation,
+                request.newAmount(),
+                request.overAllocationConfirmed(),
+                request.reason()
+        );
+        return AllocationResponseDTO.from(response);
+    }
+
+    @Transactional
+    @Override
     public AllocationResponse releaseCapital(
             UUID ownerId,
             UUID allocationId,
@@ -432,6 +470,64 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
                 .orElseThrow(() -> new AllocationNotFoundException(allocationId));
     }
 
+    private CapitalAllocation findOwnedAllocationForUpdate(UUID ownerId, UUID allocationId) {
+        if (allocationId == null) {
+            throw new InvalidAllocationTargetException("Allocation id is required.");
+        }
+        return capitalAllocationRepository.findByIdAndUserIdForUpdate(allocationId, ownerId)
+                .orElseThrow(() -> new AllocationNotFoundException(allocationId));
+    }
+
+    private AllocationResponse changeAllocationAmount(
+            UUID ownerId,
+            CapitalAllocation allocation,
+            BigDecimal requestedNewAmount,
+            boolean overAllocationConfirmed,
+            String reason
+    ) {
+        findActiveOwnedCycle(ownerId, allocation.getCapitalCycle().getId(), "change allocation");
+        ensureActiveAllocation(allocation, "change allocation");
+
+        BigDecimal newAmount = normalizeNewAllocationAmount(allocation.getCapitalType(), requestedNewAmount);
+        BigDecimal currentAmount = allocation.getAllocatedAmount()
+                .setScale(CapitalAllocation.AMOUNT_SCALE, RoundingMode.UNNECESSARY);
+        int comparison = newAmount.compareTo(currentAmount);
+        if (comparison == 0) {
+            return allocationSnapshot(ownerId, allocation);
+        }
+
+        if (comparison > 0) {
+            BigDecimal delta = newAmount.subtract(currentAmount)
+                    .setScale(CapitalAllocation.AMOUNT_SCALE, RoundingMode.UNNECESSARY);
+            return allocationService.allocateCapital(
+                    ownerId,
+                    allocation.getCapitalCycle().getId(),
+                    new AllocateCapitalRequest(
+                            allocation.getCapitalType(),
+                            allocation.getTargetType(),
+                            allocation.getTargetId(),
+                            delta,
+                            overAllocationConfirmed,
+                            reason
+                    )
+            );
+        }
+
+        BigDecimal delta = currentAmount.subtract(newAmount)
+                .setScale(CapitalAllocation.AMOUNT_SCALE, RoundingMode.UNNECESSARY);
+        return releaseCapital(
+                ownerId,
+                allocation.getId(),
+                new CapitalAllocationReleaseRequest(delta, reason)
+        );
+    }
+
+    private void ensureActiveAllocation(CapitalAllocation allocation, String action) {
+        if (allocation.getStatus() != AllocationStatus.ACTIVE) {
+            throw new InvalidAllocationStateException(allocation.getId(), allocation.getStatus(), action);
+        }
+    }
+
     private CapitalAllocation findTargetAllocation(
             UUID ownerId,
             UUID cycleId,
@@ -557,6 +653,27 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
         return targetType;
     }
 
+    private BigDecimal normalizeNewAllocationAmount(CapitalKind capitalType, BigDecimal amount) {
+        if (amount == null) {
+            throw new InvalidAllocationAmountException("New allocation amount is required.");
+        }
+        BigDecimal normalizedAmount;
+        try {
+            normalizedAmount = amount.setScale(CapitalAllocation.AMOUNT_SCALE, RoundingMode.UNNECESSARY);
+        } catch (ArithmeticException exception) {
+            throw new InvalidAllocationAmountException(
+                    "New allocation amount scale must not exceed " + CapitalAllocation.AMOUNT_SCALE + "."
+            );
+        }
+        if (normalizedAmount.compareTo(BigDecimal.ZERO) < 0) {
+            throw new InvalidAllocationAmountException("New allocation amount must be zero or greater.");
+        }
+        if (capitalType == CapitalKind.TIME && normalizedAmount.stripTrailingZeros().scale() > 0) {
+            throw new InvalidAllocationAmountException("Time allocation amount must be whole minutes.");
+        }
+        return normalizedAmount;
+    }
+
     private BigDecimal plannedAmount(UUID cycleId, CapitalKind capitalType) {
         return switch (capitalType) {
             case TIME -> timeCapitalRepository.findByCapitalCycleId(cycleId)
@@ -583,6 +700,32 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
 
     private BigDecimal zero() {
         return BigDecimal.ZERO.setScale(CapitalAllocation.AMOUNT_SCALE, RoundingMode.UNNECESSARY);
+    }
+
+    private AllocationResponse allocationSnapshot(UUID ownerId, CapitalAllocation allocation) {
+        BigDecimal plannedAmount = plannedAmount(
+                allocation.getCapitalCycle().getId(),
+                allocation.getCapitalType()
+        );
+        BigDecimal totalAllocatedAmount = sumAllocated(
+                ownerId,
+                allocation.getCapitalCycle().getId(),
+                allocation.getCapitalType()
+        );
+        BigDecimal remainingAmount = plannedAmount.subtract(totalAllocatedAmount)
+                .setScale(CapitalAllocation.AMOUNT_SCALE, RoundingMode.UNNECESSARY);
+        return new AllocationResponse(
+                allocation.getCapitalCycle().getId(),
+                allocation.getCapitalType(),
+                allocation.getTargetType(),
+                allocation.getTargetId(),
+                allocation.getAllocatedAmount(),
+                plannedAmount,
+                totalAllocatedAmount,
+                remainingAmount,
+                remainingAmount.compareTo(BigDecimal.ZERO) < 0,
+                List.of()
+        );
     }
 
     private AllocationResponseDTO toDto(
