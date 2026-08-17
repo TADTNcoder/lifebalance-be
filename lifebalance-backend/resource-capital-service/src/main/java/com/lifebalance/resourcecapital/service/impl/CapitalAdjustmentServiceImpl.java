@@ -115,7 +115,7 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
             timeCapital.increasePlannedMinutes(amountInMinutes);
         } else {
             long afterMinutes = calculateTimeDecrease(beforeMinutes, amountInMinutes);
-            long allocatedMinutes = capitalAllocationReader.getAllocatedMinutes(cycleId);
+            long allocatedMinutes = capitalAllocationReader.getAllocatedMinutes(ownerId, cycleId);
             if (afterMinutes < allocatedMinutes) {
                 throw new CapitalBelowAllocatedException(
                         cycleId,
@@ -174,7 +174,7 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
             moneyCapital.increasePlannedAmount(amount);
         } else {
             BigDecimal afterAmount = calculateMoneyDecrease(beforeAmount, amount);
-            BigDecimal allocatedAmount = capitalAllocationReader.getAllocatedAmount(cycleId);
+            BigDecimal allocatedAmount = capitalAllocationReader.getAllocatedAmount(ownerId, cycleId);
             if (afterAmount.compareTo(allocatedAmount) < 0) {
                 throw new CapitalBelowAllocatedException(
                         cycleId,
@@ -252,8 +252,8 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
         long beforeMinutes = timeCapital.getPlannedMinutes();
         long afterMinutes = switch (adjustmentType) {
             case INCREASE -> increaseTimeCapital(timeCapital, amountInMinutes);
-            case DECREASE -> decreaseTimeCapital(cycle.getId(), timeCapital, beforeMinutes, amountInMinutes);
-            case OVERRIDE -> overrideTimeCapital(cycle.getId(), timeCapital, beforeMinutes, amountInMinutes);
+            case DECREASE -> decreaseTimeCapital(ownerId, cycle.getId(), timeCapital, beforeMinutes, amountInMinutes);
+            case OVERRIDE -> overrideTimeCapital(ownerId, cycle.getId(), timeCapital, beforeMinutes, amountInMinutes);
         };
 
         return recordAdjustmentAndHistory(
@@ -281,8 +281,8 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
         BigDecimal beforeAmount = moneyCapital.getPlannedAmount();
         BigDecimal afterAmount = switch (adjustmentType) {
             case INCREASE -> increaseMoneyCapital(moneyCapital, beforeAmount, amount);
-            case DECREASE -> decreaseMoneyCapital(cycle.getId(), moneyCapital, beforeAmount, amount);
-            case OVERRIDE -> overrideMoneyCapital(cycle.getId(), moneyCapital, beforeAmount, amount);
+            case DECREASE -> decreaseMoneyCapital(ownerId, cycle.getId(), moneyCapital, beforeAmount, amount);
+            case OVERRIDE -> overrideMoneyCapital(ownerId, cycle.getId(), moneyCapital, beforeAmount, amount);
         };
 
         return recordAdjustmentAndHistory(
@@ -304,24 +304,26 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
     }
 
     private long decreaseTimeCapital(
+            UUID ownerId,
             UUID cycleId,
             TimeCapital timeCapital,
             long beforeMinutes,
             long amountInMinutes
     ) {
         long afterMinutes = calculateTimeDecrease(beforeMinutes, amountInMinutes);
-        ensureTimeNotBelowAllocated(cycleId, afterMinutes);
+        ensureTimeNotBelowAllocated(ownerId, cycleId, afterMinutes);
         timeCapital.decreasePlannedMinutes(amountInMinutes);
         return timeCapital.getPlannedMinutes();
     }
 
     private long overrideTimeCapital(
+            UUID ownerId,
             UUID cycleId,
             TimeCapital timeCapital,
             long beforeMinutes,
             long targetMinutes
     ) {
-        ensureTimeNotBelowAllocated(cycleId, targetMinutes);
+        ensureTimeNotBelowAllocated(ownerId, cycleId, targetMinutes);
         if (targetMinutes > beforeMinutes) {
             timeCapital.increasePlannedMinutes(Math.subtractExact(targetMinutes, beforeMinutes));
         } else if (targetMinutes < beforeMinutes) {
@@ -340,24 +342,26 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
     }
 
     private BigDecimal decreaseMoneyCapital(
+            UUID ownerId,
             UUID cycleId,
             MoneyCapital moneyCapital,
             BigDecimal beforeAmount,
             BigDecimal amount
     ) {
         BigDecimal afterAmount = calculateMoneyDecrease(beforeAmount, amount);
-        ensureMoneyNotBelowAllocated(cycleId, afterAmount);
+        ensureMoneyNotBelowAllocated(ownerId, cycleId, afterAmount);
         moneyCapital.decreasePlannedAmount(amount);
         return afterAmount;
     }
 
     private BigDecimal overrideMoneyCapital(
+            UUID ownerId,
             UUID cycleId,
             MoneyCapital moneyCapital,
             BigDecimal beforeAmount,
             BigDecimal targetAmount
     ) {
-        ensureMoneyNotBelowAllocated(cycleId, targetAmount);
+        ensureMoneyNotBelowAllocated(ownerId, cycleId, targetAmount);
         int comparison = targetAmount.compareTo(beforeAmount);
         if (comparison > 0) {
             moneyCapital.increasePlannedAmount(targetAmount.subtract(beforeAmount));
@@ -367,8 +371,8 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
         return targetAmount;
     }
 
-    private void ensureTimeNotBelowAllocated(UUID cycleId, long afterMinutes) {
-        long allocatedMinutes = capitalAllocationReader.getAllocatedMinutes(cycleId);
+    private void ensureTimeNotBelowAllocated(UUID ownerId, UUID cycleId, long afterMinutes) {
+        long allocatedMinutes = capitalAllocationReader.getAllocatedMinutes(ownerId, cycleId);
         if (afterMinutes < allocatedMinutes) {
             throw new CapitalBelowAllocatedException(
                     cycleId,
@@ -379,8 +383,8 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
         }
     }
 
-    private void ensureMoneyNotBelowAllocated(UUID cycleId, BigDecimal afterAmount) {
-        BigDecimal allocatedAmount = capitalAllocationReader.getAllocatedAmount(cycleId);
+    private void ensureMoneyNotBelowAllocated(UUID ownerId, UUID cycleId, BigDecimal afterAmount) {
+        BigDecimal allocatedAmount = capitalAllocationReader.getAllocatedAmount(ownerId, cycleId);
         if (afterAmount.compareTo(allocatedAmount) < 0) {
             throw new CapitalBelowAllocatedException(
                     cycleId,

@@ -26,8 +26,9 @@ public class CapitalMapper {
 
     public TimeCapitalResponse toTimeResponse(TimeCapital timeCapital) {
         UUID cycleId = timeCapital.getCapitalCycle().getId();
+        UUID ownerId = timeCapital.getCapitalCycle().getOwnerId();
         long plannedMinutes = timeCapital.getPlannedMinutes();
-        long allocatedMinutes = capitalAllocationReader.getAllocatedMinutes(cycleId);
+        long allocatedMinutes = capitalAllocationReader.getAllocatedMinutes(ownerId, cycleId);
         long remainingMinutes = plannedMinutes - allocatedMinutes;
 
         return new TimeCapitalResponse(
@@ -55,8 +56,9 @@ public class CapitalMapper {
 
     public MoneyCapitalResponse toMoneyResponse(MoneyCapital moneyCapital) {
         UUID cycleId = moneyCapital.getCapitalCycle().getId();
+        UUID ownerId = moneyCapital.getCapitalCycle().getOwnerId();
         BigDecimal plannedAmount = moneyCapital.getPlannedAmount();
-        BigDecimal allocatedAmount = capitalAllocationReader.getAllocatedAmount(cycleId);
+        BigDecimal allocatedAmount = capitalAllocationReader.getAllocatedAmount(ownerId, cycleId);
         if (allocatedAmount == null) {
             allocatedAmount = zeroMoney();
         }

@@ -59,8 +59,8 @@ public class CapitalBalanceServiceImpl implements CapitalBalanceService {
         return new CapitalBalanceResponse(
                 cycle.getId(),
                 cycle.getStatus(),
-                timeBalance(cycleId, timeCapital),
-                moneyBalance(cycleId, moneyCapital)
+                timeBalance(ownerId, cycleId, timeCapital),
+                moneyBalance(ownerId, cycleId, moneyCapital)
         );
     }
 
@@ -75,8 +75,8 @@ public class CapitalBalanceServiceImpl implements CapitalBalanceService {
         findOwnedCycle(ownerId, cycleId);
 
         Map<CapitalKind, BigDecimal> totals = plannedTotals(cycleId);
-        Map<CapitalKind, BigDecimal> allocatedTotals = allocatedTotals(cycleId);
-        return capitalAllocationRepository.findAllocationBreakdownByTargetType(cycleId, targetType)
+        Map<CapitalKind, BigDecimal> allocatedTotals = allocatedTotals(ownerId, cycleId);
+        return capitalAllocationRepository.findAllocationBreakdownByUserIdAndTargetType(ownerId, cycleId, targetType)
                 .stream()
                 .map(item -> toBreakdown(item, totals, allocatedTotals))
                 .toList();
@@ -87,15 +87,15 @@ public class CapitalBalanceServiceImpl implements CapitalBalanceService {
                 .orElseThrow(() -> new CapitalCycleNotFoundException(cycleId));
     }
 
-    private CapitalBalanceSummaryDto timeBalance(UUID cycleId, TimeCapital timeCapital) {
+    private CapitalBalanceSummaryDto timeBalance(UUID ownerId, UUID cycleId, TimeCapital timeCapital) {
         BigDecimal total = timeCapital == null ? zeroMoney() : money(timeCapital.getPlannedMinutes());
-        BigDecimal allocated = sumAllocated(cycleId, CapitalKind.TIME);
+        BigDecimal allocated = sumAllocated(ownerId, cycleId, CapitalKind.TIME);
         return balance(CapitalKind.TIME, total, allocated, null, timeCapital != null);
     }
 
-    private CapitalBalanceSummaryDto moneyBalance(UUID cycleId, MoneyCapital moneyCapital) {
+    private CapitalBalanceSummaryDto moneyBalance(UUID ownerId, UUID cycleId, MoneyCapital moneyCapital) {
         BigDecimal total = moneyCapital == null ? zeroMoney() : moneyCapital.getPlannedAmount();
-        BigDecimal allocated = sumAllocated(cycleId, CapitalKind.MONEY);
+        BigDecimal allocated = sumAllocated(ownerId, cycleId, CapitalKind.MONEY);
         String currencyCode = moneyCapital == null ? null : moneyCapital.getCurrencyCode();
         return balance(CapitalKind.MONEY, total, allocated, currencyCode, moneyCapital != null);
     }
@@ -152,15 +152,15 @@ public class CapitalBalanceServiceImpl implements CapitalBalanceService {
         return totals;
     }
 
-    private Map<CapitalKind, BigDecimal> allocatedTotals(UUID cycleId) {
+    private Map<CapitalKind, BigDecimal> allocatedTotals(UUID ownerId, UUID cycleId) {
         Map<CapitalKind, BigDecimal> totals = new EnumMap<>(CapitalKind.class);
-        totals.put(CapitalKind.TIME, sumAllocated(cycleId, CapitalKind.TIME));
-        totals.put(CapitalKind.MONEY, sumAllocated(cycleId, CapitalKind.MONEY));
+        totals.put(CapitalKind.TIME, sumAllocated(ownerId, cycleId, CapitalKind.TIME));
+        totals.put(CapitalKind.MONEY, sumAllocated(ownerId, cycleId, CapitalKind.MONEY));
         return totals;
     }
 
-    private BigDecimal sumAllocated(UUID cycleId, CapitalKind capitalType) {
-        return normalize(capitalAllocationRepository.sumAllocatedAmount(cycleId, capitalType));
+    private BigDecimal sumAllocated(UUID ownerId, UUID cycleId, CapitalKind capitalType) {
+        return normalize(capitalAllocationRepository.sumAllocatedAmount(ownerId, cycleId, capitalType));
     }
 
     private BigDecimal percentage(BigDecimal numerator, BigDecimal denominator) {

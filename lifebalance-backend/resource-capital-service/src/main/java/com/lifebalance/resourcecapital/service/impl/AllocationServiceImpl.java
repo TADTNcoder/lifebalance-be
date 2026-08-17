@@ -86,6 +86,7 @@ public class AllocationServiceImpl implements AllocationService {
         BigDecimal plannedAmount = lockCapitalAndGetPlannedAmount(cycleId, capitalType);
 
         Optional<CapitalAllocation> allocation = capitalAllocationRepository.findTargetForUpdate(
+                ownerId,
                 cycleId,
                 capitalType,
                 targetType,
@@ -93,7 +94,7 @@ public class AllocationServiceImpl implements AllocationService {
         );
         BigDecimal targetBefore = allocation.map(CapitalAllocation::getAllocatedAmount).orElse(zero());
         BigDecimal targetAfter = targetBefore.add(amount);
-        BigDecimal totalBefore = sumAllocated(cycleId, capitalType);
+        BigDecimal totalBefore = sumAllocated(ownerId, cycleId, capitalType);
         BigDecimal totalAfter = totalBefore.add(amount);
         BigDecimal remainingAfter = plannedAmount.subtract(totalAfter).setScale(MONEY_SCALE, RoundingMode.UNNECESSARY);
         boolean overAllocated = remainingAfter.compareTo(BigDecimal.ZERO) < 0;
@@ -190,6 +191,7 @@ public class AllocationServiceImpl implements AllocationService {
         BigDecimal plannedAmount = lockCapitalAndGetPlannedAmount(cycleId, capitalType);
 
         List<CapitalAllocation> lockedAllocations = lockReallocationTargets(
+                ownerId,
                 cycleId,
                 capitalType,
                 sourceTargetType,
@@ -243,7 +245,7 @@ public class AllocationServiceImpl implements AllocationService {
         }
         capitalAllocationRepository.saveAndFlush(destination);
 
-        BigDecimal totalAllocated = sumAllocated(cycleId, capitalType);
+        BigDecimal totalAllocated = sumAllocated(ownerId, cycleId, capitalType);
         List<UUID> historyIds = List.of(
                 recordHistory(
                         cycle,
@@ -299,6 +301,7 @@ public class AllocationServiceImpl implements AllocationService {
         CapitalCycle cycle = findAdjustableOwnedCycle(ownerId, cycleId);
         BigDecimal plannedAmount = lockCapitalAndGetPlannedAmount(cycleId, capitalType);
         CapitalAllocation allocation = capitalAllocationRepository.findTargetForUpdate(
+                ownerId,
                 cycleId,
                 capitalType,
                 targetType,
@@ -306,7 +309,7 @@ public class AllocationServiceImpl implements AllocationService {
         ).orElseThrow(() -> new AllocationNotFoundException(cycleId, capitalType, targetType, targetId));
 
         BigDecimal targetBefore = allocation.getAllocatedAmount();
-        BigDecimal totalBefore = sumAllocated(cycleId, capitalType);
+        BigDecimal totalBefore = sumAllocated(ownerId, cycleId, capitalType);
         if (targetBefore.compareTo(amount) < 0) {
             throw new InsufficientAllocatedCapitalException(
                     cycleId,
@@ -368,6 +371,7 @@ public class AllocationServiceImpl implements AllocationService {
     }
 
     private List<CapitalAllocation> lockReallocationTargets(
+            UUID ownerId,
             UUID cycleId,
             CapitalKind capitalType,
             AllocationTargetType sourceTargetType,
@@ -383,6 +387,7 @@ public class AllocationServiceImpl implements AllocationService {
                 .sorted(Comparator.naturalOrder())
                 .toList();
         return capitalAllocationRepository.findTargetsForUpdate(
+                ownerId,
                 cycleId,
                 capitalType,
                 sourceTargetType,
@@ -482,8 +487,8 @@ public class AllocationServiceImpl implements AllocationService {
         );
     }
 
-    private BigDecimal sumAllocated(UUID cycleId, CapitalKind capitalType) {
-        BigDecimal total = capitalAllocationRepository.sumAllocatedAmount(cycleId, capitalType);
+    private BigDecimal sumAllocated(UUID ownerId, UUID cycleId, CapitalKind capitalType) {
+        BigDecimal total = capitalAllocationRepository.sumAllocatedAmount(ownerId, cycleId, capitalType);
         if (total == null) {
             return zero();
         }

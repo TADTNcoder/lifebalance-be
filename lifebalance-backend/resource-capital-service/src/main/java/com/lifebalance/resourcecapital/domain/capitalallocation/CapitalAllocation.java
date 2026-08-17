@@ -57,7 +57,12 @@ import java.util.UUID;
                 @Index(name = "idx_capital_allocations_cycle_kind", columnList = "capital_cycle_id,capital_type"),
                 @Index(name = "idx_capital_allocations_target", columnList = "target_type,target_id"),
                 @Index(name = "idx_capital_allocations_cycle_status", columnList = "capital_cycle_id,status"),
-                @Index(name = "idx_capital_allocations_status_kind", columnList = "status,capital_type")
+                @Index(name = "idx_capital_allocations_status_kind", columnList = "status,capital_type"),
+                @Index(name = "idx_capital_allocations_user_cycle_created_at", columnList = "user_id,capital_cycle_id,created_at,id"),
+                @Index(name = "idx_capital_allocations_user_cycle_kind_created_at", columnList = "user_id,capital_cycle_id,capital_type,created_at,id"),
+                @Index(name = "idx_capital_allocations_user_cycle_status_created_at", columnList = "user_id,capital_cycle_id,status,created_at,id"),
+                @Index(name = "idx_capital_allocations_user_target_status", columnList = "user_id,target_type,target_id,status"),
+                @Index(name = "idx_capital_allocations_user_cycle_target_kind", columnList = "user_id,capital_cycle_id,target_type,target_id,capital_type")
         }
 )
 public class CapitalAllocation {

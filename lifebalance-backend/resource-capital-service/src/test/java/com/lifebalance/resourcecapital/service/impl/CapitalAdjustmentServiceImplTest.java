@@ -117,7 +117,7 @@ class CapitalAdjustmentServiceImplTest {
         cycle.activate(NOW.minusSeconds(120));
         when(capitalCycleRepository.findByIdAndOwnerId(CYCLE_ID, OWNER_ID)).thenReturn(Optional.of(cycle));
         when(timeCapitalRepository.findByCapitalCycleId(CYCLE_ID)).thenReturn(Optional.of(timeCapital));
-        when(capitalAllocationReader.getAllocatedMinutes(CYCLE_ID)).thenReturn(60L);
+        when(capitalAllocationReader.getAllocatedMinutes(OWNER_ID, CYCLE_ID)).thenReturn(60L);
         when(capitalHistoryRepository.saveAndFlush(any(CapitalHistory.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         TimeCapitalAdjustmentResponse response = createService().adjustTimeCapital(
@@ -138,7 +138,7 @@ class CapitalAdjustmentServiceImplTest {
         cycle.activate(NOW.minusSeconds(120));
         when(capitalCycleRepository.findByIdAndOwnerId(CYCLE_ID, OWNER_ID)).thenReturn(Optional.of(cycle));
         when(timeCapitalRepository.findByCapitalCycleId(CYCLE_ID)).thenReturn(Optional.of(timeCapital));
-        when(capitalAllocationReader.getAllocatedMinutes(CYCLE_ID)).thenReturn(60L);
+        when(capitalAllocationReader.getAllocatedMinutes(OWNER_ID, CYCLE_ID)).thenReturn(60L);
 
         assertThatThrownBy(() -> createService().adjustTimeCapital(
                 OWNER_ID,
@@ -185,7 +185,7 @@ class CapitalAdjustmentServiceImplTest {
         cycle.activate(NOW.minusSeconds(120));
         when(capitalCycleRepository.findByIdAndOwnerId(CYCLE_ID, OWNER_ID)).thenReturn(Optional.of(cycle));
         when(moneyCapitalRepository.findByCapitalCycleId(CYCLE_ID)).thenReturn(Optional.of(moneyCapital));
-        when(capitalAllocationReader.getAllocatedAmount(CYCLE_ID)).thenReturn(new BigDecimal("75.0000"));
+        when(capitalAllocationReader.getAllocatedAmount(OWNER_ID, CYCLE_ID)).thenReturn(new BigDecimal("75.0000"));
 
         assertThatThrownBy(() -> createService().adjustMoneyCapital(
                 OWNER_ID,
@@ -204,7 +204,7 @@ class CapitalAdjustmentServiceImplTest {
         cycle.activate(NOW.minusSeconds(120));
         when(capitalCycleRepository.findByIdAndOwnerId(CYCLE_ID, OWNER_ID)).thenReturn(Optional.of(cycle));
         when(moneyCapitalRepository.findByCapitalCycleId(CYCLE_ID)).thenReturn(Optional.of(moneyCapital));
-        when(capitalAllocationReader.getAllocatedAmount(CYCLE_ID)).thenReturn(new BigDecimal("75.0000"));
+        when(capitalAllocationReader.getAllocatedAmount(OWNER_ID, CYCLE_ID)).thenReturn(new BigDecimal("75.0000"));
         when(capitalHistoryRepository.saveAndFlush(any(CapitalHistory.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         MoneyCapitalAdjustmentResponse response = createService().adjustMoneyCapital(
