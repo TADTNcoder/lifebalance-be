@@ -80,7 +80,7 @@ class CapitalAdjustmentServiceIntegrationTest {
         TimeCapitalAdjustmentResponse response = capitalAdjustmentService.adjustTimeCapital(
                 OWNER_ID,
                 cycle.getId(),
-                new AdjustTimeCapitalRequest(CapitalAdjustmentType.INCREASE, 45L, "Extend focused work")
+                new AdjustTimeCapitalRequest(CapitalAdjustmentType.INCREASE, 45L, "Extend focused work", false)
         );
         entityManager.flush();
         entityManager.clear();
@@ -132,7 +132,12 @@ class CapitalAdjustmentServiceIntegrationTest {
         MoneyCapitalAdjustmentResponse response = capitalAdjustmentService.adjustMoneyCapital(
                 OWNER_ID,
                 cycle.getId(),
-                new AdjustMoneyCapitalRequest(CapitalAdjustmentType.DECREASE, new BigDecimal("125.2500"), "Cancel purchase")
+                new AdjustMoneyCapitalRequest(
+                        CapitalAdjustmentType.DECREASE,
+                        new BigDecimal("125.2500"),
+                        "Cancel purchase",
+                        false
+                )
         );
         entityManager.flush();
         entityManager.clear();
@@ -178,7 +183,7 @@ class CapitalAdjustmentServiceIntegrationTest {
         assertThatThrownBy(() -> capitalAdjustmentService.adjustTimeCapital(
                 OWNER_ID,
                 cycle.getId(),
-                new AdjustTimeCapitalRequest(CapitalAdjustmentType.INCREASE, 30L, "Late change")
+                new AdjustTimeCapitalRequest(CapitalAdjustmentType.INCREASE, 30L, "Late change", false)
         )).isInstanceOf(CapitalCycleNotAdjustableException.class);
         entityManager.flush();
         entityManager.clear();
@@ -211,7 +216,8 @@ class CapitalAdjustmentServiceIntegrationTest {
                         CapitalKind.TIME,
                         CapitalAdjustmentType.OVERRIDE,
                         BigDecimal.ZERO,
-                        "Reset available time"
+                        "Reset available time",
+                        false
                 )
         );
         entityManager.flush();

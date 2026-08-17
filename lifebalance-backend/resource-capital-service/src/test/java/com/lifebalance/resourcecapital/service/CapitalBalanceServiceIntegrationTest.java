@@ -140,14 +140,14 @@ class CapitalBalanceServiceIntegrationTest {
         capitalAdjustmentService.adjustTimeCapital(
                 OWNER_ID,
                 cycle.getId(),
-                new AdjustTimeCapitalRequest(CapitalAdjustmentType.INCREASE, 60L, "Extend focused work")
+                new AdjustTimeCapitalRequest(CapitalAdjustmentType.INCREASE, 60L, "Extend focused work", false)
         );
         CapitalBalanceResponse increased = capitalBalanceService.getCycleBalance(OWNER_ID, cycle.getId());
 
         capitalAdjustmentService.adjustTimeCapital(
                 OWNER_ID,
                 cycle.getId(),
-                new AdjustTimeCapitalRequest(CapitalAdjustmentType.DECREASE, 90L, "Reduce buffer")
+                new AdjustTimeCapitalRequest(CapitalAdjustmentType.DECREASE, 90L, "Reduce buffer", false)
         );
         entityManager.flush();
         entityManager.clear();
