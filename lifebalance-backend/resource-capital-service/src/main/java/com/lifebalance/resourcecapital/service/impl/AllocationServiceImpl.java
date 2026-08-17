@@ -2,11 +2,13 @@ package com.lifebalance.resourcecapital.service.impl;
 
 import com.lifebalance.resourcecapital.domain.capital.CapitalKind;
 import com.lifebalance.resourcecapital.domain.capital.exception.CapitalNotSetupException;
+import com.lifebalance.resourcecapital.domain.capitalallocation.AllocationStatus;
 import com.lifebalance.resourcecapital.domain.capitalallocation.AllocationTargetType;
 import com.lifebalance.resourcecapital.domain.capitalallocation.CapitalAllocation;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.AllocationNotFoundException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InsufficientAllocatedCapitalException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InvalidAllocationAmountException;
+import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InvalidAllocationStateException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InvalidAllocationTargetException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleStatus;
@@ -319,6 +321,7 @@ public class AllocationServiceImpl implements AllocationService {
                 targetId
         ).orElseThrow(() -> new AllocationNotFoundException(cycleId, capitalType, targetType, targetId));
 
+        ensureReleasableAllocation(allocation);
         BigDecimal targetBefore = allocation.getAllocatedAmount();
         BigDecimal releasableAmount = availableUnspentAmount(allocation);
         BigDecimal totalBefore = sumAllocated(ownerId, cycleId, capitalType);
@@ -552,8 +555,17 @@ public class AllocationServiceImpl implements AllocationService {
     private BigDecimal availableUnspentAmount(CapitalAllocation allocation) {
         return allocation.getAllocatedAmount()
                 .subtract(allocation.getSpentAmount())
-                .subtract(allocation.getReleasedAmount())
                 .setScale(MONEY_SCALE, RoundingMode.UNNECESSARY);
+    }
+
+    private void ensureReleasableAllocation(CapitalAllocation allocation) {
+        if (allocation.getStatus() != AllocationStatus.ACTIVE) {
+            throw new InvalidAllocationStateException(
+                    allocation.getId(),
+                    allocation.getStatus(),
+                    "release capital"
+            );
+        }
     }
 
     private UUID requireTargetId(UUID targetId, String message) {

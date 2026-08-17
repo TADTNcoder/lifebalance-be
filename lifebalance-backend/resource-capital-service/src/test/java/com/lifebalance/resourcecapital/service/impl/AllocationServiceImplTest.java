@@ -6,6 +6,7 @@ import com.lifebalance.resourcecapital.domain.capitalallocation.AllocationTarget
 import com.lifebalance.resourcecapital.domain.capitalallocation.CapitalAllocation;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InsufficientAllocatedCapitalException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InvalidAllocationAmountException;
+import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InvalidAllocationStateException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationConfirmationRequiredException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationNotAllowedException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
@@ -470,6 +471,139 @@ class AllocationServiceImplTest {
         assertThat(historyCaptor.getValue().getAfterAmount()).isEqualByComparingTo("0.0000");
         assertThat(response.targetAllocatedAmount()).isEqualByComparingTo("0.0000");
         assertThat(response.totalAllocatedAmount()).isEqualByComparingTo("0.0000");
+    }
+
+    @Test
+    void releaseCapitalAllowsReleasingRemainingEffectiveAmountAfterPartialRelease() {
+        CapitalCycle cycle = draftCycle();
+        TimeCapital timeCapital = TimeCapital.create(cycle, 100L);
+        CapitalAllocation allocation = CapitalAllocation.create(
+                cycle,
+                CapitalKind.TIME,
+                AllocationTargetType.TASK,
+                SOURCE_TASK_ID,
+                new BigDecimal("100.0000")
+        );
+        allocation.release(new BigDecimal("40.0000"));
+        whenOwnedCycle(cycle);
+        when(timeCapitalRepository.findByCapitalCycleIdForUpdate(CYCLE_ID)).thenReturn(Optional.of(timeCapital));
+        when(capitalAllocationRepository.findTargetForUpdate(
+                OWNER_ID,
+                CYCLE_ID,
+                CapitalKind.TIME,
+                AllocationTargetType.TASK,
+                SOURCE_TASK_ID
+        )).thenReturn(Optional.of(allocation));
+        when(capitalAllocationRepository.sumAllocatedAmount(OWNER_ID, CYCLE_ID, CapitalKind.TIME))
+                .thenReturn(new BigDecimal("60.0000"));
+        stubHistoryIds();
+
+        AllocationResponse response = createService().releaseCapital(
+                OWNER_ID,
+                CYCLE_ID,
+                new ReleaseCapitalRequest(
+                        CapitalKind.TIME,
+                        AllocationTargetType.TASK,
+                        SOURCE_TASK_ID,
+                        new BigDecimal("60.0000"),
+                        "Release remaining"
+                )
+        );
+
+        ArgumentCaptor<CapitalHistory> historyCaptor = ArgumentCaptor.forClass(CapitalHistory.class);
+        verify(capitalHistoryRepository).saveAndFlush(historyCaptor.capture());
+        assertThat(allocation.getStatus()).isEqualTo(AllocationStatus.RELEASED);
+        assertThat(allocation.getAllocatedAmount()).isEqualByComparingTo("0.0000");
+        assertThat(allocation.getReleasedAmount()).isEqualByComparingTo("100.0000");
+        assertThat(historyCaptor.getValue().getActionType()).isEqualTo(CapitalActionType.RELEASE);
+        assertThat(historyCaptor.getValue().getBeforeAmount()).isEqualByComparingTo("60.0000");
+        assertThat(historyCaptor.getValue().getAfterAmount()).isEqualByComparingTo("0.0000");
+        assertThat(response.targetAllocatedAmount()).isEqualByComparingTo("0.0000");
+        assertThat(response.totalAllocatedAmount()).isEqualByComparingTo("0.0000");
+        assertThat(response.remainingAmount()).isEqualByComparingTo("100.0000");
+    }
+
+    @Test
+    void releaseCapitalRejectsWhenAmountExceedsEffectiveAllocatedAmount() {
+        CapitalCycle cycle = draftCycle();
+        TimeCapital timeCapital = TimeCapital.create(cycle, 100L);
+        CapitalAllocation allocation = CapitalAllocation.create(
+                cycle,
+                CapitalKind.TIME,
+                AllocationTargetType.TASK,
+                SOURCE_TASK_ID,
+                new BigDecimal("40.0000")
+        );
+        allocation.spend(new BigDecimal("10.0000"));
+        whenOwnedCycle(cycle);
+        when(timeCapitalRepository.findByCapitalCycleIdForUpdate(CYCLE_ID)).thenReturn(Optional.of(timeCapital));
+        when(capitalAllocationRepository.findTargetForUpdate(
+                OWNER_ID,
+                CYCLE_ID,
+                CapitalKind.TIME,
+                AllocationTargetType.TASK,
+                SOURCE_TASK_ID
+        )).thenReturn(Optional.of(allocation));
+        when(capitalAllocationRepository.sumAllocatedAmount(OWNER_ID, CYCLE_ID, CapitalKind.TIME))
+                .thenReturn(new BigDecimal("40.0000"));
+
+        assertThatThrownBy(() -> createService().releaseCapital(
+                OWNER_ID,
+                CYCLE_ID,
+                new ReleaseCapitalRequest(
+                        CapitalKind.TIME,
+                        AllocationTargetType.TASK,
+                        SOURCE_TASK_ID,
+                        new BigDecimal("31.0000"),
+                        "Too much"
+                )
+        )).isInstanceOf(InsufficientAllocatedCapitalException.class);
+
+        assertThat(allocation.getStatus()).isEqualTo(AllocationStatus.ACTIVE);
+        assertThat(allocation.getAllocatedAmount()).isEqualByComparingTo("40.0000");
+        assertThat(allocation.getSpentAmount()).isEqualByComparingTo("10.0000");
+        assertThat(allocation.getReleasedAmount()).isEqualByComparingTo("0.0000");
+        verifyNoInteractions(capitalHistoryRepository);
+    }
+
+    @Test
+    void releaseCapitalRejectsInactiveAllocationBeforeMutationAndHistory() {
+        CapitalCycle cycle = draftCycle();
+        TimeCapital timeCapital = TimeCapital.create(cycle, 100L);
+        CapitalAllocation allocation = CapitalAllocation.create(
+                cycle,
+                CapitalKind.TIME,
+                AllocationTargetType.TASK,
+                SOURCE_TASK_ID,
+                new BigDecimal("40.0000")
+        );
+        allocation.release(new BigDecimal("40.0000"));
+        whenOwnedCycle(cycle);
+        when(timeCapitalRepository.findByCapitalCycleIdForUpdate(CYCLE_ID)).thenReturn(Optional.of(timeCapital));
+        when(capitalAllocationRepository.findTargetForUpdate(
+                OWNER_ID,
+                CYCLE_ID,
+                CapitalKind.TIME,
+                AllocationTargetType.TASK,
+                SOURCE_TASK_ID
+        )).thenReturn(Optional.of(allocation));
+
+        assertThatThrownBy(() -> createService().releaseCapital(
+                OWNER_ID,
+                CYCLE_ID,
+                new ReleaseCapitalRequest(
+                        CapitalKind.TIME,
+                        AllocationTargetType.TASK,
+                        SOURCE_TASK_ID,
+                        new BigDecimal("1.0000"),
+                        "Already released"
+                )
+        )).isInstanceOf(InvalidAllocationStateException.class);
+
+        assertThat(allocation.getStatus()).isEqualTo(AllocationStatus.RELEASED);
+        assertThat(allocation.getAllocatedAmount()).isEqualByComparingTo("0.0000");
+        assertThat(allocation.getReleasedAmount()).isEqualByComparingTo("40.0000");
+        verifyNoInteractions(capitalHistoryRepository);
     }
 
     @Test

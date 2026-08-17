@@ -17,8 +17,10 @@ import com.lifebalance.resourcecapital.domain.capital.exception.CapitalAllocatio
 import com.lifebalance.resourcecapital.domain.capital.exception.CapitalAlreadyInitializedException;
 import com.lifebalance.resourcecapital.domain.capital.exception.CapitalNotSetupException;
 import com.lifebalance.resourcecapital.domain.capital.exception.InvalidAdjustmentAmountException;
+import com.lifebalance.resourcecapital.domain.capitalallocation.AllocationStatus;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InsufficientAvailableCapitalException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InvalidAllocationAmountException;
+import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InvalidAllocationStateException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationConfirmationRequiredException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationNotAllowedException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleStatus;
@@ -81,6 +83,7 @@ class CapitalExceptionHandlingTest {
             "capital-not-setup,409,CAPITAL_NOT_SETUP",
             "invalid-adjustment-amount,400,CAPITAL_INVALID_ADJUSTMENT_AMOUNT",
             "invalid-allocation-amount,400,CAPITAL_INVALID_ALLOCATION_AMOUNT",
+            "invalid-allocation-state,409,CAPITAL_ALLOCATION_INVALID_STATE",
             "insufficient-available-capital,409,INSUFFICIENT_AVAILABLE_CAPITAL",
             "over-allocation-not-allowed,409,CAPITAL_OVER_ALLOCATION_NOT_ALLOWED",
             "over-allocation-confirmation,409,CAPITAL_OVER_ALLOCATION_CONFIRMATION_REQUIRED"
@@ -182,6 +185,12 @@ class CapitalExceptionHandlingTest {
                         throw InvalidAdjustmentAmountException.invalidMoney("amount must be greater than zero");
                 case "invalid-allocation-amount" ->
                         throw new InvalidAllocationAmountException("Allocation amount must be greater than zero.");
+                case "invalid-allocation-state" ->
+                        throw new InvalidAllocationStateException(
+                                UUID.fromString("33333333-3333-3333-3333-333333333333"),
+                                AllocationStatus.RELEASED,
+                                "release capital"
+                        );
                 case "insufficient-available-capital" ->
                         throw new InsufficientAvailableCapitalException(
                                 CYCLE_ID,
