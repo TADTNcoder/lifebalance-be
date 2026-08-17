@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -43,6 +44,9 @@ class AllocationServiceIntegrationTest {
 
     @Autowired
     private AllocationService allocationService;
+
+    @MockitoBean
+    private AllocationTargetValidator allocationTargetValidator;
 
     @Autowired
     private CapitalService capitalService;

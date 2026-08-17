@@ -35,6 +35,10 @@ management:
         enabled: true
 
 lifebalance:
+  integration:
+    task-service:
+      base-url: ${TASK_SERVICE_BASE_URL:http://task-service:8080}
+
   security:
     keycloak:
       client-id: ${KEYCLOAK_CLIENT_ID:lifebalance-api}

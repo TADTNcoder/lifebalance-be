@@ -173,6 +173,7 @@ class TagRepositoryTest {
 
     private Task persistTask(UUID userId, String name) {
         Task task = Task.builder()
+                .ownerId(userId)
                 .userId(userId)
                 .name(name)
                 .build();

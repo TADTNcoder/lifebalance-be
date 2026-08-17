@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.lifebalance.task.dto.response.TagResponse;
+import com.lifebalance.task.error.TaskExceptions;
 import com.lifebalance.task.model.Tag;
 import com.lifebalance.task.model.Task;
 import com.lifebalance.task.model.TaskTag;
@@ -34,16 +35,16 @@ public class TaskTagServiceImpl implements TaskTagService {
             UUID tagId) {
 
         Task task = taskRepository.findById(taskId)
-                .orElseThrow(() -> new RuntimeException("Task not found"));
+                .orElseThrow(TaskExceptions::taskNotFound);
 
         Tag tag = tagRepository.findById(tagId)
-                .orElseThrow(() -> new RuntimeException("Tag not found"));
+                .orElseThrow(TaskExceptions::tagNotFound);
 
         if (taskTagRepository.existsByTaskIdAndTagId(
                 taskId,
                 tagId)) {
 
-            throw new RuntimeException("Tag already assigned to task");
+            throw TaskExceptions.taskTagAlreadyAssigned();
         }
 
         TaskTag taskTag = TaskTag.builder()
@@ -63,18 +64,18 @@ public class TaskTagServiceImpl implements TaskTagService {
             UUID tagId) {
 
         if (!taskRepository.existsById(taskId)) {
-            throw new RuntimeException("Task not found");
+            throw TaskExceptions.taskNotFound();
         }
 
         if (!tagRepository.existsById(tagId)) {
-            throw new RuntimeException("Tag not found");
+            throw TaskExceptions.tagNotFound();
         }
 
         if (!taskTagRepository.existsByTaskIdAndTagId(
                 taskId,
                 tagId)) {
 
-            throw new RuntimeException("Tag is not assigned to task");
+            throw TaskExceptions.taskTagNotAssigned();
         }
 
         taskTagRepository.deleteByTaskIdAndTagId(
@@ -87,7 +88,7 @@ public class TaskTagServiceImpl implements TaskTagService {
     public List<TagResponse> getTags(UUID taskId) {
 
         if (!taskRepository.existsById(taskId)) {
-            throw new RuntimeException("Task not found");
+            throw TaskExceptions.taskNotFound();
         }
 
         return taskTagRepository.findByTaskId(taskId)

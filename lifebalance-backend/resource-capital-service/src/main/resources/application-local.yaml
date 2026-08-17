@@ -1,6 +1,11 @@
 server:
   port: ${RESOURCE_CAPITAL_SERVICE_PORT:8098}
 
+lifebalance:
+  integration:
+    task-service:
+      base-url: ${TASK_SERVICE_BASE_URL:http://localhost:8092}
+
 spring:
   flyway:
     locations:

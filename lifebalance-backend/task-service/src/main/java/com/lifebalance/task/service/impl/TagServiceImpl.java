@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.lifebalance.task.dto.request.CreateTagRequest;
 import com.lifebalance.task.dto.request.UpdateTagRequest;
 import com.lifebalance.task.dto.response.TagResponse;
+import com.lifebalance.task.error.TaskExceptions;
 import com.lifebalance.task.model.Tag;
 import com.lifebalance.task.repository.TagRepository;
 import com.lifebalance.task.service.TagService;
@@ -28,7 +29,7 @@ public class TagServiceImpl implements TagService {
         Objects.requireNonNull(userId, "User id is required");
 
         if (tagRepository.existsByUserIdAndName(userId, request.getName())) {
-            throw new RuntimeException("Tag name already exists");
+            throw TaskExceptions.tagNameAlreadyExists();
         }
 
         Tag tag = Tag.builder()
@@ -72,7 +73,7 @@ public class TagServiceImpl implements TagService {
         tagRepository.findByUserIdAndName(userId, request.getName())
                 .ifPresent(existing -> {
                     if (!existing.getId().equals(id)) {
-                        throw new RuntimeException("Tag name already exists");
+                        throw TaskExceptions.tagNameAlreadyExists();
                     }
                 });
 
@@ -95,7 +96,7 @@ public class TagServiceImpl implements TagService {
     private Tag getTagOrThrow(UUID userId, UUID id) {
 
         return tagRepository.findByIdAndUserId(id, userId)
-                .orElseThrow(() -> new RuntimeException("Tag not found"));
+                .orElseThrow(TaskExceptions::tagNotFound);
     }
 
     private TagResponse mapToResponse(Tag tag) {

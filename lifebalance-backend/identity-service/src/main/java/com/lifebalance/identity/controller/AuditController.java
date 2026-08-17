@@ -5,6 +5,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.lifebalance.common.web.PageableLimits;
 import com.lifebalance.identity.config.OpenApiConfig;
 import com.lifebalance.identity.model.AuditLog;
 import com.lifebalance.identity.model.enums.AuditAction;
@@ -32,7 +33,7 @@ public class AuditController {
     @GetMapping
     @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'audit:read')")
     public Page<AuditLog> getAll(Pageable pageable) {
-        return auditLogService.getAll(pageable);
+        return auditLogService.getAll(PageableLimits.normalize(pageable));
     }
 
     @GetMapping("/user/{userId}")
@@ -43,7 +44,7 @@ public class AuditController {
 
         return auditLogService.getByUser(
                 userId,
-                pageable);
+                PageableLimits.normalize(pageable));
     }
 
     @GetMapping("/action/{action}")
@@ -54,6 +55,6 @@ public class AuditController {
 
         return auditLogService.getByAction(
                 action,
-                pageable);
+                PageableLimits.normalize(pageable));
     }
 }

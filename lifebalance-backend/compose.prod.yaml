@@ -4,6 +4,14 @@ services:
 
   keycloak:
     ports: []
+    command:
+      - start
+      - --health-enabled=true
+      - --metrics-enabled=true
+      - --import-realm
+    environment:
+      KC_HOSTNAME_STRICT: ${KEYCLOAK_HOSTNAME_STRICT:-true}
+      KC_HTTP_ENABLED: ${KEYCLOAK_HTTP_ENABLED:-true}
 
   discovery-server:
     ports: []

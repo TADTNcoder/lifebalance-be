@@ -2,6 +2,7 @@ package com.lifebalance.resourcecapital.infrastructure.persistence;
 
 import com.lifebalance.resourcecapital.domain.capital.CapitalKind;
 import com.lifebalance.resourcecapital.domain.capitaladjustment.CapitalAdjustment;
+import com.lifebalance.resourcecapital.domain.capitaladjustment.CapitalType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
@@ -22,6 +23,10 @@ public interface CapitalAdjustmentRepository extends
             """)
     List<CapitalAdjustment> findByCapitalCycleId(@Param("capitalCycleId") UUID capitalCycleId);
 
+    default List<CapitalAdjustment> findByCapitalCycleIdAndCapitalType(UUID capitalCycleId, CapitalKind capitalType) {
+        return findByCapitalCycleIdAndCapitalTypeValue(capitalCycleId, CapitalType.from(capitalType));
+    }
+
     @Query("""
             select adjustment
             from CapitalAdjustment adjustment
@@ -29,8 +34,8 @@ public interface CapitalAdjustmentRepository extends
               and adjustment.capitalType = :capitalType
             order by adjustment.createdAt desc, adjustment.id desc
             """)
-    List<CapitalAdjustment> findByCapitalCycleIdAndCapitalType(
+    List<CapitalAdjustment> findByCapitalCycleIdAndCapitalTypeValue(
             @Param("capitalCycleId") UUID capitalCycleId,
-            @Param("capitalType") CapitalKind capitalType
+            @Param("capitalType") CapitalType capitalType
     );
 }
