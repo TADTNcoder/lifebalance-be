@@ -3,18 +3,22 @@ package com.lifebalance.resourcecapital.service;
 import com.lifebalance.resourcecapital.domain.capital.CapitalAdjustmentType;
 import com.lifebalance.resourcecapital.domain.capital.CapitalKind;
 import com.lifebalance.resourcecapital.domain.capital.exception.CapitalCycleNotAdjustableException;
+import com.lifebalance.resourcecapital.domain.capitaladjustment.CapitalAdjustment;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleType;
 import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalActionType;
 import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalActorType;
 import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalHistory;
 import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalReferenceType;
+import com.lifebalance.resourcecapital.dto.AdjustCapitalRequestDTO;
 import com.lifebalance.resourcecapital.dto.AdjustMoneyCapitalRequest;
 import com.lifebalance.resourcecapital.dto.AdjustTimeCapitalRequest;
+import com.lifebalance.resourcecapital.dto.CapitalAdjustmentResponseDTO;
 import com.lifebalance.resourcecapital.dto.MoneyCapitalAdjustmentResponse;
 import com.lifebalance.resourcecapital.dto.SetupMoneyCapitalRequest;
 import com.lifebalance.resourcecapital.dto.SetupTimeCapitalRequest;
 import com.lifebalance.resourcecapital.dto.TimeCapitalAdjustmentResponse;
+import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalAdjustmentRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalCycleRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalHistoryRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.MoneyCapitalRepository;
@@ -63,6 +67,9 @@ class CapitalAdjustmentServiceIntegrationTest {
     private CapitalHistoryRepository capitalHistoryRepository;
 
     @Autowired
+    private CapitalAdjustmentRepository capitalAdjustmentRepository;
+
+    @Autowired
     private EntityManager entityManager;
 
     @Test
@@ -83,6 +90,18 @@ class CapitalAdjustmentServiceIntegrationTest {
                 .isPresent()
                 .get()
                 .satisfies(timeCapital -> assertThat(timeCapital.getPlannedMinutes()).isEqualTo(165L));
+        assertThat(capitalAdjustmentRepository.findByUserIdAndCapitalCycleId(
+                OWNER_ID,
+                cycle.getId(),
+                PageRequest.of(0, 10)
+        ).getContent()).singleElement().satisfies(adjustment -> {
+            assertThat(adjustment.getCapitalType()).isEqualTo(CapitalKind.TIME);
+            assertThat(adjustment.getAdjustmentType()).isEqualTo(CapitalAdjustmentType.INCREASE);
+            assertThat(adjustment.getAmountDelta()).isEqualByComparingTo("45.0000");
+            assertThat(adjustment.getPreviousAmount()).isEqualByComparingTo("120.0000");
+            assertThat(adjustment.getNewAmount()).isEqualByComparingTo("165.0000");
+            assertThat(adjustment.getReason()).isEqualTo("Extend focused work");
+        });
         assertThat(capitalHistoryRepository.findByCapitalCycleIdAndActionType(
                 cycle.getId(),
                 CapitalActionType.ADJUSTMENT_INCREASE,
@@ -124,6 +143,17 @@ class CapitalAdjustmentServiceIntegrationTest {
                 .isPresent()
                 .get()
                 .satisfies(moneyCapital -> assertThat(moneyCapital.getPlannedAmount()).isEqualByComparingTo("374.7500"));
+        assertThat(capitalAdjustmentRepository.findByUserIdAndCapitalCycleId(
+                OWNER_ID,
+                cycle.getId(),
+                PageRequest.of(0, 10)
+        ).getContent()).singleElement().satisfies(adjustment -> {
+            assertThat(adjustment.getCapitalType()).isEqualTo(CapitalKind.MONEY);
+            assertThat(adjustment.getAdjustmentType()).isEqualTo(CapitalAdjustmentType.DECREASE);
+            assertThat(adjustment.getAmountDelta()).isEqualByComparingTo("-125.2500");
+            assertThat(adjustment.getPreviousAmount()).isEqualByComparingTo("500.0000");
+            assertThat(adjustment.getNewAmount()).isEqualByComparingTo("374.7500");
+        });
         assertThat(capitalHistoryRepository.findByCapitalCycleIdAndActionType(
                 cycle.getId(),
                 CapitalActionType.ADJUSTMENT_DECREASE,
@@ -162,6 +192,44 @@ class CapitalAdjustmentServiceIntegrationTest {
                 CapitalActionType.ADJUSTMENT_INCREASE,
                 PageRequest.of(0, 10)
         )).isEmpty();
+        assertThat(capitalAdjustmentRepository.findByUserIdAndCapitalCycleId(
+                OWNER_ID,
+                cycle.getId(),
+                PageRequest.of(0, 10)
+        ).getContent()).isEmpty();
+    }
+
+    @Test
+    void adjustCapitalOverridePersistsImmutableAdjustmentWithSignedDelta() {
+        CapitalCycle cycle = capitalCycleRepository.saveAndFlush(dailyCycle("August 8", LocalDate.of(2026, 8, 8)));
+        capitalService.setupTimeCapital(OWNER_ID, cycle.getId(), new SetupTimeCapitalRequest(90L));
+
+        CapitalAdjustmentResponseDTO response = capitalAdjustmentService.adjustCapital(
+                OWNER_ID,
+                new AdjustCapitalRequestDTO(
+                        cycle.getId(),
+                        CapitalKind.TIME,
+                        CapitalAdjustmentType.OVERRIDE,
+                        BigDecimal.ZERO,
+                        "Reset available time"
+                )
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(response.historyActionType()).isEqualTo(CapitalActionType.CAPITAL_SET);
+        assertThat(response.amountDelta()).isEqualByComparingTo("-90.0000");
+        assertThat(timeCapitalRepository.findByCapitalCycleId(cycle.getId()))
+                .isPresent()
+                .get()
+                .satisfies(timeCapital -> assertThat(timeCapital.getPlannedMinutes()).isZero());
+        assertThat(capitalAdjustmentRepository.findByUserIdAndCapitalCycleId(
+                OWNER_ID,
+                cycle.getId(),
+                PageRequest.of(0, 10)
+        ).getContent()).singleElement()
+                .extracting(CapitalAdjustment::getId)
+                .isEqualTo(response.id());
     }
 
     @Test

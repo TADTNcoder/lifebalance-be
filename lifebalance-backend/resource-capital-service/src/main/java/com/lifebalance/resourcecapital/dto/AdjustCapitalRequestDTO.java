@@ -9,9 +9,10 @@ import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
+import java.util.Objects;
 import java.util.UUID;
 
-public record CapitalAdjustmentRequest(
+public record AdjustCapitalRequestDTO(
         @NotNull
         UUID capitalCycleId,
 
@@ -30,4 +31,15 @@ public record CapitalAdjustmentRequest(
         @Size(max = 1000)
         String reason
 ) {
+
+    public static AdjustCapitalRequestDTO from(CapitalAdjustmentRequest request) {
+        Objects.requireNonNull(request, "Capital adjustment request is required.");
+        return new AdjustCapitalRequestDTO(
+                request.capitalCycleId(),
+                request.capitalType(),
+                request.adjustmentType(),
+                request.amount(),
+                request.reason()
+        );
+    }
 }

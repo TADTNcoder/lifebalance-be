@@ -5,6 +5,7 @@ import com.lifebalance.resourcecapital.domain.capital.CapitalKind;
 import com.lifebalance.resourcecapital.domain.capital.exception.CapitalBelowAllocatedException;
 import com.lifebalance.resourcecapital.domain.capital.exception.CapitalCycleNotAdjustableException;
 import com.lifebalance.resourcecapital.domain.capital.exception.InvalidAdjustmentAmountException;
+import com.lifebalance.resourcecapital.domain.capitaladjustment.CapitalAdjustment;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleType;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.CapitalCycleNotFoundException;
@@ -14,8 +15,10 @@ import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalHistory;
 import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalReferenceType;
 import com.lifebalance.resourcecapital.domain.moneycapital.MoneyCapital;
 import com.lifebalance.resourcecapital.domain.timecapital.TimeCapital;
+import com.lifebalance.resourcecapital.dto.AdjustCapitalRequestDTO;
 import com.lifebalance.resourcecapital.dto.AdjustMoneyCapitalRequest;
 import com.lifebalance.resourcecapital.dto.AdjustTimeCapitalRequest;
+import com.lifebalance.resourcecapital.dto.CapitalAdjustmentResponseDTO;
 import com.lifebalance.resourcecapital.dto.MoneyCapitalAdjustmentResponse;
 import com.lifebalance.resourcecapital.dto.TimeCapitalAdjustmentResponse;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalAdjustmentRepository;
@@ -78,6 +81,7 @@ class CapitalAdjustmentServiceImplTest {
         TimeCapital timeCapital = TimeCapital.create(cycle, 120L);
         when(capitalCycleRepository.findByIdAndOwnerId(CYCLE_ID, OWNER_ID)).thenReturn(Optional.of(cycle));
         when(timeCapitalRepository.findByCapitalCycleId(CYCLE_ID)).thenReturn(Optional.of(timeCapital));
+        stubAdjustmentSave();
         when(capitalHistoryRepository.saveAndFlush(any(CapitalHistory.class))).thenAnswer(invocation -> {
             CapitalHistory history = invocation.getArgument(0);
             setField(history, "id", HISTORY_ID);
@@ -90,14 +94,23 @@ class CapitalAdjustmentServiceImplTest {
                 new AdjustTimeCapitalRequest(CapitalAdjustmentType.INCREASE, 30L, "Add commute buffer")
         );
 
+        ArgumentCaptor<CapitalAdjustment> adjustmentCaptor = ArgumentCaptor.forClass(CapitalAdjustment.class);
+        verify(capitalAdjustmentRepository).saveAndFlush(adjustmentCaptor.capture());
         ArgumentCaptor<CapitalHistory> historyCaptor = ArgumentCaptor.forClass(CapitalHistory.class);
         verify(capitalHistoryRepository).saveAndFlush(historyCaptor.capture());
+        CapitalAdjustment adjustment = adjustmentCaptor.getValue();
         CapitalHistory history = historyCaptor.getValue();
         assertThat(timeCapital.getPlannedMinutes()).isEqualTo(150L);
         assertThat(response.actionType()).isEqualTo(CapitalActionType.ADJUSTMENT_INCREASE);
         assertThat(response.beforeMinutes()).isEqualTo(120L);
         assertThat(response.afterMinutes()).isEqualTo(150L);
         assertThat(response.historyId()).isEqualTo(HISTORY_ID);
+        assertThat(adjustment.getCapitalType()).isEqualTo(CapitalKind.TIME);
+        assertThat(adjustment.getAdjustmentType()).isEqualTo(CapitalAdjustmentType.INCREASE);
+        assertThat(adjustment.getAmountDelta()).isEqualByComparingTo("30.0000");
+        assertThat(adjustment.getPreviousAmount()).isEqualByComparingTo("120.0000");
+        assertThat(adjustment.getNewAmount()).isEqualByComparingTo("150.0000");
+        assertThat(adjustment.getReason()).isEqualTo("Add commute buffer");
         assertThat(history.getCapitalType()).isEqualTo(CapitalKind.TIME);
         assertThat(history.getActionType()).isEqualTo(CapitalActionType.ADJUSTMENT_INCREASE);
         assertThat(history.getAmount()).isEqualByComparingTo("30.0000");
@@ -118,6 +131,7 @@ class CapitalAdjustmentServiceImplTest {
         when(capitalCycleRepository.findByIdAndOwnerId(CYCLE_ID, OWNER_ID)).thenReturn(Optional.of(cycle));
         when(timeCapitalRepository.findByCapitalCycleId(CYCLE_ID)).thenReturn(Optional.of(timeCapital));
         when(capitalAllocationReader.getAllocatedMinutes(OWNER_ID, CYCLE_ID)).thenReturn(60L);
+        stubAdjustmentSave();
         when(capitalHistoryRepository.saveAndFlush(any(CapitalHistory.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         TimeCapitalAdjustmentResponse response = createService().adjustTimeCapital(
@@ -129,6 +143,9 @@ class CapitalAdjustmentServiceImplTest {
         assertThat(timeCapital.getPlannedMinutes()).isEqualTo(60L);
         assertThat(response.actionType()).isEqualTo(CapitalActionType.ADJUSTMENT_DECREASE);
         assertThat(response.afterMinutes()).isEqualTo(60L);
+        ArgumentCaptor<CapitalAdjustment> adjustmentCaptor = ArgumentCaptor.forClass(CapitalAdjustment.class);
+        verify(capitalAdjustmentRepository).saveAndFlush(adjustmentCaptor.capture());
+        assertThat(adjustmentCaptor.getValue().getAmountDelta()).isEqualByComparingTo("-40.0000");
     }
 
     @Test
@@ -147,6 +164,7 @@ class CapitalAdjustmentServiceImplTest {
         )).isInstanceOf(CapitalBelowAllocatedException.class);
 
         assertThat(timeCapital.getPlannedMinutes()).isEqualTo(100L);
+        verify(capitalAdjustmentRepository, never()).saveAndFlush(any());
         verify(capitalHistoryRepository, never()).saveAndFlush(any());
     }
 
@@ -156,6 +174,7 @@ class CapitalAdjustmentServiceImplTest {
         MoneyCapital moneyCapital = MoneyCapital.create(cycle, new BigDecimal("100.0000"), "vnd");
         when(capitalCycleRepository.findByIdAndOwnerId(CYCLE_ID, OWNER_ID)).thenReturn(Optional.of(cycle));
         when(moneyCapitalRepository.findByCapitalCycleId(CYCLE_ID)).thenReturn(Optional.of(moneyCapital));
+        stubAdjustmentSave();
         when(capitalHistoryRepository.saveAndFlush(any(CapitalHistory.class))).thenAnswer(invocation -> {
             CapitalHistory history = invocation.getArgument(0);
             setField(history, "id", HISTORY_ID);
@@ -168,12 +187,17 @@ class CapitalAdjustmentServiceImplTest {
                 new AdjustMoneyCapitalRequest(CapitalAdjustmentType.INCREASE, new BigDecimal("25.5000"), "Top up budget")
         );
 
+        ArgumentCaptor<CapitalAdjustment> adjustmentCaptor = ArgumentCaptor.forClass(CapitalAdjustment.class);
+        verify(capitalAdjustmentRepository).saveAndFlush(adjustmentCaptor.capture());
         ArgumentCaptor<CapitalHistory> historyCaptor = ArgumentCaptor.forClass(CapitalHistory.class);
         verify(capitalHistoryRepository).saveAndFlush(historyCaptor.capture());
         assertThat(moneyCapital.getPlannedAmount()).isEqualByComparingTo("125.5000");
         assertThat(response.currencyCode()).isEqualTo("VND");
         assertThat(response.beforeAmount()).isEqualByComparingTo("100.0000");
         assertThat(response.afterAmount()).isEqualByComparingTo("125.5000");
+        assertThat(adjustmentCaptor.getValue().getCapitalType()).isEqualTo(CapitalKind.MONEY);
+        assertThat(adjustmentCaptor.getValue().getAdjustmentType()).isEqualTo(CapitalAdjustmentType.INCREASE);
+        assertThat(adjustmentCaptor.getValue().getAmountDelta()).isEqualByComparingTo("25.5000");
         assertThat(historyCaptor.getValue().getAmount()).isEqualByComparingTo("25.5000");
         assertThat(historyCaptor.getValue().getReferenceType()).isEqualTo(CapitalReferenceType.MANUAL);
     }
@@ -194,6 +218,7 @@ class CapitalAdjustmentServiceImplTest {
         )).isInstanceOf(CapitalBelowAllocatedException.class);
 
         assertThat(moneyCapital.getPlannedAmount()).isEqualByComparingTo("100.0000");
+        verify(capitalAdjustmentRepository, never()).saveAndFlush(any());
         verify(capitalHistoryRepository, never()).saveAndFlush(any());
     }
 
@@ -205,6 +230,7 @@ class CapitalAdjustmentServiceImplTest {
         when(capitalCycleRepository.findByIdAndOwnerId(CYCLE_ID, OWNER_ID)).thenReturn(Optional.of(cycle));
         when(moneyCapitalRepository.findByCapitalCycleId(CYCLE_ID)).thenReturn(Optional.of(moneyCapital));
         when(capitalAllocationReader.getAllocatedAmount(OWNER_ID, CYCLE_ID)).thenReturn(new BigDecimal("75.0000"));
+        stubAdjustmentSave();
         when(capitalHistoryRepository.saveAndFlush(any(CapitalHistory.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         MoneyCapitalAdjustmentResponse response = createService().adjustMoneyCapital(
@@ -216,6 +242,50 @@ class CapitalAdjustmentServiceImplTest {
         assertThat(moneyCapital.getPlannedAmount()).isEqualByComparingTo("75.0000");
         assertThat(response.actionType()).isEqualTo(CapitalActionType.ADJUSTMENT_DECREASE);
         assertThat(response.afterAmount()).isEqualByComparingTo("75.0000");
+        ArgumentCaptor<CapitalAdjustment> adjustmentCaptor = ArgumentCaptor.forClass(CapitalAdjustment.class);
+        verify(capitalAdjustmentRepository).saveAndFlush(adjustmentCaptor.capture());
+        assertThat(adjustmentCaptor.getValue().getAmountDelta()).isEqualByComparingTo("-25.0000");
+    }
+
+    @Test
+    void adjustCapitalSupportsOverrideToZeroAndRecordsSignedDelta() {
+        CapitalCycle cycle = draftCycle();
+        TimeCapital timeCapital = TimeCapital.create(cycle, 120L);
+        cycle.activate(NOW.minusSeconds(120));
+        when(capitalCycleRepository.findByIdAndOwnerId(CYCLE_ID, OWNER_ID)).thenReturn(Optional.of(cycle));
+        when(timeCapitalRepository.findByCapitalCycleId(CYCLE_ID)).thenReturn(Optional.of(timeCapital));
+        when(capitalAllocationReader.getAllocatedMinutes(OWNER_ID, CYCLE_ID)).thenReturn(0L);
+        stubAdjustmentSave();
+        when(capitalHistoryRepository.saveAndFlush(any(CapitalHistory.class))).thenAnswer(invocation -> {
+            CapitalHistory history = invocation.getArgument(0);
+            setField(history, "id", HISTORY_ID);
+            return history;
+        });
+
+        CapitalAdjustmentResponseDTO response = createService().adjustCapital(
+                OWNER_ID,
+                new AdjustCapitalRequestDTO(
+                        CYCLE_ID,
+                        CapitalKind.TIME,
+                        CapitalAdjustmentType.OVERRIDE,
+                        BigDecimal.ZERO,
+                        "Reset time budget"
+                )
+        );
+
+        ArgumentCaptor<CapitalAdjustment> adjustmentCaptor = ArgumentCaptor.forClass(CapitalAdjustment.class);
+        ArgumentCaptor<CapitalHistory> historyCaptor = ArgumentCaptor.forClass(CapitalHistory.class);
+        verify(capitalAdjustmentRepository).saveAndFlush(adjustmentCaptor.capture());
+        verify(capitalHistoryRepository).saveAndFlush(historyCaptor.capture());
+        assertThat(timeCapital.getPlannedMinutes()).isZero();
+        assertThat(response.historyActionType()).isEqualTo(CapitalActionType.CAPITAL_SET);
+        assertThat(response.amountDelta()).isEqualByComparingTo("-120.0000");
+        assertThat(response.previousAmount()).isEqualByComparingTo("120.0000");
+        assertThat(response.newAmount()).isEqualByComparingTo("0.0000");
+        assertThat(adjustmentCaptor.getValue().getAdjustmentType()).isEqualTo(CapitalAdjustmentType.OVERRIDE);
+        assertThat(adjustmentCaptor.getValue().getAmountDelta()).isEqualByComparingTo("-120.0000");
+        assertThat(historyCaptor.getValue().getActionType()).isEqualTo(CapitalActionType.CAPITAL_SET);
+        assertThat(historyCaptor.getValue().getAmount()).isEqualByComparingTo("120.0000");
     }
 
     @Test
@@ -233,6 +303,7 @@ class CapitalAdjustmentServiceImplTest {
                 .hasMessageContaining("exceeds");
 
         assertThat(timeCapital.getPlannedMinutes()).isEqualTo(Long.MAX_VALUE);
+        verify(capitalAdjustmentRepository, never()).saveAndFlush(any());
         verify(capitalHistoryRepository, never()).saveAndFlush(any());
     }
 
@@ -255,6 +326,7 @@ class CapitalAdjustmentServiceImplTest {
                 .hasMessageContaining("integer digits");
 
         assertThat(moneyCapital.getPlannedAmount()).isEqualByComparingTo("1.0000");
+        verify(capitalAdjustmentRepository, never()).saveAndFlush(any());
         verify(capitalHistoryRepository, never()).saveAndFlush(any());
     }
 
@@ -269,7 +341,7 @@ class CapitalAdjustmentServiceImplTest {
                 new AdjustTimeCapitalRequest(CapitalAdjustmentType.INCREASE, 30L, "Late change")
         )).isInstanceOf(CapitalCycleNotAdjustableException.class);
 
-        verifyNoInteractions(timeCapitalRepository, moneyCapitalRepository, capitalHistoryRepository);
+        verifyNoInteractions(timeCapitalRepository, moneyCapitalRepository, capitalAdjustmentRepository, capitalHistoryRepository);
     }
 
     @Test
@@ -282,7 +354,7 @@ class CapitalAdjustmentServiceImplTest {
                 new AdjustTimeCapitalRequest(CapitalAdjustmentType.INCREASE, 30L, "No ownership")
         )).isInstanceOf(CapitalCycleNotFoundException.class);
 
-        verifyNoInteractions(timeCapitalRepository, moneyCapitalRepository, capitalHistoryRepository);
+        verifyNoInteractions(timeCapitalRepository, moneyCapitalRepository, capitalAdjustmentRepository, capitalHistoryRepository);
     }
 
     @Test
@@ -315,6 +387,11 @@ class CapitalAdjustmentServiceImplTest {
                 capitalHistoryRepository,
                 capitalAllocationReader
         );
+    }
+
+    private void stubAdjustmentSave() {
+        when(capitalAdjustmentRepository.saveAndFlush(any(CapitalAdjustment.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     private static CapitalCycle draftCycle() {
