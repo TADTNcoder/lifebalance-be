@@ -21,6 +21,12 @@ import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import jakarta.persistence.Version;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
@@ -31,6 +37,11 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 @Entity
 @EntityListeners(AuditingEntityListener.class)
 @Table(
@@ -53,9 +64,11 @@ public class CapitalAllocation {
 
     public static final int AMOUNT_SCALE = 4;
     private static final int AMOUNT_INTEGER_DIGITS = 15;
+    private static final int NOTE_MAX_LENGTH = 1000;
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
+    @Setter(AccessLevel.NONE)
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -65,6 +78,9 @@ public class CapitalAllocation {
             foreignKey = @ForeignKey(name = "fk_capital_allocations_cycle")
     )
     private CapitalCycle capitalCycle;
+
+    @Column(name = "user_id", nullable = false, updatable = false)
+    private UUID userId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "capital_type", nullable = false, length = 32)
@@ -80,12 +96,29 @@ public class CapitalAllocation {
     @Column(name = "allocated_amount", precision = 19, scale = AMOUNT_SCALE, nullable = false)
     private BigDecimal allocatedAmount;
 
+    @Builder.Default
     @Column(name = "spent_amount", precision = 19, scale = AMOUNT_SCALE, nullable = false)
-    private BigDecimal spentAmount;
+    private BigDecimal spentAmount = zeroAmount();
 
+    @Builder.Default
+    @Column(name = "released_amount", precision = 19, scale = AMOUNT_SCALE, nullable = false)
+    private BigDecimal releasedAmount = zeroAmount();
+
+    @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 32)
-    private AllocationStatus status;
+    private AllocationStatus status = AllocationStatus.ACTIVE;
+
+    @Builder.Default
+    @Column(name = "is_over_allocated", nullable = false)
+    private Boolean isOverAllocated = false;
+
+    @Builder.Default
+    @Column(name = "over_allocation_confirmed", nullable = false)
+    private Boolean overAllocationConfirmed = false;
+
+    @Column(name = "note", length = NOTE_MAX_LENGTH)
+    private String note;
 
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -99,25 +132,6 @@ public class CapitalAllocation {
     @Column(name = "version", nullable = false)
     private Long version;
 
-    protected CapitalAllocation() {
-    }
-
-    private CapitalAllocation(
-            CapitalCycle capitalCycle,
-            CapitalKind capitalType,
-            AllocationTargetType targetType,
-            UUID targetId,
-            BigDecimal allocatedAmount
-    ) {
-        this.capitalCycle = requireCapitalCycle(capitalCycle);
-        this.capitalType = requireCapitalType(capitalType);
-        this.targetType = requireTargetType(targetType);
-        this.targetId = requireTargetId(targetId);
-        this.allocatedAmount = normalizePositiveAmount(allocatedAmount);
-        this.spentAmount = zeroAmount();
-        this.status = AllocationStatus.ACTIVE;
-    }
-
     public static CapitalAllocation create(
             CapitalCycle capitalCycle,
             CapitalKind capitalType,
@@ -125,11 +139,37 @@ public class CapitalAllocation {
             UUID targetId,
             BigDecimal allocatedAmount
     ) {
-        return new CapitalAllocation(capitalCycle, capitalType, targetType, targetId, allocatedAmount);
+        return create(capitalCycle, capitalType, targetType, targetId, allocatedAmount, null, false, false);
+    }
+
+    public static CapitalAllocation create(
+            CapitalCycle capitalCycle,
+            CapitalKind capitalType,
+            AllocationTargetType targetType,
+            UUID targetId,
+            BigDecimal allocatedAmount,
+            String note,
+            boolean overAllocated,
+            boolean overAllocationConfirmed
+    ) {
+        CapitalCycle validatedCycle = requireCapitalCycle(capitalCycle);
+        CapitalAllocation allocation = new CapitalAllocation();
+        allocation.capitalCycle = validatedCycle;
+        allocation.userId = requireOwnerId(validatedCycle.getOwnerId());
+        allocation.capitalType = requireCapitalType(capitalType);
+        allocation.targetType = requireTargetType(targetType);
+        allocation.targetId = requireTargetId(targetId);
+        allocation.allocatedAmount = normalizePositiveAmount(allocatedAmount);
+        allocation.spentAmount = zeroAmount();
+        allocation.releasedAmount = zeroAmount();
+        allocation.status = AllocationStatus.ACTIVE;
+        allocation.applyOverAllocationState(overAllocated, overAllocationConfirmed);
+        allocation.note = optionalText(note, "note", NOTE_MAX_LENGTH);
+        return allocation;
     }
 
     public void increase(BigDecimal amount) {
-        if (status == AllocationStatus.RELEASED && isDepleted()) {
+        if (isDepleted() && (status == AllocationStatus.RELEASED || status == AllocationStatus.REALLOCATED)) {
             status = AllocationStatus.ACTIVE;
         } else {
             ensureActive("increase allocation");
@@ -141,18 +181,34 @@ public class CapitalAllocation {
     }
 
     public void decrease(BigDecimal amount) {
-        ensureActive("decrease allocation");
+        reallocateOut(amount);
+    }
+
+    public void reallocateOut(BigDecimal amount) {
+        ensureActive("reallocate allocation");
         BigDecimal normalizedAmount = normalizePositiveAmount(amount);
-        BigDecimal nextAmount = allocatedAmount.subtract(normalizedAmount);
-        if (nextAmount.compareTo(BigDecimal.ZERO) < 0) {
-            throw InvalidAdjustmentAmountException.invalidMoney(
-                    "cannot decrease allocated amount " + allocatedAmount + " by " + normalizedAmount
-            );
-        }
+        BigDecimal nextAmount = subtractAllocatedAmount(normalizedAmount);
         allocatedAmount = nextAmount;
+        if (isDepleted()) {
+            status = AllocationStatus.REALLOCATED;
+        }
+    }
+
+    public void release(BigDecimal amount) {
+        ensureActive("release allocation");
+        BigDecimal normalizedAmount = normalizePositiveAmount(amount);
+        BigDecimal nextAmount = subtractAllocatedAmount(normalizedAmount);
+        BigDecimal nextReleasedAmount = releasedAmount.add(normalizedAmount);
+        validateColumnPrecision(nextReleasedAmount, "released amount after release");
+        allocatedAmount = nextAmount;
+        releasedAmount = nextReleasedAmount;
         if (isDepleted()) {
             status = AllocationStatus.RELEASED;
         }
+    }
+
+    public void release() {
+        release(allocatedAmount);
     }
 
     public void spend(BigDecimal amount) {
@@ -170,10 +226,16 @@ public class CapitalAllocation {
         status = AllocationStatus.CLOSED;
     }
 
-    public void release() {
-        ensureActive("release allocation");
-        allocatedAmount = zeroAmount();
-        status = AllocationStatus.RELEASED;
+    public void markOverAllocation(boolean confirmed) {
+        applyOverAllocationState(true, confirmed);
+    }
+
+    public void clearOverAllocation() {
+        applyOverAllocationState(false, false);
+    }
+
+    public void updateNote(String note) {
+        this.note = optionalText(note, "note", NOTE_MAX_LENGTH);
     }
 
     public boolean isDepleted() {
@@ -184,11 +246,135 @@ public class CapitalAllocation {
         return status == AllocationStatus.ACTIVE;
     }
 
+    public UUID getTaskId() {
+        return targetType == AllocationTargetType.TASK ? targetId : null;
+    }
+
+    public UUID getId() {
+        return id;
+    }
+
+    public CapitalCycle getCapitalCycle() {
+        return capitalCycle;
+    }
+
+    public UUID getUserId() {
+        return userId;
+    }
+
+    public CapitalKind getCapitalType() {
+        return capitalType;
+    }
+
+    public AllocationTargetType getTargetType() {
+        return targetType;
+    }
+
+    public UUID getTargetId() {
+        return targetId;
+    }
+
+    public BigDecimal getAllocatedAmount() {
+        return allocatedAmount;
+    }
+
+    public BigDecimal getSpentAmount() {
+        return spentAmount;
+    }
+
+    public BigDecimal getReleasedAmount() {
+        return releasedAmount;
+    }
+
+    public AllocationStatus getStatus() {
+        return status;
+    }
+
+    public Boolean getIsOverAllocated() {
+        return isOverAllocated;
+    }
+
+    public Boolean getOverAllocationConfirmed() {
+        return overAllocationConfirmed;
+    }
+
+    public String getNote() {
+        return note;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public Long getVersion() {
+        return version;
+    }
+
+    @PrePersist
+    void onCreate() {
+        Instant now = Instant.now();
+        if (capitalCycle != null && userId == null) {
+            userId = requireOwnerId(capitalCycle.getOwnerId());
+        }
+        if (spentAmount == null) {
+            spentAmount = zeroAmount();
+        }
+        if (releasedAmount == null) {
+            releasedAmount = zeroAmount();
+        }
+        if (status == null) {
+            status = AllocationStatus.ACTIVE;
+        }
+        if (isOverAllocated == null) {
+            isOverAllocated = false;
+        }
+        if (overAllocationConfirmed == null) {
+            overAllocationConfirmed = false;
+        }
+        if (createdAt == null) {
+            createdAt = now;
+        }
+        if (updatedAt == null) {
+            updatedAt = now;
+        }
+    }
+
+    @PreUpdate
+    void onUpdate() {
+        updatedAt = Instant.now();
+    }
+
+    private BigDecimal subtractAllocatedAmount(BigDecimal amount) {
+        BigDecimal nextAmount = allocatedAmount.subtract(amount);
+        if (nextAmount.compareTo(BigDecimal.ZERO) < 0) {
+            throw InvalidAdjustmentAmountException.invalidMoney(
+                    "cannot reduce allocated amount " + allocatedAmount + " by " + amount
+            );
+        }
+        return nextAmount.setScale(AMOUNT_SCALE, RoundingMode.UNNECESSARY);
+    }
+
+    private void applyOverAllocationState(boolean overAllocated, boolean confirmed) {
+        isOverAllocated = overAllocated;
+        overAllocationConfirmed = overAllocated && confirmed;
+    }
+
     private static CapitalCycle requireCapitalCycle(CapitalCycle capitalCycle) {
         if (capitalCycle == null) {
             throw new IllegalArgumentException("Capital cycle must not be null.");
         }
         return capitalCycle;
+    }
+
+    private static UUID requireOwnerId(UUID userId) {
+        if (userId == null) {
+            throw new IllegalArgumentException("Allocation owner id must not be null.");
+        }
+        return userId;
     }
 
     private static CapitalKind requireCapitalType(CapitalKind capitalType) {
@@ -238,6 +424,20 @@ public class CapitalAllocation {
         }
     }
 
+    private static String optionalText(String value, String fieldName, int maxLength) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.trim();
+        if (normalized.isEmpty()) {
+            return null;
+        }
+        if (normalized.length() > maxLength) {
+            throw new IllegalArgumentException(fieldName + " must not exceed " + maxLength + " characters.");
+        }
+        return normalized;
+    }
+
     private static BigDecimal zeroAmount() {
         return BigDecimal.ZERO.setScale(AMOUNT_SCALE, RoundingMode.UNNECESSARY);
     }
@@ -247,76 +447,6 @@ public class CapitalAllocation {
             return;
         }
         throw new IllegalStateException("Only ACTIVE allocation can " + action + ".");
-    }
-
-    @PrePersist
-    void onCreate() {
-        Instant now = Instant.now();
-        if (spentAmount == null) {
-            spentAmount = zeroAmount();
-        }
-        if (status == null) {
-            status = AllocationStatus.ACTIVE;
-        }
-        if (createdAt == null) {
-            createdAt = now;
-        }
-        if (updatedAt == null) {
-            updatedAt = now;
-        }
-    }
-
-    @PreUpdate
-    void onUpdate() {
-        updatedAt = Instant.now();
-    }
-
-    public UUID getId() {
-        return id;
-    }
-
-    public CapitalCycle getCapitalCycle() {
-        return capitalCycle;
-    }
-
-    public CapitalKind getCapitalType() {
-        return capitalType;
-    }
-
-    public AllocationTargetType getTargetType() {
-        return targetType;
-    }
-
-    public UUID getTargetId() {
-        return targetId;
-    }
-
-    public BigDecimal getAllocatedAmount() {
-        return allocatedAmount;
-    }
-
-    public BigDecimal getSpentAmount() {
-        return spentAmount;
-    }
-
-    public AllocationStatus getStatus() {
-        return status;
-    }
-
-    public UUID getTaskId() {
-        return targetType == AllocationTargetType.TASK ? targetId : null;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public Instant getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public Long getVersion() {
-        return version;
     }
 
     @Override

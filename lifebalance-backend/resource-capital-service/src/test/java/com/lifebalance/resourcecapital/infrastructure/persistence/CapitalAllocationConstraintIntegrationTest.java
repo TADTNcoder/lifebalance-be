@@ -39,11 +39,11 @@ class CapitalAllocationConstraintIntegrationTest {
 
         assertThatThrownBy(() -> jdbcTemplate.update("""
                         INSERT INTO resourcecapital.capital_allocations (
-                            id, capital_cycle_id, capital_type, target_type, target_id, allocated_amount,
+                            id, capital_cycle_id, user_id, capital_type, target_type, target_id, allocated_amount,
                             created_at, updated_at, version
                         )
-                        VALUES (?, ?, 'TIME', 'TASK', ?, 120.5000, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0)
-                        """, UUID.randomUUID(), cycleId, UUID.randomUUID()))
+                        VALUES (?, ?, ?, 'TIME', 'TASK', ?, 120.5000, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0)
+                        """, UUID.randomUUID(), cycleId, OWNER_ID, UUID.randomUUID()))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("chk_capital_allocations_time_whole_minutes");
     }

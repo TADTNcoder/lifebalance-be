@@ -1,8 +1,34 @@
 ALTER TABLE resourcecapital.capital_allocations
-    ADD COLUMN spent_amount DECIMAL(19, 4) NOT NULL DEFAULT 0;
+    ADD COLUMN IF NOT EXISTS user_id UUID;
+
+UPDATE resourcecapital.capital_allocations allocation
+SET user_id = (
+    SELECT cycle.owner_id
+    FROM resourcecapital.capital_cycles cycle
+    WHERE cycle.id = allocation.capital_cycle_id
+)
+WHERE user_id IS NULL;
 
 ALTER TABLE resourcecapital.capital_allocations
-    ADD COLUMN status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE';
+    ALTER COLUMN user_id SET NOT NULL;
+
+ALTER TABLE resourcecapital.capital_allocations
+    ADD COLUMN IF NOT EXISTS spent_amount DECIMAL(19, 4) NOT NULL DEFAULT 0;
+
+ALTER TABLE resourcecapital.capital_allocations
+    ADD COLUMN IF NOT EXISTS released_amount DECIMAL(19, 4) NOT NULL DEFAULT 0;
+
+ALTER TABLE resourcecapital.capital_allocations
+    ADD COLUMN IF NOT EXISTS status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE';
+
+ALTER TABLE resourcecapital.capital_allocations
+    ADD COLUMN IF NOT EXISTS is_over_allocated BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE resourcecapital.capital_allocations
+    ADD COLUMN IF NOT EXISTS over_allocation_confirmed BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE resourcecapital.capital_allocations
+    ADD COLUMN IF NOT EXISTS note VARCHAR(1000);
 
 ALTER TABLE resourcecapital.capital_allocations
     DROP CONSTRAINT chk_capital_allocations_amount;
@@ -16,8 +42,16 @@ ALTER TABLE resourcecapital.capital_allocations
         CHECK (spent_amount >= 0);
 
 ALTER TABLE resourcecapital.capital_allocations
+    ADD CONSTRAINT chk_capital_allocations_released_amount
+        CHECK (released_amount >= 0);
+
+ALTER TABLE resourcecapital.capital_allocations
     ADD CONSTRAINT chk_capital_allocations_status
-        CHECK (status IN ('ACTIVE', 'CLOSED', 'RELEASED'));
+        CHECK (status IN ('ACTIVE', 'REALLOCATED', 'RELEASED', 'CLOSED'));
+
+ALTER TABLE resourcecapital.capital_allocations
+    ADD CONSTRAINT chk_capital_allocations_over_allocation_flags
+        CHECK (over_allocation_confirmed = FALSE OR is_over_allocated = TRUE);
 
 CREATE INDEX idx_capital_allocations_cycle_status
     ON resourcecapital.capital_allocations (capital_cycle_id, status);

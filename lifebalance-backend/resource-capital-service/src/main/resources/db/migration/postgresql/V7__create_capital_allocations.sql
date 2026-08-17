@@ -1,10 +1,12 @@
 CREATE TABLE resourcecapital.capital_allocations (
     id UUID PRIMARY KEY,
     capital_cycle_id UUID NOT NULL,
+    user_id UUID NOT NULL,
     capital_type VARCHAR(32) NOT NULL,
     target_type VARCHAR(64) NOT NULL,
     target_id UUID NOT NULL,
     allocated_amount DECIMAL(19, 4) NOT NULL,
+    note VARCHAR(1000),
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL,
     version BIGINT NOT NULL,
@@ -15,7 +17,7 @@ CREATE TABLE resourcecapital.capital_allocations (
     CONSTRAINT chk_capital_allocations_capital_type
         CHECK (capital_type IN ('TIME', 'MONEY')),
     CONSTRAINT chk_capital_allocations_target_type
-        CHECK (target_type IN ('TASK')),
+        CHECK (target_type IN ('TASK', 'TASK_CATALOG', 'PROJECT')),
     CONSTRAINT chk_capital_allocations_amount
         CHECK (allocated_amount > 0),
     CONSTRAINT uk_capital_allocations_target

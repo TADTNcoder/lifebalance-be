@@ -107,10 +107,19 @@ public class AllocationServiceImpl implements AllocationService {
                 capitalType,
                 targetType,
                 targetId,
-                amount
+                amount,
+                reason,
+                overAllocated,
+                overAllocated && request.allowOverAllocation()
         ));
         if (allocation.isPresent()) {
             targetAllocation.increase(amount);
+            targetAllocation.updateNote(reason);
+            if (overAllocated) {
+                targetAllocation.markOverAllocation(request.allowOverAllocation());
+            } else {
+                targetAllocation.clearOverAllocation();
+            }
         }
         capitalAllocationRepository.saveAndFlush(targetAllocation);
 
@@ -220,7 +229,7 @@ public class AllocationServiceImpl implements AllocationService {
         BigDecimal sourceAfter = sourceBefore.subtract(amount).setScale(MONEY_SCALE, RoundingMode.UNNECESSARY);
         BigDecimal destinationAfter = destinationBefore.add(amount).setScale(MONEY_SCALE, RoundingMode.UNNECESSARY);
 
-        sourceAllocation.decrease(amount);
+        sourceAllocation.reallocateOut(amount);
 
         CapitalAllocation destination = destinationAllocation.orElseGet(() -> CapitalAllocation.create(
                 cycle,
@@ -310,7 +319,7 @@ public class AllocationServiceImpl implements AllocationService {
         }
         BigDecimal targetAfter = targetBefore.subtract(amount).setScale(MONEY_SCALE, RoundingMode.UNNECESSARY);
 
-        allocation.decrease(amount);
+        allocation.release(amount);
 
         BigDecimal totalAfter = totalBefore.subtract(amount).setScale(MONEY_SCALE, RoundingMode.UNNECESSARY);
         UUID historyId = recordHistory(
@@ -545,6 +554,7 @@ public class AllocationServiceImpl implements AllocationService {
     private CapitalReferenceType toReferenceType(AllocationTargetType targetType) {
         return switch (targetType) {
             case TASK -> CapitalReferenceType.TASK;
+            case TASK_CATALOG, PROJECT -> CapitalReferenceType.ALLOCATION;
         };
     }
 
