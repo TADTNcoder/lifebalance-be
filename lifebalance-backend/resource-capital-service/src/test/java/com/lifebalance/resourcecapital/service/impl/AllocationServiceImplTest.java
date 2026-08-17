@@ -5,8 +5,8 @@ import com.lifebalance.resourcecapital.domain.capitalallocation.AllocationStatus
 import com.lifebalance.resourcecapital.domain.capitalallocation.AllocationTargetType;
 import com.lifebalance.resourcecapital.domain.capitalallocation.CapitalAllocation;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InsufficientAllocatedCapitalException;
+import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InsufficientAvailableCapitalException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InvalidAllocationAmountException;
-import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationConfirmationRequiredException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationNotAllowedException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleStatus;
@@ -25,6 +25,7 @@ import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalHistory
 import com.lifebalance.resourcecapital.infrastructure.persistence.MoneyCapitalRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.TimeCapitalRepository;
 import com.lifebalance.resourcecapital.service.AllocationTargetValidator;
+import com.lifebalance.resourcecapital.service.DefaultAllocationValidator;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -89,6 +90,12 @@ class AllocationServiceImplTest {
         )).thenReturn(Optional.empty());
         when(capitalAllocationRepository.sumAllocatedAmount(OWNER_ID, CYCLE_ID, CapitalKind.TIME))
                 .thenReturn(new BigDecimal("30.0000"));
+        when(capitalAllocationRepository.sumAllocatedAmount(
+                OWNER_ID,
+                CYCLE_ID,
+                CapitalKind.TIME,
+                AllocationStatus.ACTIVE
+        )).thenReturn(new BigDecimal("30.0000"));
         when(capitalAllocationRepository.saveAndFlush(any(CapitalAllocation.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
         stubHistoryIds();
@@ -136,6 +143,12 @@ class AllocationServiceImplTest {
         )).thenReturn(Optional.empty());
         when(capitalAllocationRepository.sumAllocatedAmount(OWNER_ID, CYCLE_ID, CapitalKind.TIME))
                 .thenReturn(new BigDecimal("90.0000"));
+        when(capitalAllocationRepository.sumAllocatedAmount(
+                OWNER_ID,
+                CYCLE_ID,
+                CapitalKind.TIME,
+                AllocationStatus.ACTIVE
+        )).thenReturn(new BigDecimal("90.0000"));
 
         assertThatThrownBy(() -> createService().allocateCapital(
                 OWNER_ID,
@@ -148,8 +161,68 @@ class AllocationServiceImplTest {
                         false,
                         "Needs confirmation"
                 )
-        )).isInstanceOf(OverAllocationConfirmationRequiredException.class);
+        )).isInstanceOf(InsufficientAvailableCapitalException.class)
+                .satisfies(exception -> assertThat((InsufficientAvailableCapitalException) exception)
+                        .extracting(InsufficientAvailableCapitalException::getCode)
+                        .isEqualTo(InsufficientAvailableCapitalException.ERROR_CODE));
 
+        verify(capitalAllocationRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(capitalHistoryRepository);
+    }
+
+    @Test
+    void allocateCapitalRejectsWhenRequestedAmountExceedsAvailableAfterSpentWithoutMutatingAllocation() {
+        CapitalCycle cycle = draftCycle();
+        TimeCapital timeCapital = TimeCapital.create(cycle, 100L);
+        CapitalAllocation existing = CapitalAllocation.create(
+                cycle,
+                CapitalKind.TIME,
+                AllocationTargetType.TASK,
+                SOURCE_TASK_ID,
+                new BigDecimal("20.0000")
+        );
+        existing.spend(new BigDecimal("5.0000"));
+        whenOwnedCycle(cycle);
+        when(timeCapitalRepository.findByCapitalCycleIdForUpdate(CYCLE_ID)).thenReturn(Optional.of(timeCapital));
+        when(capitalAllocationRepository.findTargetForUpdate(
+                OWNER_ID,
+                CYCLE_ID,
+                CapitalKind.TIME,
+                AllocationTargetType.TASK,
+                SOURCE_TASK_ID
+        )).thenReturn(Optional.of(existing));
+        when(capitalAllocationRepository.sumAllocatedAmount(OWNER_ID, CYCLE_ID, CapitalKind.TIME))
+                .thenReturn(new BigDecimal("95.0000"));
+        when(capitalAllocationRepository.sumAllocatedAmount(
+                OWNER_ID,
+                CYCLE_ID,
+                CapitalKind.TIME,
+                AllocationStatus.ACTIVE
+        )).thenReturn(new BigDecimal("95.0000"));
+        when(capitalAllocationRepository.sumSpentAmount(
+                OWNER_ID,
+                CYCLE_ID,
+                CapitalKind.TIME,
+                AllocationStatus.ACTIVE
+        )).thenReturn(new BigDecimal("5.0000"));
+
+        assertThatThrownBy(() -> createService().allocateCapital(
+                OWNER_ID,
+                CYCLE_ID,
+                new AllocateCapitalRequest(
+                        CapitalKind.TIME,
+                        AllocationTargetType.TASK,
+                        SOURCE_TASK_ID,
+                        new BigDecimal("1.0000"),
+                        false,
+                        "Should fail before mutation"
+                )
+        )).isInstanceOf(InsufficientAvailableCapitalException.class);
+
+        assertThat(existing.getAllocatedAmount()).isEqualByComparingTo("20.0000");
+        assertThat(existing.getSpentAmount()).isEqualByComparingTo("5.0000");
+        assertThat(existing.getNote()).isNull();
+        assertThat(existing.getStatus()).isEqualTo(AllocationStatus.ACTIVE);
         verify(capitalAllocationRepository, never()).saveAndFlush(any());
         verifyNoInteractions(capitalHistoryRepository);
     }
@@ -169,6 +242,12 @@ class AllocationServiceImplTest {
         )).thenReturn(Optional.empty());
         when(capitalAllocationRepository.sumAllocatedAmount(OWNER_ID, CYCLE_ID, CapitalKind.TIME))
                 .thenReturn(new BigDecimal("90.0000"));
+        when(capitalAllocationRepository.sumAllocatedAmount(
+                OWNER_ID,
+                CYCLE_ID,
+                CapitalKind.TIME,
+                AllocationStatus.ACTIVE
+        )).thenReturn(new BigDecimal("90.0000"));
 
         assertThatThrownBy(() -> createService().allocateCapital(
                 OWNER_ID,
@@ -210,6 +289,12 @@ class AllocationServiceImplTest {
         )).thenReturn(Optional.of(existing));
         when(capitalAllocationRepository.sumAllocatedAmount(OWNER_ID, CYCLE_ID, CapitalKind.TIME))
                 .thenReturn(new BigDecimal("90.0000"));
+        when(capitalAllocationRepository.sumAllocatedAmount(
+                OWNER_ID,
+                CYCLE_ID,
+                CapitalKind.TIME,
+                AllocationStatus.ACTIVE
+        )).thenReturn(new BigDecimal("90.0000"));
         when(capitalAllocationRepository.saveAndFlush(any(CapitalAllocation.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
         stubHistoryIds();
@@ -411,7 +496,8 @@ class AllocationServiceImplTest {
                 moneyCapitalRepository,
                 capitalAllocationRepository,
                 capitalHistoryRepository,
-                allocationTargetValidator
+                allocationTargetValidator,
+                new DefaultAllocationValidator()
         );
     }
 

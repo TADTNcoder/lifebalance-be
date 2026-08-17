@@ -17,6 +17,7 @@ import com.lifebalance.resourcecapital.domain.capital.exception.CapitalAllocatio
 import com.lifebalance.resourcecapital.domain.capital.exception.CapitalAlreadyInitializedException;
 import com.lifebalance.resourcecapital.domain.capital.exception.CapitalNotSetupException;
 import com.lifebalance.resourcecapital.domain.capital.exception.InvalidAdjustmentAmountException;
+import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InsufficientAvailableCapitalException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InvalidAllocationAmountException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationConfirmationRequiredException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationNotAllowedException;
@@ -80,6 +81,7 @@ class CapitalExceptionHandlingTest {
             "capital-not-setup,409,CAPITAL_NOT_SETUP",
             "invalid-adjustment-amount,400,CAPITAL_INVALID_ADJUSTMENT_AMOUNT",
             "invalid-allocation-amount,400,CAPITAL_INVALID_ALLOCATION_AMOUNT",
+            "insufficient-available-capital,409,INSUFFICIENT_AVAILABLE_CAPITAL",
             "over-allocation-not-allowed,409,CAPITAL_OVER_ALLOCATION_NOT_ALLOWED",
             "over-allocation-confirmation,409,CAPITAL_OVER_ALLOCATION_CONFIRMATION_REQUIRED"
     })
@@ -180,6 +182,13 @@ class CapitalExceptionHandlingTest {
                         throw InvalidAdjustmentAmountException.invalidMoney("amount must be greater than zero");
                 case "invalid-allocation-amount" ->
                         throw new InvalidAllocationAmountException("Allocation amount must be greater than zero.");
+                case "insufficient-available-capital" ->
+                        throw new InsufficientAvailableCapitalException(
+                                CYCLE_ID,
+                                CapitalKind.MONEY,
+                                new BigDecimal("10.0000"),
+                                new BigDecimal("25.0000")
+                        );
                 case "over-allocation-not-allowed" ->
                         throw new OverAllocationNotAllowedException(
                                 CYCLE_ID,

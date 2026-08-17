@@ -8,8 +8,6 @@ import com.lifebalance.resourcecapital.domain.capitalallocation.exception.Alloca
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InsufficientAllocatedCapitalException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InvalidAllocationAmountException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InvalidAllocationTargetException;
-import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationConfirmationRequiredException;
-import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationNotAllowedException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleStatus;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.CapitalCycleNotFoundException;
@@ -31,6 +29,8 @@ import com.lifebalance.resourcecapital.infrastructure.persistence.MoneyCapitalRe
 import com.lifebalance.resourcecapital.infrastructure.persistence.TimeCapitalRepository;
 import com.lifebalance.resourcecapital.service.AllocationService;
 import com.lifebalance.resourcecapital.service.AllocationTargetValidator;
+import com.lifebalance.resourcecapital.service.DefaultAllocationValidator;
+import com.lifebalance.resourcecapital.service.DefaultAllocationValidator.AllocationValidationResult;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -56,6 +56,7 @@ public class AllocationServiceImpl implements AllocationService {
     private final CapitalAllocationRepository capitalAllocationRepository;
     private final CapitalHistoryRepository capitalHistoryRepository;
     private final AllocationTargetValidator allocationTargetValidator;
+    private final DefaultAllocationValidator defaultAllocationValidator;
 
     public AllocationServiceImpl(
             CapitalCycleRepository capitalCycleRepository,
@@ -63,7 +64,8 @@ public class AllocationServiceImpl implements AllocationService {
             MoneyCapitalRepository moneyCapitalRepository,
             CapitalAllocationRepository capitalAllocationRepository,
             CapitalHistoryRepository capitalHistoryRepository,
-            AllocationTargetValidator allocationTargetValidator
+            AllocationTargetValidator allocationTargetValidator,
+            DefaultAllocationValidator defaultAllocationValidator
     ) {
         this.capitalCycleRepository = capitalCycleRepository;
         this.timeCapitalRepository = timeCapitalRepository;
@@ -71,6 +73,7 @@ public class AllocationServiceImpl implements AllocationService {
         this.capitalAllocationRepository = capitalAllocationRepository;
         this.capitalHistoryRepository = capitalHistoryRepository;
         this.allocationTargetValidator = allocationTargetValidator;
+        this.defaultAllocationValidator = defaultAllocationValidator;
     }
 
     @Transactional
@@ -97,13 +100,19 @@ public class AllocationServiceImpl implements AllocationService {
         BigDecimal targetBefore = allocation.map(CapitalAllocation::getAllocatedAmount).orElse(zero());
         BigDecimal targetAfter = targetBefore.add(amount);
         BigDecimal totalBefore = sumAllocated(ownerId, cycleId, capitalType);
+        BigDecimal currentActiveAllocations = sumActiveAllocated(ownerId, cycleId, capitalType);
+        BigDecimal spentCapital = sumActiveSpent(ownerId, cycleId, capitalType);
+        AllocationValidationResult validation = defaultAllocationValidator.validateNewAllocation(
+                cycle,
+                capitalType,
+                plannedAmount,
+                currentActiveAllocations,
+                spentCapital,
+                amount,
+                request.allowOverAllocation()
+        );
         BigDecimal totalAfter = totalBefore.add(amount);
-        BigDecimal remainingAfter = plannedAmount.subtract(totalAfter).setScale(MONEY_SCALE, RoundingMode.UNNECESSARY);
-        boolean overAllocated = remainingAfter.compareTo(BigDecimal.ZERO) < 0;
-
-        if (overAllocated) {
-            validateOverAllocationApproval(cycle, capitalType, plannedAmount, totalAfter, request.allowOverAllocation());
-        }
+        boolean overAllocated = validation.overAllocated();
 
         CapitalAllocation targetAllocation = allocation.orElseGet(() -> CapitalAllocation.create(
                 cycle,
@@ -141,14 +150,13 @@ public class AllocationServiceImpl implements AllocationService {
                 ownerId
         ));
         if (overAllocated) {
-            BigDecimal remainingBefore = plannedAmount.subtract(totalBefore).setScale(MONEY_SCALE, RoundingMode.UNNECESSARY);
             historyIds.add(recordHistory(
                     cycle,
                     capitalType,
                     CapitalActionType.OVER_ALLOCATION_APPROVED,
                     amount,
-                    remainingBefore,
-                    remainingAfter,
+                    validation.availableCapital(),
+                    validation.remainingAfterAllocation(),
                     reason,
                     "Over-allocation approved for allocation target.",
                     targetType,
@@ -437,31 +445,6 @@ public class AllocationServiceImpl implements AllocationService {
                 .findFirst();
     }
 
-    private void validateOverAllocationApproval(
-            CapitalCycle cycle,
-            CapitalKind capitalType,
-            BigDecimal plannedAmount,
-            BigDecimal projectedAllocatedAmount,
-            boolean allowOverAllocation
-    ) {
-        if (!cycle.isOverAllocationAllowed()) {
-            throw new OverAllocationNotAllowedException(
-                    cycle.getId(),
-                    capitalType,
-                    plannedAmount,
-                    projectedAllocatedAmount
-            );
-        }
-        if (!allowOverAllocation) {
-            throw new OverAllocationConfirmationRequiredException(
-                    cycle.getId(),
-                    capitalType,
-                    plannedAmount,
-                    projectedAllocatedAmount
-            );
-        }
-    }
-
     private UUID recordHistory(
             CapitalCycle cycle,
             CapitalKind capitalType,
@@ -520,6 +503,32 @@ public class AllocationServiceImpl implements AllocationService {
 
     private BigDecimal sumAllocated(UUID ownerId, UUID cycleId, CapitalKind capitalType) {
         BigDecimal total = capitalAllocationRepository.sumAllocatedAmount(ownerId, cycleId, capitalType);
+        if (total == null) {
+            return zero();
+        }
+        return total.setScale(MONEY_SCALE, RoundingMode.UNNECESSARY);
+    }
+
+    private BigDecimal sumActiveAllocated(UUID ownerId, UUID cycleId, CapitalKind capitalType) {
+        BigDecimal total = capitalAllocationRepository.sumAllocatedAmount(
+                ownerId,
+                cycleId,
+                capitalType,
+                com.lifebalance.resourcecapital.domain.capitalallocation.AllocationStatus.ACTIVE
+        );
+        if (total == null) {
+            return zero();
+        }
+        return total.setScale(MONEY_SCALE, RoundingMode.UNNECESSARY);
+    }
+
+    private BigDecimal sumActiveSpent(UUID ownerId, UUID cycleId, CapitalKind capitalType) {
+        BigDecimal total = capitalAllocationRepository.sumSpentAmount(
+                ownerId,
+                cycleId,
+                capitalType,
+                com.lifebalance.resourcecapital.domain.capitalallocation.AllocationStatus.ACTIVE
+        );
         if (total == null) {
             return zero();
         }

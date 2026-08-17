@@ -3,7 +3,7 @@ package com.lifebalance.resourcecapital.service;
 import com.lifebalance.resourcecapital.domain.capital.CapitalKind;
 import com.lifebalance.resourcecapital.domain.capitalallocation.AllocationStatus;
 import com.lifebalance.resourcecapital.domain.capitalallocation.AllocationTargetType;
-import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationConfirmationRequiredException;
+import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InsufficientAvailableCapitalException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleType;
 import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalActionType;
@@ -145,7 +145,7 @@ class AllocationServiceIntegrationTest {
                         false,
                         "Missing confirmation"
                 )
-        )).isInstanceOf(OverAllocationConfirmationRequiredException.class);
+        )).isInstanceOf(InsufficientAvailableCapitalException.class);
 
         AllocationResponse response = allocationService.allocateCapital(
                 OWNER_ID,
