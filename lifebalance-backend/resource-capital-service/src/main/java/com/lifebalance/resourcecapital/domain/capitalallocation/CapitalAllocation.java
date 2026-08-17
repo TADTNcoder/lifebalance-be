@@ -87,6 +87,12 @@ public class CapitalAllocation {
     @Column(name = "user_id", nullable = false, updatable = false)
     private UUID userId;
 
+    @Column(name = "created_by", updatable = false)
+    private UUID createdBy;
+
+    @Column(name = "updated_by")
+    private UUID updatedBy;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "capital_type", nullable = false, length = 32)
     private CapitalKind capitalType;
@@ -161,6 +167,8 @@ public class CapitalAllocation {
         CapitalAllocation allocation = new CapitalAllocation();
         allocation.capitalCycle = validatedCycle;
         allocation.userId = requireOwnerId(validatedCycle.getOwnerId());
+        allocation.createdBy = allocation.userId;
+        allocation.updatedBy = allocation.userId;
         allocation.capitalType = requireCapitalType(capitalType);
         allocation.targetType = requireTargetType(targetType);
         allocation.targetId = requireTargetId(targetId);
@@ -267,6 +275,14 @@ public class CapitalAllocation {
         return userId;
     }
 
+    public UUID getCreatedBy() {
+        return createdBy;
+    }
+
+    public UUID getUpdatedBy() {
+        return updatedBy;
+    }
+
     public CapitalKind getCapitalType() {
         return capitalType;
     }
@@ -325,6 +341,12 @@ public class CapitalAllocation {
         if (capitalCycle != null && userId == null) {
             userId = requireOwnerId(capitalCycle.getOwnerId());
         }
+        if (createdBy == null) {
+            createdBy = userId;
+        }
+        if (updatedBy == null) {
+            updatedBy = createdBy;
+        }
         if (spentAmount == null) {
             spentAmount = zeroAmount();
         }
@@ -351,6 +373,7 @@ public class CapitalAllocation {
     @PreUpdate
     void onUpdate() {
         updatedAt = Instant.now();
+        updatedBy = requireOwnerId(userId);
     }
 
     private BigDecimal subtractAllocatedAmount(BigDecimal amount) {
