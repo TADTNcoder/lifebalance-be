@@ -2,8 +2,11 @@ package com.lifebalance.resourcecapital.controller;
 
 import static com.lifebalance.security.keycloak.KeycloakUserMappingFilter.CURRENT_USER_ATTRIBUTE;
 
+import com.lifebalance.resourcecapital.dto.AdjustMoneyCapitalRequest;
+import com.lifebalance.resourcecapital.dto.MoneyCapitalAdjustmentResponse;
 import com.lifebalance.resourcecapital.dto.MoneyCapitalResponse;
 import com.lifebalance.resourcecapital.dto.SetupMoneyCapitalRequest;
+import com.lifebalance.resourcecapital.service.CapitalAdjustmentService;
 import com.lifebalance.resourcecapital.service.CapitalService;
 import com.lifebalance.security.keycloak.KeycloakUserPrincipal;
 import io.swagger.v3.oas.annotations.Operation;
@@ -28,9 +31,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class MoneyCapitalController {
 
     private final CapitalService capitalService;
+    private final CapitalAdjustmentService capitalAdjustmentService;
 
-    public MoneyCapitalController(CapitalService capitalService) {
+    public MoneyCapitalController(
+            CapitalService capitalService,
+            CapitalAdjustmentService capitalAdjustmentService
+    ) {
         this.capitalService = capitalService;
+        this.capitalAdjustmentService = capitalAdjustmentService;
     }
 
     @Operation(
@@ -57,6 +65,35 @@ public class MoneyCapitalController {
         URI location = URI.create("/api/v1/capital-cycles/" + cycleId + "/money-capital");
 
         return ResponseEntity.created(location).body(response);
+    }
+
+    @Operation(
+            summary = "Adjust money capital",
+            description = "Increase or decrease money capital for an adjustable cycle using the cycle currency."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Money capital adjusted"),
+            @ApiResponse(responseCode = "400", description = "Request validation failed or cycle status is invalid"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "403", description = "Forbidden"),
+            @ApiResponse(responseCode = "404", description = "Capital cycle or money capital not found"),
+            @ApiResponse(responseCode = "409", description = "Over-allocation confirmation is required or not allowed")
+    })
+    @PostMapping("/{cycleId}/money-capital/adjustments")
+    public ResponseEntity<MoneyCapitalAdjustmentResponse> adjust(
+            @PathVariable UUID cycleId,
+            @Valid @RequestBody AdjustMoneyCapitalRequest request,
+            @RequestAttribute(value = CURRENT_USER_ATTRIBUTE, required = false)
+            KeycloakUserPrincipal currentUser
+    ) {
+        UUID ownerId = resolveOwnerId(currentUser);
+        MoneyCapitalAdjustmentResponse response = capitalAdjustmentService.adjustMoneyCapital(
+                ownerId,
+                cycleId,
+                request
+        );
+
+        return ResponseEntity.ok(response);
     }
 
     private UUID resolveOwnerId(KeycloakUserPrincipal currentUser) {

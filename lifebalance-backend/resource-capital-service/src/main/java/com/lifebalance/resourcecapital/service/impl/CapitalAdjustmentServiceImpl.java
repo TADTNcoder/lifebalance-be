@@ -40,6 +40,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -187,6 +188,7 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
 
         CapitalCycle cycle = findAdjustableOwnedCycle(ownerId, cycleId);
         MoneyCapital moneyCapital = findMoneyCapitalForUpdate(cycleId);
+        validateCurrencyMatchesCycle(request.currencyCode(), moneyCapital.getCurrencyCode());
 
         BigDecimal beforeAmount = moneyCapital.getPlannedAmount();
         CapitalActionType actionType = toActionType(adjustmentType);
@@ -736,6 +738,24 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
             );
         }
         return normalizedReason;
+    }
+
+    private void validateCurrencyMatchesCycle(String requestedCurrencyCode, String cycleCurrencyCode) {
+        if (requestedCurrencyCode == null || requestedCurrencyCode.isBlank()) {
+            return;
+        }
+        String normalizedCurrencyCode = requestedCurrencyCode.trim().toUpperCase(Locale.ROOT);
+        if (!normalizedCurrencyCode.matches("[A-Z]{3}")) {
+            throw InvalidAdjustmentAmountException.invalidMoney(
+                    "currencyCode must contain exactly three letters"
+            );
+        }
+        if (!normalizedCurrencyCode.equals(cycleCurrencyCode)) {
+            throw InvalidAdjustmentAmountException.invalidMoney(
+                    "currencyCode " + normalizedCurrencyCode
+                            + " must match cycle money capital currency " + cycleCurrencyCode
+            );
+        }
     }
 
     private BigDecimal money(long amount) {
