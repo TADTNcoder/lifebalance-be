@@ -106,7 +106,7 @@ public interface CapitalAllocationRepository extends
             where allocation.userId = :userId
               and allocation.capitalCycle.id = :capitalCycleId
               and allocation.status = :status
-              and (allocation.allocatedAmount - allocation.spentAmount - allocation.releasedAmount) > 0
+              and (allocation.allocatedAmount - allocation.spentAmount) > 0
             order by allocation.createdAt desc, allocation.id desc
             """)
     List<CapitalAllocation> findAvailableForReallocateOrRelease(
