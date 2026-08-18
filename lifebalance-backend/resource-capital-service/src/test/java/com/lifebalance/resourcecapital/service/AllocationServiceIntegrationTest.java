@@ -4,6 +4,7 @@ import com.lifebalance.resourcecapital.domain.capital.CapitalKind;
 import com.lifebalance.resourcecapital.domain.capitalallocation.AllocationStatus;
 import com.lifebalance.resourcecapital.domain.capitalallocation.AllocationTargetType;
 import com.lifebalance.resourcecapital.domain.capitalallocation.CapitalAllocation;
+import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InsufficientAllocatedCapitalException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InvalidAllocationStateException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationConfirmationRequiredException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
@@ -318,7 +319,16 @@ class AllocationServiceIntegrationTest {
                 cycle.getId(),
                 CapitalActionType.ALLOCATE,
                 PageRequest.of(0, 10)
-        ).getContent()).hasSize(2);
+        ).getContent()).hasSize(1);
+        assertThat(capitalHistoryRepository.findByCapitalCycleIdAndActionType(
+                cycle.getId(),
+                CapitalActionType.REALLOCATE,
+                PageRequest.of(0, 10)
+        ).getContent()).singleElement().satisfies(history -> {
+            assertThat(history.getReferenceId()).isEqualTo(SOURCE_TASK_ID);
+            assertThat(history.getBeforeAmount()).isEqualByComparingTo("90.0000");
+            assertThat(history.getAfterAmount()).isEqualByComparingTo("120.0000");
+        });
         assertThat(capitalHistoryRepository.findByCapitalCycleIdAndActionType(
                 cycle.getId(),
                 CapitalActionType.OVER_ALLOCATION_APPROVED,
@@ -328,7 +338,7 @@ class AllocationServiceIntegrationTest {
     }
 
     @Test
-    void changeAllocationDecreaseReleasesDeltaAndKeepsAllocationHistory() {
+    void changeAllocationDecreaseRecordsReallocationAndKeepsReleaseBalanceUntouched() {
         CapitalCycle cycle = createCycle("August 9", LocalDate.of(2026, 8, 9), false);
         capitalService.setupTimeCapital(OWNER_ID, cycle.getId(), new SetupTimeCapitalRequest(100L));
         activateCycle(cycle);
@@ -364,7 +374,7 @@ class AllocationServiceIntegrationTest {
         assertThat(response.historyIds()).hasSize(1);
         assertThat(findTaskAllocation(cycle, SOURCE_TASK_ID)).satisfies(changedAllocation -> {
             assertThat(changedAllocation.getAllocatedAmount()).isEqualByComparingTo("50.0000");
-            assertThat(changedAllocation.getReleasedAmount()).isEqualByComparingTo("30.0000");
+            assertThat(changedAllocation.getReleasedAmount()).isEqualByComparingTo("0.0000");
             assertThat(changedAllocation.getStatus()).isEqualTo(AllocationStatus.ACTIVE);
         });
         assertThat(capitalHistoryRepository.findByCapitalCycleIdAndActionType(
@@ -376,11 +386,65 @@ class AllocationServiceIntegrationTest {
                 cycle.getId(),
                 CapitalActionType.RELEASE,
                 PageRequest.of(0, 10)
+        ).getContent()).isEmpty();
+        assertThat(capitalHistoryRepository.findByCapitalCycleIdAndActionType(
+                cycle.getId(),
+                CapitalActionType.REALLOCATE,
+                PageRequest.of(0, 10)
         ).getContent()).singleElement().satisfies(history -> {
             assertThat(history.getReferenceId()).isEqualTo(SOURCE_TASK_ID);
             assertThat(history.getBeforeAmount()).isEqualByComparingTo("80.0000");
             assertThat(history.getAfterAmount()).isEqualByComparingTo("50.0000");
         });
+    }
+
+    @Test
+    void changeAllocationDecreaseRejectsAmountBelowSpentAndDoesNotWriteReallocationHistory() {
+        CapitalCycle cycle = createCycle("August 11", LocalDate.of(2026, 8, 11), false);
+        capitalService.setupTimeCapital(OWNER_ID, cycle.getId(), new SetupTimeCapitalRequest(100L));
+        activateCycle(cycle);
+        allocationService.allocateCapital(
+                OWNER_ID,
+                cycle.getId(),
+                new AllocateCapitalRequest(
+                        CapitalKind.TIME,
+                        AllocationTargetType.TASK,
+                        SOURCE_TASK_ID,
+                        new BigDecimal("80.0000"),
+                        false,
+                        "Initial"
+                )
+        );
+        CapitalAllocation allocation = findTaskAllocation(cycle, SOURCE_TASK_ID);
+        allocation.spend(new BigDecimal("60.0000"));
+        capitalAllocationRepository.saveAndFlush(allocation);
+        entityManager.flush();
+        entityManager.clear();
+
+        CapitalAllocation spentAllocation = findTaskAllocation(cycle, SOURCE_TASK_ID);
+        assertThatThrownBy(() -> capitalAllocationService.changeAllocation(
+                OWNER_ID,
+                spentAllocation.getId(),
+                new CapitalAllocationChangeRequest(
+                        new BigDecimal("50.0000"),
+                        false,
+                        "Below spent amount"
+                )
+        )).isInstanceOf(InsufficientAllocatedCapitalException.class);
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(findTaskAllocation(cycle, SOURCE_TASK_ID)).satisfies(unchangedAllocation -> {
+            assertThat(unchangedAllocation.getAllocatedAmount()).isEqualByComparingTo("80.0000");
+            assertThat(unchangedAllocation.getSpentAmount()).isEqualByComparingTo("60.0000");
+            assertThat(unchangedAllocation.getReleasedAmount()).isEqualByComparingTo("0.0000");
+            assertThat(unchangedAllocation.getStatus()).isEqualTo(AllocationStatus.ACTIVE);
+        });
+        assertThat(capitalHistoryRepository.findByCapitalCycleIdAndActionType(
+                cycle.getId(),
+                CapitalActionType.REALLOCATE,
+                PageRequest.of(0, 10)
+        ).getContent()).isEmpty();
     }
 
     @Test
