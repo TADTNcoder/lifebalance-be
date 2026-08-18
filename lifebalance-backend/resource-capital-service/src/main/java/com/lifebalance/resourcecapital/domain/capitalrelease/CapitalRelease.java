@@ -16,9 +16,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.Size;
-import lombok.AccessLevel;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
@@ -28,7 +26,6 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 @EntityListeners(AuditingEntityListener.class)
 @Table(
@@ -66,6 +63,9 @@ public class CapitalRelease {
     @Column(name = "released_at", nullable = false, updatable = false)
     private Instant releasedAt;
 
+    protected CapitalRelease() {
+    }
+
     private CapitalRelease(CapitalAllocation allocation, BigDecimal releasedAmount, String reason) {
         this.allocation = requireAllocation(allocation);
         this.releasedAmount = normalizePositiveAmount(releasedAmount);
@@ -85,6 +85,14 @@ public class CapitalRelease {
 
     public UUID getAllocationId() {
         return allocation == null ? null : allocation.getId();
+    }
+
+    public BigDecimal getReleasedAmount() {
+        return releasedAmount;
+    }
+
+    public String getReason() {
+        return reason;
     }
 
     private static CapitalAllocation requireAllocation(CapitalAllocation allocation) {
