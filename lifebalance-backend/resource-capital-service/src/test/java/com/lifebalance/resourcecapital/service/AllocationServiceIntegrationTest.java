@@ -13,8 +13,10 @@ import com.lifebalance.resourcecapital.dto.AllocateCapitalRequest;
 import com.lifebalance.resourcecapital.dto.AllocationResponse;
 import com.lifebalance.resourcecapital.dto.CapitalAllocationChangeRequest;
 import com.lifebalance.resourcecapital.dto.CapitalAllocationReleaseRequest;
+import com.lifebalance.resourcecapital.dto.CreateCapitalAllocationRequest;
 import com.lifebalance.resourcecapital.dto.ReallocateCapitalRequest;
 import com.lifebalance.resourcecapital.dto.ReleaseCapitalRequest;
+import com.lifebalance.resourcecapital.dto.SetupMoneyCapitalRequest;
 import com.lifebalance.resourcecapital.dto.SetupTimeCapitalRequest;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalAllocationRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalCycleRepository;
@@ -46,6 +48,7 @@ class AllocationServiceIntegrationTest {
     private static final UUID OWNER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private static final UUID SOURCE_TASK_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
     private static final UUID DESTINATION_TASK_ID = UUID.fromString("33333333-3333-3333-3333-333333333333");
+    private static final UUID PROJECT_ID = UUID.fromString("44444444-4444-4444-4444-444444444444");
 
     @Autowired
     private AllocationService allocationService;
@@ -120,6 +123,66 @@ class AllocationServiceIntegrationTest {
             assertThat(history.getReferenceId()).isEqualTo(SOURCE_TASK_ID);
             assertThat(history.getBeforeAmount()).isEqualByComparingTo("0.0000");
             assertThat(history.getAfterAmount()).isEqualByComparingTo("45.0000");
+        });
+    }
+
+    @Test
+    void allocateMoneyCapitalThroughApiFacadePersistsProjectAllocationAndHistory() {
+        CapitalCycle cycle = createCycle("August 11", LocalDate.of(2026, 8, 11), false);
+        capitalService.setupMoneyCapital(
+                OWNER_ID,
+                cycle.getId(),
+                new SetupMoneyCapitalRequest(new BigDecimal("1000.0000"), "VND")
+        );
+        activateCycle(cycle);
+
+        AllocationResponse response = capitalAllocationService.allocateCapital(
+                OWNER_ID,
+                new CreateCapitalAllocationRequest(
+                        cycle.getId(),
+                        CapitalKind.MONEY,
+                        AllocationTargetType.PROJECT,
+                        null,
+                        null,
+                        null,
+                        PROJECT_ID,
+                        new BigDecimal("250.0000"),
+                        false,
+                        "Project budget"
+                )
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(response.capitalType()).isEqualTo(CapitalKind.MONEY);
+        assertThat(response.targetType()).isEqualTo(AllocationTargetType.PROJECT);
+        assertThat(response.targetId()).isEqualTo(PROJECT_ID);
+        assertThat(response.targetAllocatedAmount()).isEqualByComparingTo("250.0000");
+        assertThat(response.totalAllocatedAmount()).isEqualByComparingTo("250.0000");
+        assertThat(response.remainingAmount()).isEqualByComparingTo("750.0000");
+        assertThat(response.overAllocated()).isFalse();
+        assertThat(capitalAllocationRepository.findByUserIdAndCapitalCycleIdAndTargetTypeAndTargetIdAndCapitalType(
+                OWNER_ID,
+                cycle.getId(),
+                AllocationTargetType.PROJECT,
+                PROJECT_ID,
+                CapitalKind.MONEY
+        )).isPresent()
+                .get()
+                .satisfies(allocation -> {
+                    assertThat(allocation.getAllocatedAmount()).isEqualByComparingTo("250.0000");
+                    assertThat(allocation.getCapitalType()).isEqualTo(CapitalKind.MONEY);
+                    assertThat(allocation.getStatus()).isEqualTo(AllocationStatus.ACTIVE);
+                });
+        assertThat(capitalHistoryRepository.findByCapitalCycleIdAndActionType(
+                cycle.getId(),
+                CapitalActionType.ALLOCATE,
+                PageRequest.of(0, 10)
+        ).getContent()).singleElement().satisfies(history -> {
+            assertThat(history.getId()).isEqualTo(response.historyIds().getFirst());
+            assertThat(history.getReferenceId()).isEqualTo(PROJECT_ID);
+            assertThat(history.getBeforeAmount()).isEqualByComparingTo("0.0000");
+            assertThat(history.getAfterAmount()).isEqualByComparingTo("250.0000");
         });
     }
 
