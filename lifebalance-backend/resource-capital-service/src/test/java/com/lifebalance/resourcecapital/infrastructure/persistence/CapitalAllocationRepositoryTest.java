@@ -30,6 +30,7 @@ class CapitalAllocationRepositoryTest {
     private static final UUID OTHER_OWNER_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
     private static final UUID TASK_ID = UUID.fromString("33333333-3333-3333-3333-333333333333");
     private static final UUID OTHER_TASK_ID = UUID.fromString("44444444-4444-4444-4444-444444444444");
+    private static final UUID MOSTLY_RELEASED_TASK_ID = UUID.fromString("55555555-5555-5555-5555-555555555555");
 
     @Autowired
     private CapitalCycleRepository capitalCycleRepository;
@@ -136,9 +137,17 @@ class CapitalAllocationRepositoryTest {
         CapitalAllocation unavailable = allocation(cycle, CapitalKind.TIME, OTHER_TASK_ID, "40.0000");
         unavailable.spend(new BigDecimal("20.0000"));
         unavailable.release(new BigDecimal("20.0000"));
+        CapitalAllocation mostlyReleasedAvailable = allocation(
+                cycle,
+                CapitalKind.TIME,
+                MOSTLY_RELEASED_TASK_ID,
+                "100.0000"
+        );
+        mostlyReleasedAvailable.release(new BigDecimal("60.0000"));
         CapitalAllocation otherOwnerAvailable = allocation(otherCycle, CapitalKind.TIME, TASK_ID, "100.0000");
         capitalAllocationRepository.save(available);
         capitalAllocationRepository.save(unavailable);
+        capitalAllocationRepository.save(mostlyReleasedAvailable);
         capitalAllocationRepository.save(otherOwnerAvailable);
         capitalAllocationRepository.flush();
         entityManager.clear();
@@ -163,8 +172,8 @@ class CapitalAllocationRepositoryTest {
 
         assertThat(availableAllocations)
                 .extracting(CapitalAllocation::getId)
-                .containsExactly(available.getId());
-        assertThat(allocated).isEqualByComparingTo("110.0000");
+                .containsExactlyInAnyOrder(available.getId(), mostlyReleasedAvailable.getId());
+        assertThat(allocated).isEqualByComparingTo("150.0000");
         assertThat(spent).isEqualByComparingTo("40.0000");
     }
 
