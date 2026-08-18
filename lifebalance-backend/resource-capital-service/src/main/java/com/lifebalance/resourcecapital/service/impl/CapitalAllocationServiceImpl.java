@@ -99,7 +99,7 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
                 request.targetId(),
                 request.taskId(),
                 request.taskCatalogId(),
-                null
+                request.projectId()
         );
 
         return allocationService.allocateCapital(
