@@ -35,7 +35,37 @@ public record AllocateCapitalRequestDTO(
 
         boolean overAllocationConfirmed,
 
+        @Size(max = 128)
+        String overAllocationConfirmationKey,
+
         @Size(max = 1000)
         String reason
 ) {
+
+    public AllocateCapitalRequestDTO(
+            UUID capitalCycleId,
+            CapitalKind capitalType,
+            AllocationTargetType targetType,
+            UUID targetId,
+            UUID taskId,
+            UUID taskCatalogId,
+            UUID projectId,
+            BigDecimal amount,
+            boolean overAllocationConfirmed,
+            String reason
+    ) {
+        this(
+                capitalCycleId,
+                capitalType,
+                targetType,
+                targetId,
+                taskId,
+                taskCatalogId,
+                projectId,
+                amount,
+                overAllocationConfirmed,
+                null,
+                reason
+        );
+    }
 }

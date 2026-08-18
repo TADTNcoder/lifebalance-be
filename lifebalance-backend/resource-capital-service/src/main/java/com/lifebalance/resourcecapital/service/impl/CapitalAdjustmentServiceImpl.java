@@ -7,6 +7,7 @@ import com.lifebalance.resourcecapital.domain.capital.exception.CapitalNotSetupE
 import com.lifebalance.resourcecapital.domain.capital.exception.InvalidAdjustmentAmountException;
 import com.lifebalance.resourcecapital.domain.capitaladjustment.CapitalAdjustment;
 import com.lifebalance.resourcecapital.domain.capitaladjustment.CapitalType;
+import com.lifebalance.resourcecapital.domain.capitalallocation.OverAllocationConfirmation;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationConfirmationRequiredException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationNotAllowedException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
@@ -95,7 +96,8 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
                     adjustmentType,
                     request.amount(),
                     reason,
-                    request.overAllocationConfirmed()
+                    request.overAllocationConfirmed(),
+                    request.overAllocationConfirmationKey()
             );
             case MONEY -> adjustMoneyCapital(
                     cycle,
@@ -103,7 +105,8 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
                     adjustmentType,
                     request.amount(),
                     reason,
-                    request.overAllocationConfirmed()
+                    request.overAllocationConfirmed(),
+                    request.overAllocationConfirmationKey()
             );
         };
     }
@@ -138,7 +141,10 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
                     money(afterMinutes),
                     money(allocatedMinutes),
                     money(amountInMinutes),
-                    request.allowOverAllocation()
+                    request.allowOverAllocation(),
+                    request.overAllocationConfirmationKey(),
+                    actionType.name(),
+                    OverAllocationConfirmation.adjustmentReference(adjustmentType.name())
             );
             timeCapital.decreasePlannedMinutes(amountInMinutes);
         }
@@ -203,7 +209,10 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
                     afterAmount,
                     allocatedAmount,
                     amount,
-                    request.allowOverAllocation()
+                    request.allowOverAllocation(),
+                    request.overAllocationConfirmationKey(),
+                    actionType.name(),
+                    OverAllocationConfirmation.adjustmentReference(adjustmentType.name())
             );
             moneyCapital.decreasePlannedAmount(amount);
         }
@@ -272,7 +281,8 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
             CapitalAdjustmentType adjustmentType,
             BigDecimal requestedAmount,
             String reason,
-            boolean overAllocationConfirmed
+            boolean overAllocationConfirmed,
+            String overAllocationConfirmationKey
     ) {
         TimeCapital timeCapital = findTimeCapitalForUpdate(cycle.getId());
         long amountInMinutes = adjustmentType == CapitalAdjustmentType.OVERRIDE
@@ -293,7 +303,10 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
                         money(projectedMinutes),
                         money(allocatedMinutes),
                         money(amountInMinutes),
-                        overAllocationConfirmed
+                        overAllocationConfirmed,
+                        overAllocationConfirmationKey,
+                        toHistoryActionType(adjustmentType).name(),
+                        OverAllocationConfirmation.adjustmentReference(adjustmentType.name())
                 );
                 timeCapital.decreasePlannedMinutes(amountInMinutes);
                 afterMinutes = timeCapital.getPlannedMinutes();
@@ -307,7 +320,10 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
                         money(amountInMinutes),
                         money(allocatedMinutes),
                         money(beforeMinutes).subtract(money(amountInMinutes)),
-                        overAllocationConfirmed
+                        overAllocationConfirmed,
+                        overAllocationConfirmationKey,
+                        toHistoryActionType(adjustmentType).name(),
+                        OverAllocationConfirmation.adjustmentReference(adjustmentType.name())
                 );
                 applyTimeOverride(timeCapital, beforeMinutes, amountInMinutes);
                 afterMinutes = timeCapital.getPlannedMinutes();
@@ -341,7 +357,8 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
             CapitalAdjustmentType adjustmentType,
             BigDecimal requestedAmount,
             String reason,
-            boolean overAllocationConfirmed
+            boolean overAllocationConfirmed,
+            String overAllocationConfirmationKey
     ) {
         MoneyCapital moneyCapital = findMoneyCapitalForUpdate(cycle.getId());
         BigDecimal amount = adjustmentType == CapitalAdjustmentType.OVERRIDE
@@ -362,7 +379,10 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
                         projectedAmount,
                         allocatedAmount,
                         amount,
-                        overAllocationConfirmed
+                        overAllocationConfirmed,
+                        overAllocationConfirmationKey,
+                        toHistoryActionType(adjustmentType).name(),
+                        OverAllocationConfirmation.adjustmentReference(adjustmentType.name())
                 );
                 moneyCapital.decreasePlannedAmount(amount);
                 afterAmount = projectedAmount;
@@ -376,7 +396,10 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
                         amount,
                         allocatedAmount,
                         beforeAmount.subtract(amount),
-                        overAllocationConfirmed
+                        overAllocationConfirmed,
+                        overAllocationConfirmationKey,
+                        toHistoryActionType(adjustmentType).name(),
+                        OverAllocationConfirmation.adjustmentReference(adjustmentType.name())
                 );
                 applyMoneyOverride(moneyCapital, beforeAmount, amount);
                 afterAmount = amount;
@@ -442,7 +465,10 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
             BigDecimal afterAmount,
             BigDecimal allocatedAmount,
             BigDecimal requestedAmount,
-            boolean overAllocationConfirmed
+            boolean overAllocationConfirmed,
+            String overAllocationConfirmationKey,
+            String operationType,
+            String operationReference
     ) {
         BigDecimal normalizedBefore = normalizeMoney(beforeAmount);
         BigDecimal normalizedAfter = normalizeMoney(afterAmount);
@@ -468,13 +494,27 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
                     remainingAfterAdjustment
             );
         }
-        if (!overAllocationConfirmed) {
+        String expectedConfirmationKey = OverAllocationConfirmation.confirmationKey(
+                operationType,
+                cycle.getId(),
+                capitalType,
+                operationReference,
+                normalizedRequested,
+                availableCapital,
+                remainingAfterAdjustment
+        );
+        if (!overAllocationConfirmed || !OverAllocationConfirmation.matches(
+                overAllocationConfirmationKey,
+                expectedConfirmationKey
+        )) {
             throw new OverAllocationConfirmationRequiredException(
                     cycle.getId(),
                     capitalType,
                     availableCapital,
                     normalizedRequested,
-                    remainingAfterAdjustment
+                    remainingAfterAdjustment,
+                    operationType,
+                    operationReference
             );
         }
 

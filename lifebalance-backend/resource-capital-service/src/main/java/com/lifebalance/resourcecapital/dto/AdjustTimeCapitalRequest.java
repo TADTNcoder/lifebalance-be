@@ -18,6 +18,18 @@ public record AdjustTimeCapitalRequest(
         @Size(max = 1000)
         String reason,
 
-        boolean allowOverAllocation
+        boolean allowOverAllocation,
+
+        @Size(max = 128)
+        String overAllocationConfirmationKey
 ) {
+
+    public AdjustTimeCapitalRequest(
+            CapitalAdjustmentType adjustmentType,
+            Long amountInMinutes,
+            String reason,
+            boolean allowOverAllocation
+    ) {
+        this(adjustmentType, amountInMinutes, reason, allowOverAllocation, null);
+    }
 }

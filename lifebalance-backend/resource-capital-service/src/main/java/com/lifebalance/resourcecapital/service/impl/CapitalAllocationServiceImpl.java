@@ -111,6 +111,7 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
                         target.targetId(),
                         request.amount(),
                         request.allowOverAllocation(),
+                        request.overAllocationConfirmationKey(),
                         request.reason()
                 )
         );
@@ -138,6 +139,7 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
                         target.targetId(),
                         request.amount(),
                         request.overAllocationConfirmed(),
+                        request.overAllocationConfirmationKey(),
                         request.reason()
                 )
         );
@@ -293,6 +295,7 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
                 allocation,
                 request.newAmount(),
                 request.overAllocationConfirmed(),
+                request.overAllocationConfirmationKey(),
                 request.reason()
         );
     }
@@ -308,6 +311,7 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
                 allocation,
                 request.newAmount(),
                 request.overAllocationConfirmed(),
+                request.overAllocationConfirmationKey(),
                 request.reason()
         );
         return AllocationResponseDTO.from(response);
@@ -483,6 +487,7 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
             CapitalAllocation allocation,
             BigDecimal requestedNewAmount,
             boolean overAllocationConfirmed,
+            String overAllocationConfirmationKey,
             String reason
     ) {
         findActiveOwnedCycle(ownerId, allocation.getCapitalCycle().getId(), "change allocation");
@@ -508,6 +513,7 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
                             allocation.getTargetId(),
                             delta,
                             overAllocationConfirmed,
+                            overAllocationConfirmationKey,
                             reason
                     )
             );

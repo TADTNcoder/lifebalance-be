@@ -35,6 +35,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 @Transactional
 @SpringBootTest(properties = {
@@ -141,18 +142,26 @@ class AllocationServiceIntegrationTest {
                 )
         );
 
-        assertThatThrownBy(() -> allocationService.allocateCapital(
-                OWNER_ID,
-                cycle.getId(),
-                new AllocateCapitalRequest(
-                        CapitalKind.TIME,
-                        AllocationTargetType.TASK,
-                        DESTINATION_TASK_ID,
-                        new BigDecimal("20.0000"),
-                        false,
-                        "Missing confirmation"
-                )
-        )).isInstanceOf(OverAllocationConfirmationRequiredException.class);
+        OverAllocationConfirmationRequiredException confirmationRequired = catchThrowableOfType(
+                () -> allocationService.allocateCapital(
+                        OWNER_ID,
+                        cycle.getId(),
+                        new AllocateCapitalRequest(
+                                CapitalKind.TIME,
+                                AllocationTargetType.TASK,
+                                DESTINATION_TASK_ID,
+                                new BigDecimal("20.0000"),
+                                false,
+                                "Missing confirmation"
+                        )
+                ),
+                OverAllocationConfirmationRequiredException.class
+        );
+        assertThat(confirmationRequired).isNotNull();
+        assertThat(confirmationRequired.getDetails())
+                .containsEntry("shortageAmount", "10.0000")
+                .containsEntry("projectedRemainingAmount", "-10.0000")
+                .containsKey("confirmationKey");
 
         AllocationResponse response = allocationService.allocateCapital(
                 OWNER_ID,
@@ -163,6 +172,7 @@ class AllocationServiceIntegrationTest {
                         DESTINATION_TASK_ID,
                         new BigDecimal("20.0000"),
                         true,
+                        confirmationRequired.getDetails().get("confirmationKey"),
                         "Explicitly approved"
                 )
         );
@@ -277,15 +287,23 @@ class AllocationServiceIntegrationTest {
         );
 
         CapitalAllocation allocation = findTaskAllocation(cycle, SOURCE_TASK_ID);
-        assertThatThrownBy(() -> capitalAllocationService.changeAllocation(
-                OWNER_ID,
-                allocation.getId(),
-                new CapitalAllocationChangeRequest(
-                        new BigDecimal("120.0000"),
-                        false,
-                        "Needs confirmation"
-                )
-        )).isInstanceOf(OverAllocationConfirmationRequiredException.class);
+        OverAllocationConfirmationRequiredException confirmationRequired = catchThrowableOfType(
+                () -> capitalAllocationService.changeAllocation(
+                        OWNER_ID,
+                        allocation.getId(),
+                        new CapitalAllocationChangeRequest(
+                                new BigDecimal("120.0000"),
+                                false,
+                                "Needs confirmation"
+                        )
+                ),
+                OverAllocationConfirmationRequiredException.class
+        );
+        assertThat(confirmationRequired).isNotNull();
+        assertThat(confirmationRequired.getDetails())
+                .containsEntry("shortageAmount", "20.0000")
+                .containsEntry("projectedRemainingAmount", "-20.0000")
+                .containsKey("confirmationKey");
         entityManager.flush();
         entityManager.clear();
 
@@ -298,6 +316,7 @@ class AllocationServiceIntegrationTest {
                 new CapitalAllocationChangeRequest(
                         new BigDecimal("120.0000"),
                         true,
+                        confirmationRequired.getDetails().get("confirmationKey"),
                         "Approved change"
                 )
         );

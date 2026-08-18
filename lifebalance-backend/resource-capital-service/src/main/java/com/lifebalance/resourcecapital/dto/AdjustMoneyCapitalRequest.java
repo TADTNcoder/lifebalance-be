@@ -22,6 +22,18 @@ public record AdjustMoneyCapitalRequest(
         @Size(max = 1000)
         String reason,
 
-        boolean allowOverAllocation
+        boolean allowOverAllocation,
+
+        @Size(max = 128)
+        String overAllocationConfirmationKey
 ) {
+
+    public AdjustMoneyCapitalRequest(
+            CapitalAdjustmentType adjustmentType,
+            BigDecimal amount,
+            String reason,
+            boolean allowOverAllocation
+    ) {
+        this(adjustmentType, amount, reason, allowOverAllocation, null);
+    }
 }

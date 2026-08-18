@@ -27,7 +27,21 @@ public record AllocateCapitalRequest(
 
         boolean allowOverAllocation,
 
+        @Size(max = 128)
+        String overAllocationConfirmationKey,
+
         @Size(max = 1000)
         String reason
 ) {
+
+    public AllocateCapitalRequest(
+            CapitalKind capitalType,
+            AllocationTargetType targetType,
+            UUID targetId,
+            BigDecimal amount,
+            boolean allowOverAllocation,
+            String reason
+    ) {
+        this(capitalType, targetType, targetId, amount, allowOverAllocation, null, reason);
+    }
 }

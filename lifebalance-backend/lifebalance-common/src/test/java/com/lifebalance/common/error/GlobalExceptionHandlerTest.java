@@ -21,6 +21,8 @@ import org.springframework.web.ErrorResponseException;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.util.Map;
+
 @ExtendWith(OutputCaptureExtension.class)
 class GlobalExceptionHandlerTest {
 
@@ -84,6 +86,23 @@ class GlobalExceptionHandlerTest {
                 "must be valid JSON with supported field values"
         );
         assertThat(response.getBody().timestamp()).isNotNull();
+    }
+
+    @Test
+    void shouldPreserveAppExceptionDetailsInStandardErrorPayload() {
+        ResponseEntity<ApiResponse<Void>> response = handler.handleAppException(new AppException(
+                "DOMAIN_RULE_FAILED",
+                "Domain rule failed",
+                HttpStatus.CONFLICT,
+                Map.of("confirmationRequired", "true")
+        ));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().success()).isFalse();
+        assertThat(response.getBody().error().code()).isEqualTo("DOMAIN_RULE_FAILED");
+        assertThat(response.getBody().error().details())
+                .containsEntry("confirmationRequired", "true");
     }
 
     @Test

@@ -4,6 +4,7 @@ import com.lifebalance.resourcecapital.domain.capital.CapitalKind;
 import com.lifebalance.resourcecapital.domain.capitalallocation.AllocationStatus;
 import com.lifebalance.resourcecapital.domain.capitalallocation.AllocationTargetType;
 import com.lifebalance.resourcecapital.domain.capitalallocation.CapitalAllocation;
+import com.lifebalance.resourcecapital.domain.capitalallocation.OverAllocationConfirmation;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InsufficientAllocatedCapitalException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InvalidAllocationAmountException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InvalidAllocationStateException;
@@ -310,6 +311,12 @@ class AllocationServiceImplTest {
                         SOURCE_TASK_ID,
                         new BigDecimal("20.0000"),
                         true,
+                        allocationConfirmationKey(
+                                SOURCE_TASK_ID,
+                                new BigDecimal("20.0000"),
+                                new BigDecimal("10.0000"),
+                                new BigDecimal("-10.0000")
+                        ),
                         "Approved"
                 )
         );
@@ -325,6 +332,58 @@ class AllocationServiceImplTest {
         assertThat(response.remainingAmount()).isEqualByComparingTo("-10.0000");
         assertThat(response.overAllocated()).isTrue();
         assertThat(response.historyIds()).hasSize(2);
+    }
+
+    @Test
+    void allocateCapitalRejectsApprovedOverAllocationWhenConfirmationKeyDoesNotMatchTarget() {
+        CapitalCycle cycle = draftCycle();
+        cycle.allowOverAllocation();
+        TimeCapital timeCapital = TimeCapital.create(cycle, 100L);
+        whenOwnedCycle(cycle);
+        when(timeCapitalRepository.findByCapitalCycleIdForUpdate(CYCLE_ID)).thenReturn(Optional.of(timeCapital));
+        when(capitalAllocationRepository.findTargetForUpdate(
+                OWNER_ID,
+                CYCLE_ID,
+                CapitalKind.TIME,
+                AllocationTargetType.TASK,
+                SOURCE_TASK_ID
+        )).thenReturn(Optional.empty());
+        when(capitalAllocationRepository.sumAllocatedAmount(OWNER_ID, CYCLE_ID, CapitalKind.TIME))
+                .thenReturn(new BigDecimal("90.0000"));
+        when(capitalAllocationRepository.sumAllocatedAmount(
+                OWNER_ID,
+                CYCLE_ID,
+                CapitalKind.TIME,
+                AllocationStatus.ACTIVE
+        )).thenReturn(new BigDecimal("90.0000"));
+
+        assertThatThrownBy(() -> createService().allocateCapital(
+                OWNER_ID,
+                CYCLE_ID,
+                new AllocateCapitalRequest(
+                        CapitalKind.TIME,
+                        AllocationTargetType.TASK,
+                        SOURCE_TASK_ID,
+                        new BigDecimal("20.0000"),
+                        true,
+                        allocationConfirmationKey(
+                                DESTINATION_TASK_ID,
+                                new BigDecimal("20.0000"),
+                                new BigDecimal("10.0000"),
+                                new BigDecimal("-10.0000")
+                        ),
+                        "Wrong target confirmation"
+                )
+        )).isInstanceOf(OverAllocationConfirmationRequiredException.class)
+                .satisfies(exception -> assertThat((OverAllocationConfirmationRequiredException) exception)
+                        .extracting(required -> required.getDetails().get("operationReference"))
+                        .isEqualTo(OverAllocationConfirmation.allocationReference(
+                                AllocationTargetType.TASK,
+                                SOURCE_TASK_ID
+                        )));
+
+        verify(capitalAllocationRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(capitalHistoryRepository);
     }
 
     @Test
@@ -654,6 +713,23 @@ class AllocationServiceImplTest {
             );
             return history;
         });
+    }
+
+    private String allocationConfirmationKey(
+            UUID targetId,
+            BigDecimal requestedAmount,
+            BigDecimal availableAmount,
+            BigDecimal projectedRemainingAmount
+    ) {
+        return OverAllocationConfirmation.confirmationKey(
+                CapitalActionType.ALLOCATE.name(),
+                CYCLE_ID,
+                CapitalKind.TIME,
+                OverAllocationConfirmation.allocationReference(AllocationTargetType.TASK, targetId),
+                requestedAmount,
+                availableAmount,
+                projectedRemainingAmount
+        );
     }
 
     private static CapitalCycle draftCycle() {

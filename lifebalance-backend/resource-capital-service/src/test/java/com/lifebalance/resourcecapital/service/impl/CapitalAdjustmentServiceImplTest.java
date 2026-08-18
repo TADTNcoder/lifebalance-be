@@ -5,6 +5,7 @@ import com.lifebalance.resourcecapital.domain.capital.CapitalKind;
 import com.lifebalance.resourcecapital.domain.capital.exception.CapitalCycleNotAdjustableException;
 import com.lifebalance.resourcecapital.domain.capital.exception.InvalidAdjustmentAmountException;
 import com.lifebalance.resourcecapital.domain.capitaladjustment.CapitalAdjustment;
+import com.lifebalance.resourcecapital.domain.capitalallocation.OverAllocationConfirmation;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationConfirmationRequiredException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationNotAllowedException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
@@ -257,7 +258,15 @@ class CapitalAdjustmentServiceImplTest {
                         CapitalAdjustmentType.DECREASE,
                         new BigDecimal("40.0000"),
                         "Approved below allocation",
-                        true
+                        true,
+                        adjustmentConfirmationKey(
+                                CapitalKind.MONEY,
+                                CapitalActionType.ADJUSTMENT_DECREASE.name(),
+                                CapitalAdjustmentType.DECREASE,
+                                new BigDecimal("40.0000"),
+                                new BigDecimal("25.0000"),
+                                new BigDecimal("-15.0000")
+                        )
                 )
         );
 
@@ -275,6 +284,40 @@ class CapitalAdjustmentServiceImplTest {
         assertThat(approvalHistory.getReason()).isEqualTo("Approved below allocation");
         assertThat(approvalHistory.getDescription())
                 .isEqualTo("Over-allocation approved for money capital adjustment.");
+    }
+
+    @Test
+    void adjustMoneyCapitalRejectsApprovedOverAllocationWhenConfirmationKeyDoesNotMatchSnapshot() {
+        CapitalCycle cycle = draftCycle();
+        cycle.allowOverAllocation();
+        MoneyCapital moneyCapital = MoneyCapital.create(cycle, new BigDecimal("100.0000"), "USD");
+        cycle.activate(NOW.minusSeconds(120));
+        when(capitalCycleRepository.findByIdAndOwnerId(CYCLE_ID, OWNER_ID)).thenReturn(Optional.of(cycle));
+        when(moneyCapitalRepository.findByCapitalCycleIdForUpdate(CYCLE_ID)).thenReturn(Optional.of(moneyCapital));
+        when(capitalAllocationReader.getAllocatedAmount(OWNER_ID, CYCLE_ID)).thenReturn(new BigDecimal("75.0000"));
+
+        assertThatThrownBy(() -> createService().adjustMoneyCapital(
+                OWNER_ID,
+                CYCLE_ID,
+                new AdjustMoneyCapitalRequest(
+                        CapitalAdjustmentType.DECREASE,
+                        new BigDecimal("40.0000"),
+                        "Wrong confirmation snapshot",
+                        true,
+                        adjustmentConfirmationKey(
+                                CapitalKind.MONEY,
+                                CapitalActionType.ADJUSTMENT_DECREASE.name(),
+                                CapitalAdjustmentType.DECREASE,
+                                new BigDecimal("40.0000"),
+                                new BigDecimal("25.0000"),
+                                new BigDecimal("-14.0000")
+                        )
+                )
+        )).isInstanceOf(OverAllocationConfirmationRequiredException.class);
+
+        assertThat(moneyCapital.getPlannedAmount()).isEqualByComparingTo("100.0000");
+        verify(capitalAdjustmentRepository, never()).saveAndFlush(any());
+        verify(capitalHistoryRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -464,6 +507,25 @@ class CapitalAdjustmentServiceImplTest {
     private void stubAdjustmentSave() {
         when(capitalAdjustmentRepository.saveAndFlush(any(CapitalAdjustment.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
+    }
+
+    private String adjustmentConfirmationKey(
+            CapitalKind capitalKind,
+            String operationType,
+            CapitalAdjustmentType adjustmentType,
+            BigDecimal requestedAmount,
+            BigDecimal availableAmount,
+            BigDecimal projectedRemainingAmount
+    ) {
+        return OverAllocationConfirmation.confirmationKey(
+                operationType,
+                CYCLE_ID,
+                capitalKind,
+                OverAllocationConfirmation.adjustmentReference(adjustmentType.name()),
+                requestedAmount,
+                availableAmount,
+                projectedRemainingAmount
+        );
     }
 
     private static CapitalCycle draftCycle() {
