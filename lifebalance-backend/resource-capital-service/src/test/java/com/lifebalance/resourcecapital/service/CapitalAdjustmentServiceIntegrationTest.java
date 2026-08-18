@@ -3,6 +3,7 @@ package com.lifebalance.resourcecapital.service;
 import com.lifebalance.resourcecapital.domain.capital.CapitalAdjustmentType;
 import com.lifebalance.resourcecapital.domain.capital.CapitalKind;
 import com.lifebalance.resourcecapital.domain.capital.exception.CapitalCycleNotAdjustableException;
+import com.lifebalance.resourcecapital.domain.capital.exception.InvalidAdjustmentAmountException;
 import com.lifebalance.resourcecapital.domain.capitaladjustment.CapitalAdjustment;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleType;
@@ -136,6 +137,7 @@ class CapitalAdjustmentServiceIntegrationTest {
                         CapitalAdjustmentType.DECREASE,
                         new BigDecimal("125.2500"),
                         "Cancel purchase",
+                        "usd",
                         false
                 )
         );
@@ -170,6 +172,49 @@ class CapitalAdjustmentServiceIntegrationTest {
             assertThat(history.getAfterAmount()).isEqualByComparingTo("374.7500");
             assertThat(history.getReferenceType()).isEqualTo(CapitalReferenceType.MANUAL);
         });
+    }
+
+    @Test
+    void adjustMoneyCapitalRejectsCurrencyMismatchWithoutWritingAdjustmentHistory() {
+        CapitalCycle cycle = capitalCycleRepository.saveAndFlush(dailyCycle("August 9", LocalDate.of(2026, 8, 9)));
+        capitalService.setupMoneyCapital(
+                OWNER_ID,
+                cycle.getId(),
+                new SetupMoneyCapitalRequest(new BigDecimal("500.0000"), "usd")
+        );
+
+        assertThatThrownBy(() -> capitalAdjustmentService.adjustMoneyCapital(
+                OWNER_ID,
+                cycle.getId(),
+                new AdjustMoneyCapitalRequest(
+                        CapitalAdjustmentType.INCREASE,
+                        new BigDecimal("125.2500"),
+                        "Wrong unit",
+                        "VND",
+                        false
+                )
+        )).isInstanceOf(InvalidAdjustmentAmountException.class)
+                .hasMessageContaining("must match cycle money capital currency USD");
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(moneyCapitalRepository.findByCapitalCycleId(cycle.getId()))
+                .isPresent()
+                .get()
+                .satisfies(moneyCapital -> {
+                    assertThat(moneyCapital.getPlannedAmount()).isEqualByComparingTo("500.0000");
+                    assertThat(moneyCapital.getCurrencyCode()).isEqualTo("USD");
+                });
+        assertThat(capitalAdjustmentRepository.findByUserIdAndCapitalCycleId(
+                OWNER_ID,
+                cycle.getId(),
+                PageRequest.of(0, 10)
+        ).getContent()).isEmpty();
+        assertThat(capitalHistoryRepository.findByCapitalCycleIdAndActionType(
+                cycle.getId(),
+                CapitalActionType.ADJUSTMENT_INCREASE,
+                PageRequest.of(0, 10)
+        ).getContent()).isEmpty();
     }
 
     @Test
