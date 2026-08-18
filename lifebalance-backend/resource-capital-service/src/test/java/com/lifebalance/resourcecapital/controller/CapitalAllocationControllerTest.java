@@ -5,22 +5,25 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lifebalance.common.LifebalanceCommonAutoConfiguration;
 import com.lifebalance.common.error.AuthErrorCode;
 import com.lifebalance.common.error.CommonErrorCode;
 import com.lifebalance.resourcecapital.domain.capital.CapitalKind;
+import com.lifebalance.resourcecapital.domain.capitalallocation.AllocationStatus;
 import com.lifebalance.resourcecapital.domain.capitalallocation.AllocationTargetType;
+import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InsufficientAllocatedCapitalException;
+import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InvalidAllocationStateException;
+import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InvalidAllocationTargetException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationConfirmationRequiredException;
 import com.lifebalance.resourcecapital.dto.AllocationResponse;
-import com.lifebalance.resourcecapital.dto.CapitalAllocationChangeRequest;
+import com.lifebalance.resourcecapital.dto.CapitalAllocationReleaseRequest;
+import com.lifebalance.resourcecapital.dto.CreateCapitalAllocationRequest;
 import com.lifebalance.resourcecapital.service.CapitalAllocationService;
 import com.lifebalance.security.keycloak.LifebalanceSecurityAutoConfiguration;
 import java.math.BigDecimal;
@@ -52,149 +55,351 @@ class CapitalAllocationControllerTest {
     private static final UUID CYCLE_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
     private static final UUID ALLOCATION_ID = UUID.fromString("33333333-3333-3333-3333-333333333333");
     private static final UUID TASK_ID = UUID.fromString("44444444-4444-4444-4444-444444444444");
+    private static final UUID PROJECT_ID = UUID.fromString("66666666-6666-6666-6666-666666666666"); // Adjusted ID to avoid clash
     private static final UUID HISTORY_ID = UUID.fromString("55555555-5555-5555-5555-555555555555");
-    private static final String ENDPOINT = "/api/v1/capital-allocations/{id}";
+    private static final String ALLOCATE_ENDPOINT = "/api/v1/capital-allocations";
+    private static final String RELEASE_ENDPOINT = "/api/v1/capital-allocations/{id}/release";
 
     @Autowired
     private MockMvc mockMvc;
 
-    @Autowired
-    private ObjectMapper objectMapper;
-
     @MockitoBean
     private CapitalAllocationService capitalAllocationService;
 
-    @Test
-    void changeAllocationReturnsUpdatedAmountWhenRequestIsValidAndUserIsAuthenticated() throws Exception {
-        CapitalAllocationChangeRequest request = new CapitalAllocationChangeRequest(
-                new BigDecimal("120.0000"),
-                true,
-                "Approved update"
-        );
-        when(capitalAllocationService.changeAllocation(
-                eq(OWNER_ID),
-                eq(ALLOCATION_ID),
-                any(CapitalAllocationChangeRequest.class)
-        )).thenReturn(response());
+    // --- Allocate Tests (from feature/capital-allocation-allocate-api) ---
 
-        mockMvc.perform(patch(ENDPOINT, ALLOCATION_ID)
+    @Test
+    void allocateTimeCapitalReturnsCreatedAndDelegatesAuthenticatedOwnerRequest() throws Exception {
+        when(capitalAllocationService.allocateCapital(eq(OWNER_ID), any(CreateCapitalAllocationRequest.class)))
+                .thenReturn(new AllocationResponse(
+                        CYCLE_ID,
+                        CapitalKind.TIME,
+                        AllocationTargetType.TASK,
+                        TASK_ID,
+                        new BigDecimal("45.0000"),
+                        new BigDecimal("120.0000"),
+                        new BigDecimal("45.0000"),
+                        new BigDecimal("75.0000"),
+                        false,
+                        List.of(HISTORY_ID)
+                ));
+
+        mockMvc.perform(post(ALLOCATE_ENDPOINT)
                         .with(authenticatedUser())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
+                        .content("""
+                                {
+                                  "capitalCycleId": "%s",
+                                  "capitalType": "TIME",
+                                  "targetType": "TASK",
+                                  "targetId": "%s",
+                                  "amount": 45.0000,
+                                  "allowOverAllocation": false,
+                                  "reason": "Initial task budget"
+                                }
+                                """.formatted(CYCLE_ID, TASK_ID)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.cycleId").value(CYCLE_ID.toString()))
                 .andExpect(jsonPath("$.data.capitalType").value("TIME"))
                 .andExpect(jsonPath("$.data.targetType").value("TASK"))
                 .andExpect(jsonPath("$.data.targetId").value(TASK_ID.toString()))
-                .andExpect(jsonPath("$.data.targetAllocatedAmount").value(120.0000))
-                .andExpect(jsonPath("$.data.plannedAmount").value(100.0000))
-                .andExpect(jsonPath("$.data.totalAllocatedAmount").value(120.0000))
-                .andExpect(jsonPath("$.data.remainingAmount").value(-20.0000))
-                .andExpect(jsonPath("$.data.overAllocated").value(true))
+                .andExpect(jsonPath("$.data.targetAllocatedAmount").value(45.0000))
+                .andExpect(jsonPath("$.data.remainingAmount").value(75.0000))
+                .andExpect(jsonPath("$.data.overAllocated").value(false))
                 .andExpect(jsonPath("$.data.historyIds[0]").value(HISTORY_ID.toString()));
 
-        ArgumentCaptor<CapitalAllocationChangeRequest> requestCaptor =
-                ArgumentCaptor.forClass(CapitalAllocationChangeRequest.class);
-        verify(capitalAllocationService).changeAllocation(eq(OWNER_ID), eq(ALLOCATION_ID), requestCaptor.capture());
-        assertThat(requestCaptor.getValue().newAmount()).isEqualByComparingTo("120.0000");
-        assertThat(requestCaptor.getValue().overAllocationConfirmed()).isTrue();
-        assertThat(requestCaptor.getValue().reason()).isEqualTo("Approved update");
+        ArgumentCaptor<CreateCapitalAllocationRequest> requestCaptor =
+                ArgumentCaptor.forClass(CreateCapitalAllocationRequest.class);
+        verify(capitalAllocationService).allocateCapital(eq(OWNER_ID), requestCaptor.capture());
+        assertThat(requestCaptor.getValue().capitalCycleId()).isEqualTo(CYCLE_ID);
+        assertThat(requestCaptor.getValue().capitalType()).isEqualTo(CapitalKind.TIME);
+        assertThat(requestCaptor.getValue().targetType()).isEqualTo(AllocationTargetType.TASK);
+        assertThat(requestCaptor.getValue().targetId()).isEqualTo(TASK_ID);
+        assertThat(requestCaptor.getValue().amount()).isEqualByComparingTo("45.0000");
+        assertThat(requestCaptor.getValue().allowOverAllocation()).isFalse();
+        assertThat(requestCaptor.getValue().reason()).isEqualTo("Initial task budget");
     }
 
     @Test
-    void changeAllocationReturnsConflictWhenOverAllocationNeedsConfirmation() throws Exception {
-        CapitalAllocationChangeRequest request = new CapitalAllocationChangeRequest(
-                new BigDecimal("120.0000"),
-                false,
-                "Needs confirmation"
-        );
-        when(capitalAllocationService.changeAllocation(
-                eq(OWNER_ID),
-                eq(ALLOCATION_ID),
-                any(CapitalAllocationChangeRequest.class)
-        )).thenThrow(new OverAllocationConfirmationRequiredException(
-                CYCLE_ID,
-                CapitalKind.TIME,
-                new BigDecimal("10.0000"),
-                new BigDecimal("30.0000"),
-                new BigDecimal("-20.0000")
-        ));
+    void allocateMoneyCapitalAcceptsResourceTypeAndOverAllocationConfirmationAliases() throws Exception {
+        when(capitalAllocationService.allocateCapital(eq(OWNER_ID), any(CreateCapitalAllocationRequest.class)))
+                .thenReturn(new AllocationResponse(
+                        CYCLE_ID,
+                        CapitalKind.MONEY,
+                        AllocationTargetType.PROJECT,
+                        PROJECT_ID,
+                        new BigDecimal("750000.0000"),
+                        new BigDecimal("500000.0000"),
+                        new BigDecimal("750000.0000"),
+                        new BigDecimal("-250000.0000"),
+                        true,
+                        List.of(HISTORY_ID)
+                ));
 
-        mockMvc.perform(patch(ENDPOINT, ALLOCATION_ID)
+        mockMvc.perform(post(ALLOCATE_ENDPOINT)
                         .with(authenticatedUser())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content("""
+                                {
+                                  "capitalCycleId": "%s",
+                                  "resourceType": "MONEY",
+                                  "targetType": "PROJECT",
+                                  "projectId": "%s",
+                                  "amount": 750000.0000,
+                                  "overAllocationConfirmed": true,
+                                  "reason": "Approved project spend"
+                                }
+                                """.formatted(CYCLE_ID, PROJECT_ID)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.capitalType").value("MONEY"))
+                .andExpect(jsonPath("$.data.targetType").value("PROJECT"))
+                .andExpect(jsonPath("$.data.targetId").value(PROJECT_ID.toString()))
+                .andExpect(jsonPath("$.data.remainingAmount").value(-250000.0000))
+                .andExpect(jsonPath("$.data.overAllocated").value(true));
+
+        ArgumentCaptor<CreateCapitalAllocationRequest> requestCaptor =
+                ArgumentCaptor.forClass(CreateCapitalAllocationRequest.class);
+        verify(capitalAllocationService).allocateCapital(eq(OWNER_ID), requestCaptor.capture());
+        assertThat(requestCaptor.getValue().capitalType()).isEqualTo(CapitalKind.MONEY);
+        assertThat(requestCaptor.getValue().projectId()).isEqualTo(PROJECT_ID);
+        assertThat(requestCaptor.getValue().allowOverAllocation()).isTrue();
+    }
+
+    @Test
+    void allocateCapitalReturnsBadRequestWhenAmountIsNotPositive() throws Exception {
+        mockMvc.perform(post(ALLOCATE_ENDPOINT)
+                        .with(authenticatedUser())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "capitalCycleId": "%s",
+                                  "capitalType": "TIME",
+                                  "targetType": "TASK",
+                                  "targetId": "%s",
+                                  "amount": 0.0000
+                                }
+                                """.formatted(CYCLE_ID, TASK_ID)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value(CommonErrorCode.VALIDATION_FAILED))
+                .andExpect(jsonPath("$.error.details.amount").exists());
+
+        verify(capitalAllocationService, never())
+                .allocateCapital(any(UUID.class), any(CreateCapitalAllocationRequest.class));
+    }
+
+    @Test
+    void allocateCapitalReturnsConflictWhenOverAllocationNeedsConfirmation() throws Exception {
+        when(capitalAllocationService.allocateCapital(eq(OWNER_ID), any(CreateCapitalAllocationRequest.class)))
+                .thenThrow(new OverAllocationConfirmationRequiredException(
+                        CYCLE_ID,
+                        CapitalKind.TIME,
+                        new BigDecimal("10.0000"),
+                        new BigDecimal("20.0000"),
+                        new BigDecimal("-10.0000")
+                ));
+
+        mockMvc.perform(post(ALLOCATE_ENDPOINT)
+                        .with(authenticatedUser())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "capitalCycleId": "%s",
+                                  "capitalType": "TIME",
+                                  "targetType": "TASK",
+                                  "targetId": "%s",
+                                  "amount": 20.0000
+                                }
+                                """.formatted(CYCLE_ID, TASK_ID)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error.code")
                         .value(OverAllocationConfirmationRequiredException.ERROR_CODE));
 
-        verify(capitalAllocationService).changeAllocation(
-                eq(OWNER_ID),
-                eq(ALLOCATION_ID),
-                any(CapitalAllocationChangeRequest.class)
-        );
+        verify(capitalAllocationService).allocateCapital(eq(OWNER_ID), any(CreateCapitalAllocationRequest.class));
     }
 
     @Test
-    void changeAllocationReturnsBadRequestWhenNewAmountIsNegative() throws Exception {
-        mockMvc.perform(patch(ENDPOINT, ALLOCATION_ID)
+    void allocateCapitalReturnsBadRequestWhenTargetIsInvalid() throws Exception {
+        when(capitalAllocationService.allocateCapital(eq(OWNER_ID), any(CreateCapitalAllocationRequest.class)))
+                .thenThrow(new InvalidAllocationTargetException("Allocation target id is required."));
+
+        mockMvc.perform(post(ALLOCATE_ENDPOINT)
                         .with(authenticatedUser())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "newAmount": -1,
-                                  "overAllocationConfirmed": false
+                                  "capitalCycleId": "%s",
+                                  "capitalType": "TIME",
+                                  "targetType": "TASK",
+                                  "amount": 20.0000
+                                }
+                                """.formatted(CYCLE_ID)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value(InvalidAllocationTargetException.ERROR_CODE));
+
+        verify(capitalAllocationService).allocateCapital(eq(OWNER_ID), any(CreateCapitalAllocationRequest.class));
+    }
+
+    @Test
+    void allocateCapitalReturnsUnauthorizedWhenAuthenticationMissing() throws Exception {
+        mockMvc.perform(post(ALLOCATE_ENDPOINT)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "capitalCycleId": "%s",
+                                  "capitalType": "TIME",
+                                  "targetType": "TASK",
+                                  "targetId": "%s",
+                                  "amount": 20.0000
+                                }
+                                """.formatted(CYCLE_ID, TASK_ID)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value(AuthErrorCode.UNAUTHORIZED));
+
+        verify(capitalAllocationService, never())
+                .allocateCapital(any(UUID.class), any(CreateCapitalAllocationRequest.class));
+    }
+
+    // --- Release Tests (from main) ---
+
+    @Test
+    void releaseAllocationReturnsOkAndDelegatesAuthenticatedOwnerRequest() throws Exception {
+        when(capitalAllocationService.releaseCapital(eq(OWNER_ID), eq(ALLOCATION_ID), any()))
+                .thenReturn(releaseResponse());
+
+        mockMvc.perform(post(RELEASE_ENDPOINT, ALLOCATION_ID)
+                        .with(authenticatedUser())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "amount": 25.0000,
+                                  "reason": "Release unused allocation"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.cycleId").value(CYCLE_ID.toString()))
+                .andExpect(jsonPath("$.data.capitalType").value("TIME"))
+                .andExpect(jsonPath("$.data.targetType").value("TASK"))
+                .andExpect(jsonPath("$.data.targetId").value(TASK_ID.toString()))
+                .andExpect(jsonPath("$.data.targetAllocatedAmount").value(55.0000))
+                .andExpect(jsonPath("$.data.totalAllocatedAmount").value(55.0000))
+                .andExpect(jsonPath("$.data.remainingAmount").value(45.0000))
+                .andExpect(jsonPath("$.data.overAllocated").value(false))
+                .andExpect(jsonPath("$.data.historyIds[0]").value(HISTORY_ID.toString()));
+
+        ArgumentCaptor<CapitalAllocationReleaseRequest> requestCaptor =
+                ArgumentCaptor.forClass(CapitalAllocationReleaseRequest.class);
+        verify(capitalAllocationService).releaseCapital(eq(OWNER_ID), eq(ALLOCATION_ID), requestCaptor.capture());
+        assertThat(requestCaptor.getValue().amount()).isEqualByComparingTo("25.0000");
+        assertThat(requestCaptor.getValue().reason()).isEqualTo("Release unused allocation");
+    }
+
+    @Test
+    void releaseAllocationReturnsBadRequestWhenAmountIsNotPositive() throws Exception {
+        mockMvc.perform(post(RELEASE_ENDPOINT, ALLOCATION_ID)
+                        .with(authenticatedUser())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "amount": 0.0000,
+                                  "reason": "Invalid release"
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error.code").value(CommonErrorCode.VALIDATION_FAILED))
-                .andExpect(jsonPath("$.error.details.newAmount").exists());
+                .andExpect(jsonPath("$.error.details.amount").exists());
 
-        verifyNoInteractions(capitalAllocationService);
+        verify(capitalAllocationService, never()).releaseCapital(any(), any(), any());
     }
 
     @Test
-    void changeAllocationReturnsUnauthorizedWhenAuthenticationIsMissing() throws Exception {
-        mockMvc.perform(patch(ENDPOINT, ALLOCATION_ID)
+    void releaseAllocationReturnsBadRequestWhenAmountExceedsEffectiveAllocation() throws Exception {
+        when(capitalAllocationService.releaseCapital(eq(OWNER_ID), eq(ALLOCATION_ID), any()))
+                .thenThrow(new InsufficientAllocatedCapitalException(
+                        CYCLE_ID,
+                        CapitalKind.TIME,
+                        AllocationTargetType.TASK,
+                        TASK_ID,
+                        new BigDecimal("90.0000"),
+                        new BigDecimal("30.0000")
+                ));
+
+        mockMvc.perform(post(RELEASE_ENDPOINT, ALLOCATION_ID)
+                        .with(authenticatedUser())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(validRequest())))
+                        .content("""
+                                {
+                                  "amount": 90.0000,
+                                  "reason": "Too much"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value(InsufficientAllocatedCapitalException.ERROR_CODE));
+
+        verify(capitalAllocationService).releaseCapital(eq(OWNER_ID), eq(ALLOCATION_ID), any());
+    }
+
+    @Test
+    void releaseAllocationReturnsConflictWhenAllocationIsNoLongerActive() throws Exception {
+        when(capitalAllocationService.releaseCapital(eq(OWNER_ID), eq(ALLOCATION_ID), any()))
+                .thenThrow(new InvalidAllocationStateException(
+                        ALLOCATION_ID,
+                        AllocationStatus.RELEASED,
+                        "release capital"
+                ));
+
+        mockMvc.perform(post(RELEASE_ENDPOINT, ALLOCATION_ID)
+                        .with(authenticatedUser())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "amount": 10.0000,
+                                  "reason": "Already released"
+                                }
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value(InvalidAllocationStateException.ERROR_CODE));
+
+        verify(capitalAllocationService).releaseCapital(eq(OWNER_ID), eq(ALLOCATION_ID), any());
+    }
+
+    @Test
+    void releaseAllocationReturnsUnauthorizedWhenAuthenticationMissing() throws Exception {
+        mockMvc.perform(post(RELEASE_ENDPOINT, ALLOCATION_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "amount": 10.0000,
+                                  "reason": "Missing auth"
+                                }
+                                """))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error.code").value(AuthErrorCode.UNAUTHORIZED));
 
-        verify(capitalAllocationService, never()).changeAllocation(any(), any(), any());
+        verify(capitalAllocationService, never()).releaseCapital(any(), any(), any());
     }
 
-    @Test
-    void changeAllocationReturnsUnauthorizedWhenInternalUserIdClaimIsMissing() throws Exception {
-        mockMvc.perform(patch(ENDPOINT, ALLOCATION_ID)
-                        .with(jwt().jwt(jwt -> jwt.subject("kc-user-123")))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(validRequest())))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.error.code").value(AuthErrorCode.UNAUTHORIZED));
-
-        verify(capitalAllocationService, never()).changeAllocation(any(), any(), any());
-    }
-
-    private static CapitalAllocationChangeRequest validRequest() {
-        return new CapitalAllocationChangeRequest(new BigDecimal("80.0000"), false, "Resize");
-    }
-
-    private static AllocationResponse response() {
+    private static AllocationResponse releaseResponse() {
         return new AllocationResponse(
                 CYCLE_ID,
                 CapitalKind.TIME,
                 AllocationTargetType.TASK,
                 TASK_ID,
-                new BigDecimal("120.0000"),
+                new BigDecimal("55.0000"),
                 new BigDecimal("100.0000"),
-                new BigDecimal("120.0000"),
-                new BigDecimal("-20.0000"),
-                true,
+                new BigDecimal("55.0000"),
+                new BigDecimal("45.0000"),
+                false,
                 List.of(HISTORY_ID)
         );
     }

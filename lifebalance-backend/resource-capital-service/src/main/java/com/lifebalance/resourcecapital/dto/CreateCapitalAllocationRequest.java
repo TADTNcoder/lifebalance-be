@@ -1,5 +1,6 @@
 package com.lifebalance.resourcecapital.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.lifebalance.resourcecapital.domain.capital.CapitalKind;
 import com.lifebalance.resourcecapital.domain.capitalallocation.AllocationTargetType;
 import jakarta.validation.constraints.Digits;
@@ -15,6 +16,7 @@ public record CreateCapitalAllocationRequest(
         UUID capitalCycleId,
 
         @NotNull
+        @JsonAlias("resourceType")
         CapitalKind capitalType,
 
         @NotNull
@@ -26,11 +28,14 @@ public record CreateCapitalAllocationRequest(
 
         UUID taskCatalogId,
 
+        UUID projectId,
+
         @NotNull
         @Positive
         @Digits(integer = 15, fraction = 4)
         BigDecimal amount,
 
+        @JsonAlias("overAllocationConfirmed")
         boolean allowOverAllocation,
 
         @Size(max = 1000)

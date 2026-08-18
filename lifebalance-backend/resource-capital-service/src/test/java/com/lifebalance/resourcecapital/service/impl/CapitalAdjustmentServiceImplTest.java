@@ -210,6 +210,31 @@ class CapitalAdjustmentServiceImplTest {
     }
 
     @Test
+    void adjustMoneyCapitalRejectsCurrencyMismatchBeforeMutationOrHistory() {
+        CapitalCycle cycle = reopenedCycle();
+        MoneyCapital moneyCapital = MoneyCapital.create(cycle, new BigDecimal("100.0000"), "USD");
+        when(capitalCycleRepository.findByIdAndOwnerId(CYCLE_ID, OWNER_ID)).thenReturn(Optional.of(cycle));
+        when(moneyCapitalRepository.findByCapitalCycleIdForUpdate(CYCLE_ID)).thenReturn(Optional.of(moneyCapital));
+
+        assertThatThrownBy(() -> createService().adjustMoneyCapital(
+                OWNER_ID,
+                CYCLE_ID,
+                new AdjustMoneyCapitalRequest(
+                        CapitalAdjustmentType.INCREASE,
+                        new BigDecimal("25.5000"),
+                        "Top up budget",
+                        "VND",
+                        false
+                )
+        )).isInstanceOf(InvalidAdjustmentAmountException.class)
+                .hasMessageContaining("must match cycle money capital currency USD");
+
+        assertThat(moneyCapital.getPlannedAmount()).isEqualByComparingTo("100.0000");
+        verify(capitalAdjustmentRepository, never()).saveAndFlush(any());
+        verify(capitalHistoryRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
     void adjustMoneyCapitalRejectsDecreaseBelowAllocated() {
         CapitalCycle cycle = draftCycle();
         MoneyCapital moneyCapital = MoneyCapital.create(cycle, new BigDecimal("100.0000"), "USD");

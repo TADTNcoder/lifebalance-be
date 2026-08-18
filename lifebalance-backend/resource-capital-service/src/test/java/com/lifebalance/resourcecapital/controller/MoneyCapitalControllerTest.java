@@ -17,13 +17,20 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lifebalance.common.LifebalanceCommonAutoConfiguration;
 import com.lifebalance.common.error.AuthErrorCode;
 import com.lifebalance.common.error.CommonErrorCode;
+import com.lifebalance.resourcecapital.domain.capital.CapitalAdjustmentType;
 import com.lifebalance.resourcecapital.domain.capital.CapitalKind;
 import com.lifebalance.resourcecapital.domain.capital.exception.CapitalAlreadyInitializedException;
+import com.lifebalance.resourcecapital.domain.capital.exception.InvalidAdjustmentAmountException;
+import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationConfirmationRequiredException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleStatus;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.CapitalCycleNotFoundException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.InvalidCapitalCycleStateException;
+import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalActionType;
+import com.lifebalance.resourcecapital.dto.AdjustMoneyCapitalRequest;
+import com.lifebalance.resourcecapital.dto.MoneyCapitalAdjustmentResponse;
 import com.lifebalance.resourcecapital.dto.MoneyCapitalResponse;
 import com.lifebalance.resourcecapital.dto.SetupMoneyCapitalRequest;
+import com.lifebalance.resourcecapital.service.CapitalAdjustmentService;
 import com.lifebalance.resourcecapital.service.CapitalService;
 import com.lifebalance.security.keycloak.LifebalanceSecurityAutoConfiguration;
 import java.math.BigDecimal;
@@ -54,7 +61,9 @@ class MoneyCapitalControllerTest {
     private static final UUID OWNER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private static final UUID CYCLE_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
     private static final UUID MONEY_CAPITAL_ID = UUID.fromString("33333333-3333-3333-3333-333333333333");
+    private static final UUID HISTORY_ID = UUID.fromString("44444444-4444-4444-4444-444444444444");
     private static final String ENDPOINT = "/api/v1/capital-cycles/{cycleId}/money-capital";
+    private static final String ADJUST_ENDPOINT = "/api/v1/capital-cycles/{cycleId}/money-capital/adjustments";
 
     @Autowired
     private MockMvc mockMvc;
@@ -64,6 +73,9 @@ class MoneyCapitalControllerTest {
 
     @MockitoBean
     private CapitalService capitalService;
+
+    @MockitoBean
+    private CapitalAdjustmentService capitalAdjustmentService;
 
     @Test
     void setupReturnsCreatedWhenRequestIsValidAndUserIsAuthenticated() throws Exception {
@@ -338,6 +350,176 @@ class MoneyCapitalControllerTest {
         verify(capitalService, never()).setupMoneyCapital(any(), any(), any());
     }
 
+    @Test
+    void adjustReturnsOkWhenRequestIsValidAndUsesAuthenticatedOwner() throws Exception {
+        when(capitalAdjustmentService.adjustMoneyCapital(
+                eq(OWNER_ID),
+                eq(CYCLE_ID),
+                any(AdjustMoneyCapitalRequest.class)
+        )).thenReturn(adjustmentResponse());
+
+        mockMvc.perform(post(ADJUST_ENDPOINT, CYCLE_ID)
+                        .with(authenticatedUser())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "adjustmentType": "DECREASE",
+                                  "amount": 125.2500,
+                                  "reason": "Cancel purchase",
+                                  "currencyCode": "usd",
+                                  "overAllocationConfirmed": true
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.capitalCycleId").value(CYCLE_ID.toString()))
+                .andExpect(jsonPath("$.actionType").value("ADJUSTMENT_DECREASE"))
+                .andExpect(jsonPath("$.amount").value(125.2500))
+                .andExpect(jsonPath("$.beforeAmount").value(500.0000))
+                .andExpect(jsonPath("$.afterAmount").value(374.7500))
+                .andExpect(jsonPath("$.currencyCode").value("USD"))
+                .andExpect(jsonPath("$.reason").value("Cancel purchase"))
+                .andExpect(jsonPath("$.historyId").value(HISTORY_ID.toString()));
+
+        ArgumentCaptor<AdjustMoneyCapitalRequest> requestCaptor =
+                ArgumentCaptor.forClass(AdjustMoneyCapitalRequest.class);
+        verify(capitalAdjustmentService).adjustMoneyCapital(eq(OWNER_ID), eq(CYCLE_ID), requestCaptor.capture());
+        assertThat(requestCaptor.getValue().adjustmentType()).isEqualTo(CapitalAdjustmentType.DECREASE);
+        assertThat(requestCaptor.getValue().amount()).isEqualByComparingTo("125.2500");
+        assertThat(requestCaptor.getValue().reason()).isEqualTo("Cancel purchase");
+        assertThat(requestCaptor.getValue().currencyCode()).isEqualTo("usd");
+        assertThat(requestCaptor.getValue().allowOverAllocation()).isTrue();
+    }
+
+    @Test
+    void adjustReturnsBadRequestWhenAmountIsNotPositive() throws Exception {
+        mockMvc.perform(post(ADJUST_ENDPOINT, CYCLE_ID)
+                        .with(authenticatedUser())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "adjustmentType": "INCREASE",
+                                  "amount": 0.0000,
+                                  "reason": "No-op",
+                                  "currencyCode": "USD"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value(CommonErrorCode.VALIDATION_FAILED))
+                .andExpect(jsonPath("$.error.details.amount").exists());
+
+        verify(capitalAdjustmentService, never()).adjustMoneyCapital(any(), any(), any());
+    }
+
+    @Test
+    void adjustReturnsBadRequestWhenCurrencyCodeFormatIsInvalid() throws Exception {
+        mockMvc.perform(post(ADJUST_ENDPOINT, CYCLE_ID)
+                        .with(authenticatedUser())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "adjustmentType": "INCREASE",
+                                  "amount": 10.0000,
+                                  "reason": "Top up",
+                                  "currencyCode": "US1"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value(CommonErrorCode.VALIDATION_FAILED))
+                .andExpect(jsonPath("$.error.details.currencyCode").exists());
+
+        verify(capitalAdjustmentService, never()).adjustMoneyCapital(any(), any(), any());
+    }
+
+    @Test
+    void adjustReturnsBadRequestWhenCurrencyDoesNotMatchCycleMoneyCapital() throws Exception {
+        when(capitalAdjustmentService.adjustMoneyCapital(
+                eq(OWNER_ID),
+                eq(CYCLE_ID),
+                any(AdjustMoneyCapitalRequest.class)
+        )).thenThrow(InvalidAdjustmentAmountException.invalidMoney(
+                "currencyCode VND must match cycle money capital currency USD"
+        ));
+
+        mockMvc.perform(post(ADJUST_ENDPOINT, CYCLE_ID)
+                        .with(authenticatedUser())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "adjustmentType": "INCREASE",
+                                  "amount": 10.0000,
+                                  "reason": "Top up",
+                                  "currencyCode": "VND"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value(InvalidAdjustmentAmountException.ERROR_CODE));
+
+        verify(capitalAdjustmentService).adjustMoneyCapital(
+                eq(OWNER_ID),
+                eq(CYCLE_ID),
+                any(AdjustMoneyCapitalRequest.class)
+        );
+    }
+
+    @Test
+    void adjustReturnsConflictWhenOverAllocationNeedsConfirmation() throws Exception {
+        when(capitalAdjustmentService.adjustMoneyCapital(
+                eq(OWNER_ID),
+                eq(CYCLE_ID),
+                any(AdjustMoneyCapitalRequest.class)
+        )).thenThrow(new OverAllocationConfirmationRequiredException(
+                CYCLE_ID,
+                CapitalKind.MONEY,
+                new BigDecimal("25.0000"),
+                new BigDecimal("40.0000"),
+                new BigDecimal("-15.0000")
+        ));
+
+        mockMvc.perform(post(ADJUST_ENDPOINT, CYCLE_ID)
+                        .with(authenticatedUser())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "adjustmentType": "DECREASE",
+                                  "amount": 40.0000,
+                                  "reason": "Cut budget",
+                                  "currencyCode": "USD"
+                                }
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code")
+                        .value(OverAllocationConfirmationRequiredException.ERROR_CODE));
+
+        verify(capitalAdjustmentService).adjustMoneyCapital(
+                eq(OWNER_ID),
+                eq(CYCLE_ID),
+                any(AdjustMoneyCapitalRequest.class)
+        );
+    }
+
+    @Test
+    void adjustReturnsUnauthorizedWhenAuthenticationIsMissing() throws Exception {
+        mockMvc.perform(post(ADJUST_ENDPOINT, CYCLE_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "adjustmentType": "INCREASE",
+                                  "amount": 10.0000,
+                                  "reason": "Top up",
+                                  "currencyCode": "USD"
+                                }
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value(AuthErrorCode.UNAUTHORIZED));
+
+        verify(capitalAdjustmentService, never()).adjustMoneyCapital(any(), any(), any());
+    }
+
     private static SetupMoneyCapitalRequest setupRequest() {
         return new SetupMoneyCapitalRequest(new BigDecimal("15000000"), "VND");
     }
@@ -352,6 +534,19 @@ class MoneyCapitalControllerTest {
                 plannedAmount,
                 "VND",
                 true
+        );
+    }
+
+    private static MoneyCapitalAdjustmentResponse adjustmentResponse() {
+        return new MoneyCapitalAdjustmentResponse(
+                CYCLE_ID,
+                CapitalActionType.ADJUSTMENT_DECREASE,
+                new BigDecimal("125.2500"),
+                new BigDecimal("500.0000"),
+                new BigDecimal("374.7500"),
+                "USD",
+                "Cancel purchase",
+                HISTORY_ID
         );
     }
 

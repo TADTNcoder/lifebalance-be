@@ -47,7 +47,7 @@ public class CapitalAllocationController {
 
     @Operation(
             summary = "Allocate capital",
-            description = "Allocate time or money capital from an active cycle to a task target."
+            description = "Allocate time or money capital from an active cycle to a task, task catalog, or project target."
     )
     @PostMapping
     public ResponseEntity<ApiResponse<AllocationResponse>> allocate(

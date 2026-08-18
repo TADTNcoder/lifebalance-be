@@ -115,7 +115,7 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
                 request.targetId(),
                 request.taskId(),
                 request.taskCatalogId(),
-                null
+                request.projectId()
         );
 
         return allocationService.allocateCapital(
@@ -337,8 +337,9 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
             CapitalAllocationReleaseRequest request
     ) {
         Objects.requireNonNull(request, "Capital allocation release request is required.");
-        CapitalAllocation allocation = findOwnedAllocation(ownerId, allocationId);
+        CapitalAllocation allocation = findOwnedAllocationForUpdate(ownerId, allocationId);
         findActiveOwnedCycle(ownerId, allocation.getCapitalCycle().getId(), "release capital");
+        ensureActiveAllocation(allocation, "release capital");
 
         AllocationResponse response = allocationService.releaseCapital(
                 ownerId,
