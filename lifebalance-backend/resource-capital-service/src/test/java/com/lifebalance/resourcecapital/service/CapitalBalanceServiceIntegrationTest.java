@@ -3,6 +3,7 @@ package com.lifebalance.resourcecapital.service;
 import com.lifebalance.resourcecapital.domain.capital.CapitalKind;
 import com.lifebalance.resourcecapital.domain.capital.CapitalAdjustmentType;
 import com.lifebalance.resourcecapital.domain.capitalallocation.AllocationTargetType;
+import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationConfirmationRequiredException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleType;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.CapitalCycleNotFoundException;
@@ -30,6 +31,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 @Transactional
 @SpringBootTest(properties = {
@@ -257,6 +259,23 @@ class CapitalBalanceServiceIntegrationTest {
         capitalService.setupTimeCapital(OWNER_ID, cycle.getId(), new SetupTimeCapitalRequest(600L));
         activateCycle(cycle);
 
+        OverAllocationConfirmationRequiredException confirmationRequired = catchThrowableOfType(
+                () -> allocationService.allocateCapital(
+                        OWNER_ID,
+                        cycle.getId(),
+                        new AllocateCapitalRequest(
+                                CapitalKind.TIME,
+                                AllocationTargetType.TASK,
+                                TASK_ID,
+                                new BigDecimal("720.0000"),
+                                false,
+                                "Needs confirmation"
+                        )
+                ),
+                OverAllocationConfirmationRequiredException.class
+        );
+        assertThat(confirmationRequired).isNotNull();
+
         allocationService.allocateCapital(
                 OWNER_ID,
                 cycle.getId(),
@@ -266,6 +285,7 @@ class CapitalBalanceServiceIntegrationTest {
                         TASK_ID,
                         new BigDecimal("720.0000"),
                         true,
+                        confirmationRequired.getDetails().get("confirmationKey"),
                         "Approved over-allocation"
                 )
         );

@@ -38,7 +38,35 @@ public record CreateCapitalAllocationRequest(
         @JsonAlias("overAllocationConfirmed")
         boolean allowOverAllocation,
 
+        @Size(max = 128)
+        String overAllocationConfirmationKey,
+
         @Size(max = 1000)
         String reason
 ) {
+
+    public CreateCapitalAllocationRequest(
+            UUID capitalCycleId,
+            CapitalKind capitalType,
+            AllocationTargetType targetType,
+            UUID targetId,
+            UUID taskId,
+            UUID taskCatalogId,
+            BigDecimal amount,
+            boolean allowOverAllocation,
+            String reason
+    ) {
+        this(
+                capitalCycleId,
+                capitalType,
+                targetType,
+                targetId,
+                taskId,
+                taskCatalogId,
+                amount,
+                allowOverAllocation,
+                null,
+                reason
+        );
+    }
 }

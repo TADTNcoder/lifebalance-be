@@ -127,6 +127,7 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
                         target.targetId(),
                         request.amount(),
                         request.allowOverAllocation(),
+                        request.overAllocationConfirmationKey(),
                         request.reason()
                 )
         );
@@ -154,6 +155,7 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
                         target.targetId(),
                         request.amount(),
                         request.overAllocationConfirmed(),
+                        request.overAllocationConfirmationKey(),
                         request.reason()
                 )
         );
@@ -309,6 +311,7 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
                 allocation,
                 request.newAmount(),
                 request.overAllocationConfirmed(),
+                request.overAllocationConfirmationKey(),
                 request.reason()
         );
     }
@@ -324,6 +327,7 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
                 allocation,
                 request.newAmount(),
                 request.overAllocationConfirmed(),
+                request.overAllocationConfirmationKey(),
                 request.reason()
         );
         return AllocationResponseDTO.from(response);
@@ -500,6 +504,7 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
             CapitalAllocation allocation,
             BigDecimal requestedNewAmount,
             boolean overAllocationConfirmed,
+            String overAllocationConfirmationKey,
             String reason
     ) {
         CapitalCycle cycle = findActiveOwnedCycle(ownerId, allocation.getCapitalCycle().getId(), "change allocation");
@@ -520,6 +525,15 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
             return increaseAllocationAmount(
                     ownerId,
                     cycle,
+                    new AllocateCapitalRequest(
+                            allocation.getCapitalType(),
+                            allocation.getTargetType(),
+                            allocation.getTargetId(),
+                            delta,
+                            overAllocationConfirmed,
+                            overAllocationConfirmationKey,
+                            normalizedReason
+                    ),
                     allocation,
                     currentAmount,
                     newAmount,
@@ -545,6 +559,7 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
     private AllocationResponse increaseAllocationAmount(
             UUID ownerId,
             CapitalCycle cycle,
+            AllocateCapitalRequest request,
             CapitalAllocation allocation,
             BigDecimal currentAmount,
             BigDecimal newAmount,
@@ -563,7 +578,10 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
                 activeAllocated,
                 activeSpent,
                 delta,
-                overAllocationConfirmed
+                overAllocationConfirmed,
+                request.overAllocationConfirmationKey(),
+                CapitalActionType.REALLOCATE.name(),
+                OverAllocationConfirmation.targetReference(allocation.getTargetType(), allocation.getTargetId())
         );
 
         allocation.increase(delta);

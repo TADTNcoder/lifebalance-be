@@ -1,6 +1,7 @@
 package com.lifebalance.resourcecapital.service;
 
 import com.lifebalance.resourcecapital.domain.capital.CapitalKind;
+import com.lifebalance.resourcecapital.domain.capitalallocation.OverAllocationConfirmation;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationConfirmationRequiredException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationNotAllowedException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
@@ -43,6 +44,14 @@ class DefaultAllocationValidatorTest {
                     assertThat(capitalException.getMessage()).contains("Available amount: 10.0000");
                     assertThat(capitalException.getMessage()).contains("requested amount: 15.0000");
                     assertThat(capitalException.getMessage()).contains("projected remaining amount: -5.0000");
+                    assertThat(capitalException.getDetails())
+                            .containsEntry("confirmationRequired", "true")
+                            .containsEntry("confirmationField", "overAllocationConfirmationKey")
+                            .containsEntry("availableAmount", "10.0000")
+                            .containsEntry("requestedAmount", "15.0000")
+                            .containsEntry("shortageAmount", "5.0000")
+                            .containsEntry("projectedRemainingAmount", "-5.0000")
+                            .containsKey("confirmationKey");
                 });
     }
 
@@ -83,6 +92,15 @@ class DefaultAllocationValidatorTest {
     @Test
     void allowsConfirmedOverAllocationWhenCyclePolicyAllowsIt() {
         CapitalCycle cycle = activeCycle(true);
+        String confirmationKey = OverAllocationConfirmation.confirmationKey(
+                "ALLOCATE",
+                cycle.getId(),
+                CapitalKind.TIME,
+                "ALLOCATION_TARGET:UNKNOWN",
+                new BigDecimal("10.0000"),
+                new BigDecimal("5.0000"),
+                new BigDecimal("-5.0000")
+        );
 
         DefaultAllocationValidator.AllocationValidationResult result = validator.validateNewAllocation(
                 cycle,
@@ -91,12 +109,33 @@ class DefaultAllocationValidatorTest {
                 new BigDecimal("95.0000"),
                 BigDecimal.ZERO,
                 new BigDecimal("10.0000"),
-                true
+                true,
+                confirmationKey,
+                "ALLOCATE",
+                "ALLOCATION_TARGET:UNKNOWN"
         );
 
         assertThat(result.availableCapital()).isEqualByComparingTo("5.0000");
         assertThat(result.remainingAfterAllocation()).isEqualByComparingTo("-5.0000");
         assertThat(result.overAllocated()).isTrue();
+    }
+
+    @Test
+    void rejectsConfirmedOverAllocationWhenConfirmationKeyDoesNotMatchOperationSnapshot() {
+        CapitalCycle cycle = activeCycle(true);
+
+        assertThatThrownBy(() -> validator.validateNewAllocation(
+                cycle,
+                CapitalKind.TIME,
+                new BigDecimal("100.0000"),
+                new BigDecimal("95.0000"),
+                BigDecimal.ZERO,
+                new BigDecimal("10.0000"),
+                true,
+                "oac_wrong_key",
+                "ALLOCATE",
+                "ALLOCATION_TARGET:UNKNOWN"
+        )).isInstanceOf(OverAllocationConfirmationRequiredException.class);
     }
 
     private CapitalCycle activeCycle(boolean overAllocationAllowed) {

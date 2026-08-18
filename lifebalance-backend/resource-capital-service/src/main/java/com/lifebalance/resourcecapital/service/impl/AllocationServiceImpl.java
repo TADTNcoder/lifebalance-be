@@ -5,6 +5,7 @@ import com.lifebalance.resourcecapital.domain.capital.exception.CapitalNotSetupE
 import com.lifebalance.resourcecapital.domain.capitalallocation.AllocationStatus;
 import com.lifebalance.resourcecapital.domain.capitalallocation.AllocationTargetType;
 import com.lifebalance.resourcecapital.domain.capitalallocation.CapitalAllocation;
+import com.lifebalance.resourcecapital.domain.capitalallocation.OverAllocationConfirmation;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.AllocationNotFoundException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InsufficientAllocatedCapitalException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InvalidAllocationAmountException;
@@ -111,7 +112,10 @@ public class AllocationServiceImpl implements AllocationService {
                 currentActiveAllocations,
                 spentCapital,
                 amount,
-                request.allowOverAllocation()
+                request.allowOverAllocation(),
+                request.overAllocationConfirmationKey(),
+                CapitalActionType.ALLOCATE.name(),
+                OverAllocationConfirmation.allocationReference(targetType, targetId)
         );
         BigDecimal totalAfter = totalBefore.add(amount);
         boolean overAllocated = validation.overAllocated();

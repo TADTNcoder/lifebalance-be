@@ -30,7 +30,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(AppException.class)
     ResponseEntity<ApiResponse<Void>> handleAppException(AppException exception) {
-        ApiError error = ApiError.of(exception.getCode(), exception.getMessage());
+        ApiError error = ApiError.of(exception.getCode(), exception.getMessage(), exception.getDetails());
         return ResponseEntity.status(exception.getStatus()).body(ApiResponse.failure(error));
     }
 

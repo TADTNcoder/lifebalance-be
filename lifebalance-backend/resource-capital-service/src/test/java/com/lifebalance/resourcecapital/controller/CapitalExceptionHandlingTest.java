@@ -85,8 +85,7 @@ class CapitalExceptionHandlingTest {
             "invalid-allocation-amount,400,CAPITAL_INVALID_ALLOCATION_AMOUNT",
             "invalid-allocation-state,409,CAPITAL_ALLOCATION_INVALID_STATE",
             "insufficient-available-capital,409,INSUFFICIENT_AVAILABLE_CAPITAL",
-            "over-allocation-not-allowed,409,CAPITAL_OVER_ALLOCATION_NOT_ALLOWED",
-            "over-allocation-confirmation,409,CAPITAL_OVER_ALLOCATION_CONFIRMATION_REQUIRED"
+            "over-allocation-not-allowed,409,CAPITAL_OVER_ALLOCATION_NOT_ALLOWED"
     })
     void capitalDomainExceptionsUseGlobalStandardErrorPayload(
             String scenario,
@@ -101,6 +100,28 @@ class CapitalExceptionHandlingTest {
                 .andExpect(jsonPath("$.error.message").isNotEmpty())
                 .andExpect(jsonPath("$.error.details", anEmptyMap()))
                 .andExpect(jsonPath("$.timestamp").isNotEmpty());
+    }
+
+    @Test
+    void overAllocationConfirmationResponseIncludesRetryContract() throws Exception {
+        mockMvc.perform(get(BASE_PATH + "/over-allocation-confirmation"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.data").value(nullValue()))
+                .andExpect(jsonPath("$.error.code")
+                        .value(OverAllocationConfirmationRequiredException.ERROR_CODE))
+                .andExpect(jsonPath("$.error.details.confirmationRequired").value("true"))
+                .andExpect(jsonPath("$.error.details.confirmationField")
+                        .value("overAllocationConfirmationKey"))
+                .andExpect(jsonPath("$.error.details.confirmationKey").isNotEmpty())
+                .andExpect(jsonPath("$.error.details.operationType").value("CAPITAL_CHANGE"))
+                .andExpect(jsonPath("$.error.details.availableAmount").value("100.0000"))
+                .andExpect(jsonPath("$.error.details.requestedAmount").value("125.0000"))
+                .andExpect(jsonPath("$.error.details.shortageAmount").value("25.0000"))
+                .andExpect(jsonPath("$.error.details.projectedRemainingAmount").value("-25.0000"))
+                .andExpect(jsonPath("$.error.details.remainingState").value("OVER_ALLOCATED"))
+                .andExpect(jsonPath("$.error.details.remainingExplanation")
+                        .value("Negative remaining is an over-allocation state, not additional available capital."));
     }
 
     @Test

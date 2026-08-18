@@ -30,6 +30,20 @@ public record CapitalAdjustmentRequest(
         @Size(max = 1000)
         String reason,
 
-        boolean allowOverAllocation
+        boolean allowOverAllocation,
+
+        @Size(max = 128)
+        String overAllocationConfirmationKey
 ) {
+
+    public CapitalAdjustmentRequest(
+            UUID capitalCycleId,
+            CapitalKind capitalType,
+            CapitalAdjustmentType adjustmentType,
+            BigDecimal amount,
+            String reason,
+            boolean allowOverAllocation
+    ) {
+        this(capitalCycleId, capitalType, adjustmentType, amount, reason, allowOverAllocation, null);
+    }
 }

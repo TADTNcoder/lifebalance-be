@@ -15,7 +15,18 @@ public record CapitalAllocationChangeRequest(
 
         boolean overAllocationConfirmed,
 
+        @Size(max = 128)
+        String overAllocationConfirmationKey,
+
         @Size(max = 1000)
         String reason
 ) {
+
+    public CapitalAllocationChangeRequest(
+            BigDecimal newAmount,
+            boolean overAllocationConfirmed,
+            String reason
+    ) {
+        this(newAmount, overAllocationConfirmed, null, reason);
+    }
 }

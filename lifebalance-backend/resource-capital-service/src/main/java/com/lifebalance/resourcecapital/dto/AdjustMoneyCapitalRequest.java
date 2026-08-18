@@ -29,7 +29,10 @@ public record AdjustMoneyCapitalRequest(
         String currencyCode,
 
         @JsonAlias("overAllocationConfirmed")
-        boolean allowOverAllocation
+        boolean allowOverAllocation,
+
+        @Size(max = 128)
+        String overAllocationConfirmationKey
 ) {
 
     public AdjustMoneyCapitalRequest(
@@ -38,6 +41,6 @@ public record AdjustMoneyCapitalRequest(
             String reason,
             boolean allowOverAllocation
     ) {
-        this(adjustmentType, amount, reason, null, allowOverAllocation);
+        this(adjustmentType, amount, reason, null, allowOverAllocation, null);
     }
 }

@@ -19,7 +19,19 @@ public record ChangeCapitalAllocationRequestDTO(
 
         boolean overAllocationConfirmed,
 
+        @Size(max = 128)
+        String overAllocationConfirmationKey,
+
         @Size(max = 1000)
         String reason
 ) {
+
+    public ChangeCapitalAllocationRequestDTO(
+            UUID allocationId,
+            BigDecimal newAmount,
+            boolean overAllocationConfirmed,
+            String reason
+    ) {
+        this(allocationId, newAmount, overAllocationConfirmed, null, reason);
+    }
 }

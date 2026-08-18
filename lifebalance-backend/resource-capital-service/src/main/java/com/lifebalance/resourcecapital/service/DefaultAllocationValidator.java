@@ -1,6 +1,7 @@
 package com.lifebalance.resourcecapital.service;
 
 import com.lifebalance.resourcecapital.domain.capital.CapitalKind;
+import com.lifebalance.resourcecapital.domain.capitalallocation.OverAllocationConfirmation;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationConfirmationRequiredException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationNotAllowedException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
@@ -23,6 +24,32 @@ public class DefaultAllocationValidator {
             BigDecimal spentCapital,
             BigDecimal requestedAmount,
             boolean allowOverAllocation
+    ) {
+        return validateNewAllocation(
+                cycle,
+                capitalType,
+                totalCapital,
+                currentActiveAllocations,
+                spentCapital,
+                requestedAmount,
+                allowOverAllocation,
+                null,
+                "ALLOCATE",
+                "ALLOCATION_TARGET:UNKNOWN"
+        );
+    }
+
+    public AllocationValidationResult validateNewAllocation(
+            CapitalCycle cycle,
+            CapitalKind capitalType,
+            BigDecimal totalCapital,
+            BigDecimal currentActiveAllocations,
+            BigDecimal spentCapital,
+            BigDecimal requestedAmount,
+            boolean allowOverAllocation,
+            String overAllocationConfirmationKey,
+            String operationType,
+            String operationReference
     ) {
         Objects.requireNonNull(cycle, "Capital cycle is required.");
         Objects.requireNonNull(capitalType, "Capital type is required.");
@@ -51,13 +78,27 @@ public class DefaultAllocationValidator {
                     remainingAfterAllocation
             );
         }
-        if (!allowOverAllocation) {
+        String expectedConfirmationKey = OverAllocationConfirmation.confirmationKey(
+                operationType,
+                cycle.getId(),
+                capitalType,
+                operationReference,
+                normalizedRequestedAmount,
+                availableCapital,
+                remainingAfterAllocation
+        );
+        if (!allowOverAllocation || !OverAllocationConfirmation.matches(
+                overAllocationConfirmationKey,
+                expectedConfirmationKey
+        )) {
             throw new OverAllocationConfirmationRequiredException(
                     cycle.getId(),
                     capitalType,
                     availableCapital,
                     normalizedRequestedAmount,
-                    remainingAfterAllocation
+                    remainingAfterAllocation,
+                    operationType,
+                    operationReference
             );
         }
 

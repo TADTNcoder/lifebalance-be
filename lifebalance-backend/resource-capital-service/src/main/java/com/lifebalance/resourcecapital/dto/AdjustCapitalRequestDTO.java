@@ -31,8 +31,22 @@ public record AdjustCapitalRequestDTO(
         @Size(max = 1000)
         String reason,
 
-        boolean overAllocationConfirmed
+        boolean overAllocationConfirmed,
+
+        @Size(max = 128)
+        String overAllocationConfirmationKey
 ) {
+
+    public AdjustCapitalRequestDTO(
+            UUID capitalCycleId,
+            CapitalKind capitalType,
+            CapitalAdjustmentType adjustmentType,
+            BigDecimal amount,
+            String reason,
+            boolean overAllocationConfirmed
+    ) {
+        this(capitalCycleId, capitalType, adjustmentType, amount, reason, overAllocationConfirmed, null);
+    }
 
     public static AdjustCapitalRequestDTO from(CapitalAdjustmentRequest request) {
         Objects.requireNonNull(request, "Capital adjustment request is required.");
@@ -42,7 +56,8 @@ public record AdjustCapitalRequestDTO(
                 request.adjustmentType(),
                 request.amount(),
                 request.reason(),
-                request.allowOverAllocation()
+                request.allowOverAllocation(),
+                request.overAllocationConfirmationKey()
         );
     }
 }
