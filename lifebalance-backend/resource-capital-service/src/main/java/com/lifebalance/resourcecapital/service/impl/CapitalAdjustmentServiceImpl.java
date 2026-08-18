@@ -41,6 +41,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -51,8 +52,7 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
     private static final int REASON_MAX_LENGTH = 1000;
     private static final Sort DEFAULT_SORT = Sort.by(
             Sort.Order.desc("createdAt"),
-            Sort.Order.desc("id")
-    );
+            Sort.Order.desc("id"));
     private static final int DEFAULT_PAGE_SIZE = 20;
 
     private final CapitalCycleRepository capitalCycleRepository;
@@ -68,8 +68,7 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
             MoneyCapitalRepository moneyCapitalRepository,
             CapitalAdjustmentRepository capitalAdjustmentRepository,
             CapitalHistoryRepository capitalHistoryRepository,
-            CapitalAllocationReader capitalAllocationReader
-    ) {
+            CapitalAllocationReader capitalAllocationReader) {
         this.capitalCycleRepository = capitalCycleRepository;
         this.timeCapitalRepository = timeCapitalRepository;
         this.moneyCapitalRepository = moneyCapitalRepository;
@@ -116,8 +115,7 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
     public TimeCapitalAdjustmentResponse adjustTimeCapital(
             UUID ownerId,
             UUID cycleId,
-            AdjustTimeCapitalRequest request
-    ) {
+            AdjustTimeCapitalRequest request) {
         Objects.requireNonNull(request, "Adjust time capital request is required.");
         CapitalAdjustmentType adjustmentType = requireAdjustmentType(request.adjustmentType());
         long amountInMinutes = requirePositiveMinutes(request.amountInMinutes());
@@ -157,16 +155,14 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
                 actionType,
                 money(beforeMinutes),
                 money(timeCapital.getPlannedMinutes()),
-                reason
-        );
+                reason);
         recordOverAllocationApprovalHistory(
                 cycle,
                 ownerId,
                 CapitalKind.TIME,
                 overAllocation,
                 reason,
-                "Over-allocation approved for time capital adjustment."
-        );
+                "Over-allocation approved for time capital adjustment.");
 
         return new TimeCapitalAdjustmentResponse(
                 cycleId,
@@ -175,8 +171,7 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
                 beforeMinutes,
                 timeCapital.getPlannedMinutes(),
                 reason,
-                adjustment.historyId()
-        );
+                adjustment.historyId());
     }
 
     @Transactional
@@ -184,8 +179,7 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
     public MoneyCapitalAdjustmentResponse adjustMoneyCapital(
             UUID ownerId,
             UUID cycleId,
-            AdjustMoneyCapitalRequest request
-    ) {
+            AdjustMoneyCapitalRequest request) {
         Objects.requireNonNull(request, "Adjust money capital request is required.");
         CapitalAdjustmentType adjustmentType = requireAdjustmentType(request.adjustmentType());
         BigDecimal amount = requirePositiveMoney(request.amount());
@@ -193,6 +187,7 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
 
         CapitalCycle cycle = findAdjustableOwnedCycle(ownerId, cycleId);
         MoneyCapital moneyCapital = findMoneyCapitalForUpdate(cycleId);
+        validateCurrencyMatchesCycle(request.currencyCode(), moneyCapital.getCurrencyCode());
 
         BigDecimal beforeAmount = moneyCapital.getPlannedAmount();
         CapitalActionType actionType = toActionType(adjustmentType);
@@ -225,16 +220,14 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
                 actionType,
                 beforeAmount,
                 moneyCapital.getPlannedAmount(),
-                reason
-        );
+                reason);
         recordOverAllocationApprovalHistory(
                 cycle,
                 ownerId,
                 CapitalKind.MONEY,
                 overAllocation,
                 reason,
-                "Over-allocation approved for money capital adjustment."
-        );
+                "Over-allocation approved for money capital adjustment.");
 
         return new MoneyCapitalAdjustmentResponse(
                 cycleId,
@@ -244,8 +237,7 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
                 moneyCapital.getPlannedAmount(),
                 moneyCapital.getCurrencyCode(),
                 reason,
-                adjustment.historyId()
-        );
+                adjustment.historyId());
     }
 
     @Transactional(readOnly = true)
@@ -254,24 +246,21 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
             UUID ownerId,
             UUID capitalCycleId,
             CapitalKind capitalType,
-            Pageable pageable
-    ) {
+            Pageable pageable) {
         Objects.requireNonNull(ownerId, "Owner id is required.");
         if (capitalCycleId != null) {
             findOwnedCycle(ownerId, capitalCycleId);
         }
 
         return capitalAdjustmentRepository.findAll(
-                        CapitalAdjustmentSpecification.filter(
-                                ownerId,
-                                capitalCycleId,
-                                CapitalType.from(capitalType),
-                                null,
-                                null,
-                                null
-                        ),
-                        pageableWithDefaultSort(pageable)
-                )
+                CapitalAdjustmentSpecification.filter(
+                        ownerId,
+                        capitalCycleId,
+                        CapitalType.from(capitalType),
+                        null,
+                        null,
+                        null),
+                pageableWithDefaultSort(pageable))
                 .map(this::toResponse);
     }
 
@@ -338,16 +327,14 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
                 toHistoryActionType(adjustmentType),
                 money(beforeMinutes),
                 money(afterMinutes),
-                reason
-        );
+                reason);
         recordOverAllocationApprovalHistory(
                 cycle,
                 ownerId,
                 CapitalKind.TIME,
                 overAllocation,
                 reason,
-                "Over-allocation approved for time capital adjustment."
-        );
+                "Over-allocation approved for time capital adjustment.");
         return response;
     }
 
@@ -414,16 +401,14 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
                 toHistoryActionType(adjustmentType),
                 beforeAmount,
                 afterAmount,
-                reason
-        );
+                reason);
         recordOverAllocationApprovalHistory(
                 cycle,
                 ownerId,
                 CapitalKind.MONEY,
                 overAllocation,
                 reason,
-                "Over-allocation approved for money capital adjustment."
-        );
+                "Over-allocation approved for money capital adjustment.");
         return response;
     }
 
@@ -443,8 +428,7 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
     private BigDecimal increaseMoneyCapital(
             MoneyCapital moneyCapital,
             BigDecimal beforeAmount,
-            BigDecimal amount
-    ) {
+            BigDecimal amount) {
         moneyCapital.increasePlannedAmount(amount);
         return beforeAmount.add(amount).setScale(MONEY_SCALE, RoundingMode.UNNECESSARY);
     }
@@ -491,8 +475,7 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
                     capitalType,
                     availableCapital,
                     normalizedRequested,
-                    remainingAfterAdjustment
-            );
+                    remainingAfterAdjustment);
         }
         String expectedConfirmationKey = OverAllocationConfirmation.confirmationKey(
                 operationType,
@@ -522,8 +505,7 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
                 availableCapital,
                 normalizedRequested,
                 remainingAfterAdjustment,
-                true
-        );
+                true);
     }
 
     private CapitalAdjustmentResponseDTO recordAdjustmentAndHistory(
@@ -534,8 +516,7 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
             CapitalActionType actionType,
             BigDecimal beforeAmount,
             BigDecimal afterAmount,
-            String reason
-    ) {
+            String reason) {
         BigDecimal amountDelta = afterAmount.subtract(beforeAmount).setScale(MONEY_SCALE, RoundingMode.UNNECESSARY);
         CapitalAdjustment adjustment = capitalAdjustmentRepository.saveAndFlush(CapitalAdjustment.record(
                 cycle,
@@ -544,8 +525,7 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
                 adjustmentType,
                 beforeAmount,
                 afterAmount,
-                reason
-        ));
+                reason));
 
         CapitalHistory history = capitalHistoryRepository.saveAndFlush(CapitalHistory.record(
                 cycle,
@@ -559,8 +539,7 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
                 CapitalReferenceType.MANUAL,
                 null,
                 CapitalActorType.USER,
-                ownerId
-        ));
+                ownerId));
 
         return new CapitalAdjustmentResponseDTO(
                 adjustment.getId(),
@@ -573,8 +552,7 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
                 afterAmount,
                 reason,
                 history.getId(),
-                adjustment.getCreatedAt()
-        );
+                adjustment.getCreatedAt());
     }
 
     private UUID recordOverAllocationApprovalHistory(
@@ -583,8 +561,7 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
             CapitalKind capitalType,
             AdjustmentOverAllocationResult overAllocation,
             String reason,
-            String description
-    ) {
+            String description) {
         if (!overAllocation.overAllocated()) {
             return null;
         }
@@ -600,8 +577,7 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
                 CapitalReferenceType.MANUAL,
                 null,
                 CapitalActorType.USER,
-                ownerId
-        ));
+                ownerId));
         return history.getId();
     }
 
@@ -617,8 +593,7 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
                 adjustment.getNewAmount(),
                 adjustment.getReason(),
                 null,
-                adjustment.getCreatedAt()
-        );
+                adjustment.getCreatedAt());
     }
 
     private CapitalCycle findAdjustableOwnedCycle(UUID ownerId, UUID cycleId) {
@@ -648,8 +623,7 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
             case INCREASE -> CapitalActionType.ADJUSTMENT_INCREASE;
             case DECREASE -> CapitalActionType.ADJUSTMENT_DECREASE;
             case OVERRIDE -> throw new InvalidAdjustmentAmountException(
-                    "Override adjustment is not supported by this service."
-            );
+                    "Override adjustment is not supported by this service.");
         };
     }
 
@@ -698,8 +672,7 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
             return normalizedAmount.toBigIntegerExact().longValueExact();
         } catch (ArithmeticException exception) {
             throw InvalidAdjustmentAmountException.invalidMoney(
-                    "Time adjustment amount must be whole minutes."
-            );
+                    "Time adjustment amount must be whole minutes.");
         }
     }
 
@@ -709,8 +682,7 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
             return normalizedAmount.toBigIntegerExact().longValueExact();
         } catch (ArithmeticException exception) {
             throw InvalidAdjustmentAmountException.invalidMoney(
-                    "Time adjustment amount must be whole minutes."
-            );
+                    "Time adjustment amount must be whole minutes.");
         }
     }
 
@@ -759,8 +731,7 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
         BigDecimal afterAmount = beforeAmount.subtract(amount);
         if (afterAmount.compareTo(BigDecimal.ZERO) < 0) {
             throw InvalidAdjustmentAmountException.invalidMoney(
-                    "cannot decrease current planned amount " + beforeAmount + " by " + amount
-            );
+                    "cannot decrease current planned amount " + beforeAmount + " by " + amount);
         }
         return afterAmount;
     }
@@ -772,10 +743,27 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
         String normalizedReason = reason.trim();
         if (normalizedReason.length() > REASON_MAX_LENGTH) {
             throw new InvalidAdjustmentAmountException(
-                    "Adjustment reason must not exceed " + REASON_MAX_LENGTH + " characters."
-            );
+                    "Adjustment reason must not exceed " + REASON_MAX_LENGTH + " characters.");
         }
         return normalizedReason;
+    }
+
+    private void validateCurrencyMatchesCycle(String requestedCurrencyCode, String cycleCurrencyCode) {
+        if (requestedCurrencyCode == null || requestedCurrencyCode.isBlank()) {
+            return;
+        }
+        String normalizedCurrencyCode = requestedCurrencyCode.trim().toUpperCase(Locale.ROOT);
+        if (!normalizedCurrencyCode.matches("[A-Z]{3}")) {
+            throw InvalidAdjustmentAmountException.invalidMoney(
+                    "currencyCode must contain exactly three letters"
+            );
+        }
+        if (!normalizedCurrencyCode.equals(cycleCurrencyCode)) {
+            throw InvalidAdjustmentAmountException.invalidMoney(
+                    "currencyCode " + normalizedCurrencyCode
+                            + " must match cycle money capital currency " + cycleCurrencyCode
+            );
+        }
     }
 
     private BigDecimal money(long amount) {
@@ -804,12 +792,12 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
             BigDecimal availableCapital,
             BigDecimal requestedAmount,
             BigDecimal remainingAfterAdjustment,
-            boolean overAllocated
-    ) {
+            boolean overAllocated) {
 
         private static AdjustmentOverAllocationResult withinBalance() {
             BigDecimal zero = BigDecimal.ZERO.setScale(MONEY_SCALE, RoundingMode.UNNECESSARY);
             return new AdjustmentOverAllocationResult(zero, zero, zero, false);
         }
+
     }
 }

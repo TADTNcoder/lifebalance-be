@@ -5,9 +5,11 @@ import static com.lifebalance.security.keycloak.KeycloakUserMappingFilter.CURREN
 import com.lifebalance.common.api.ApiResponse;
 import com.lifebalance.common.web.PageableLimits;
 import com.lifebalance.resourcecapital.domain.capital.CapitalKind;
+import com.lifebalance.resourcecapital.dto.AdjustTimeCapitalRequest;
 import com.lifebalance.resourcecapital.dto.CapitalAdjustmentRequest;
 import com.lifebalance.resourcecapital.dto.CapitalAdjustmentResponse;
 import com.lifebalance.resourcecapital.dto.PageResponseDTO;
+import com.lifebalance.resourcecapital.dto.TimeCapitalAdjustmentResponse;
 import com.lifebalance.resourcecapital.service.CapitalAdjustmentService;
 import com.lifebalance.security.keycloak.KeycloakUserPrincipal;
 import io.swagger.v3.oas.annotations.Operation;
@@ -39,16 +41,11 @@ public class CapitalAdjustmentController {
         this.capitalAdjustmentService = capitalAdjustmentService;
     }
 
-    @Operation(
-            summary = "Create capital adjustment",
-            description = "Create an increase, decrease, or override adjustment for an active capital cycle."
-    )
+    @Operation(summary = "Create capital adjustment", description = "Create an increase, decrease, or override adjustment for an active capital cycle.")
     @PostMapping
     public ResponseEntity<ApiResponse<CapitalAdjustmentResponse>> create(
             @Valid @RequestBody CapitalAdjustmentRequest request,
-            @RequestAttribute(value = CURRENT_USER_ATTRIBUTE, required = false)
-            KeycloakUserPrincipal currentUser
-    ) {
+            @RequestAttribute(value = CURRENT_USER_ATTRIBUTE, required = false) KeycloakUserPrincipal currentUser) {
         UUID ownerId = resolveOwnerId(currentUser);
         CapitalAdjustmentResponse response = capitalAdjustmentService.adjustCapital(ownerId, request);
         URI location = URI.create("/api/v1/capital-adjustments/" + response.id());
@@ -56,25 +53,35 @@ public class CapitalAdjustmentController {
         return ResponseEntity.created(location).body(ApiResponse.success(response));
     }
 
-    @Operation(
-            summary = "List capital adjustments",
-            description = "Get paginated adjustment history for the authenticated user by cycle and optional capital type."
-    )
+    @Operation(summary = "Adjust time capital", description = "Increase or decrease the planned time capital of a capital cycle.")
+    @PostMapping("/time")
+    public ResponseEntity<ApiResponse<TimeCapitalAdjustmentResponse>> adjustTimeCapital(
+            @RequestParam UUID cycleId,
+            @Valid @RequestBody AdjustTimeCapitalRequest request,
+            @RequestAttribute(value = CURRENT_USER_ATTRIBUTE, required = false) KeycloakUserPrincipal currentUser) {
+        UUID ownerId = resolveOwnerId(currentUser);
+
+        TimeCapitalAdjustmentResponse response = capitalAdjustmentService.adjustTimeCapital(
+                ownerId,
+                cycleId,
+                request);
+
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "List capital adjustments", description = "Get paginated adjustment history for the authenticated user by cycle and optional capital type.")
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponseDTO<CapitalAdjustmentResponse>>> getAdjustments(
             @RequestParam(required = false) UUID capitalCycleId,
             @RequestParam(required = false) CapitalKind capitalType,
             Pageable pageable,
-            @RequestAttribute(value = CURRENT_USER_ATTRIBUTE, required = false)
-            KeycloakUserPrincipal currentUser
-    ) {
+            @RequestAttribute(value = CURRENT_USER_ATTRIBUTE, required = false) KeycloakUserPrincipal currentUser) {
         UUID ownerId = resolveOwnerId(currentUser);
         Page<CapitalAdjustmentResponse> adjustments = capitalAdjustmentService.getAdjustments(
                 ownerId,
                 capitalCycleId,
                 capitalType,
-                PageableLimits.normalize(pageable)
-        );
+                PageableLimits.normalize(pageable));
 
         return ResponseEntity.ok(ApiResponse.success(PageResponseDTO.from(adjustments)));
     }

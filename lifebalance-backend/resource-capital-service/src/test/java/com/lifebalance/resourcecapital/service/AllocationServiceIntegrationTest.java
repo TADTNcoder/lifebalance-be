@@ -4,21 +4,26 @@ import com.lifebalance.resourcecapital.domain.capital.CapitalKind;
 import com.lifebalance.resourcecapital.domain.capitalallocation.AllocationStatus;
 import com.lifebalance.resourcecapital.domain.capitalallocation.AllocationTargetType;
 import com.lifebalance.resourcecapital.domain.capitalallocation.CapitalAllocation;
+import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InsufficientAllocatedCapitalException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InvalidAllocationStateException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationConfirmationRequiredException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleType;
 import com.lifebalance.resourcecapital.domain.capitalhistory.CapitalActionType;
+import com.lifebalance.resourcecapital.domain.capitalrelease.CapitalRelease;
 import com.lifebalance.resourcecapital.dto.AllocateCapitalRequest;
 import com.lifebalance.resourcecapital.dto.AllocationResponse;
 import com.lifebalance.resourcecapital.dto.CapitalAllocationChangeRequest;
 import com.lifebalance.resourcecapital.dto.CapitalAllocationReleaseRequest;
+import com.lifebalance.resourcecapital.dto.CreateCapitalAllocationRequest;
 import com.lifebalance.resourcecapital.dto.ReallocateCapitalRequest;
 import com.lifebalance.resourcecapital.dto.ReleaseCapitalRequest;
+import com.lifebalance.resourcecapital.dto.SetupMoneyCapitalRequest;
 import com.lifebalance.resourcecapital.dto.SetupTimeCapitalRequest;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalAllocationRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalCycleRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalHistoryRepository;
+import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalReleaseRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.TimeCapitalRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
@@ -47,6 +52,7 @@ class AllocationServiceIntegrationTest {
     private static final UUID OWNER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private static final UUID SOURCE_TASK_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
     private static final UUID DESTINATION_TASK_ID = UUID.fromString("33333333-3333-3333-3333-333333333333");
+    private static final UUID PROJECT_ID = UUID.fromString("44444444-4444-4444-4444-444444444444");
 
     @Autowired
     private AllocationService allocationService;
@@ -74,6 +80,9 @@ class AllocationServiceIntegrationTest {
 
     @Autowired
     private CapitalHistoryRepository capitalHistoryRepository;
+
+    @Autowired
+    private CapitalReleaseRepository capitalReleaseRepository;
 
     @Autowired
     private EntityManager entityManager;
@@ -121,6 +130,66 @@ class AllocationServiceIntegrationTest {
             assertThat(history.getReferenceId()).isEqualTo(SOURCE_TASK_ID);
             assertThat(history.getBeforeAmount()).isEqualByComparingTo("0.0000");
             assertThat(history.getAfterAmount()).isEqualByComparingTo("45.0000");
+        });
+    }
+
+    @Test
+    void allocateMoneyCapitalThroughApiFacadePersistsProjectAllocationAndHistory() {
+        CapitalCycle cycle = createCycle("August 11", LocalDate.of(2026, 8, 11), false);
+        capitalService.setupMoneyCapital(
+                OWNER_ID,
+                cycle.getId(),
+                new SetupMoneyCapitalRequest(new BigDecimal("1000.0000"), "VND")
+        );
+        activateCycle(cycle);
+
+        AllocationResponse response = capitalAllocationService.allocateCapital(
+                OWNER_ID,
+                new CreateCapitalAllocationRequest(
+                        cycle.getId(),
+                        CapitalKind.MONEY,
+                        AllocationTargetType.PROJECT,
+                        null,
+                        null,
+                        null,
+                        PROJECT_ID,
+                        new BigDecimal("250.0000"),
+                        false,
+                        "Project budget"
+                )
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(response.capitalType()).isEqualTo(CapitalKind.MONEY);
+        assertThat(response.targetType()).isEqualTo(AllocationTargetType.PROJECT);
+        assertThat(response.targetId()).isEqualTo(PROJECT_ID);
+        assertThat(response.targetAllocatedAmount()).isEqualByComparingTo("250.0000");
+        assertThat(response.totalAllocatedAmount()).isEqualByComparingTo("250.0000");
+        assertThat(response.remainingAmount()).isEqualByComparingTo("750.0000");
+        assertThat(response.overAllocated()).isFalse();
+        assertThat(capitalAllocationRepository.findByUserIdAndCapitalCycleIdAndTargetTypeAndTargetIdAndCapitalType(
+                OWNER_ID,
+                cycle.getId(),
+                AllocationTargetType.PROJECT,
+                PROJECT_ID,
+                CapitalKind.MONEY
+        )).isPresent()
+                .get()
+                .satisfies(allocation -> {
+                    assertThat(allocation.getAllocatedAmount()).isEqualByComparingTo("250.0000");
+                    assertThat(allocation.getCapitalType()).isEqualTo(CapitalKind.MONEY);
+                    assertThat(allocation.getStatus()).isEqualTo(AllocationStatus.ACTIVE);
+                });
+        assertThat(capitalHistoryRepository.findByCapitalCycleIdAndActionType(
+                cycle.getId(),
+                CapitalActionType.ALLOCATE,
+                PageRequest.of(0, 10)
+        ).getContent()).singleElement().satisfies(history -> {
+            assertThat(history.getId()).isEqualTo(response.historyIds().getFirst());
+            assertThat(history.getReferenceId()).isEqualTo(PROJECT_ID);
+            assertThat(history.getBeforeAmount()).isEqualByComparingTo("0.0000");
+            assertThat(history.getAfterAmount()).isEqualByComparingTo("250.0000");
         });
     }
 
@@ -337,7 +406,16 @@ class AllocationServiceIntegrationTest {
                 cycle.getId(),
                 CapitalActionType.ALLOCATE,
                 PageRequest.of(0, 10)
-        ).getContent()).hasSize(2);
+        ).getContent()).hasSize(1);
+        assertThat(capitalHistoryRepository.findByCapitalCycleIdAndActionType(
+                cycle.getId(),
+                CapitalActionType.REALLOCATE,
+                PageRequest.of(0, 10)
+        ).getContent()).singleElement().satisfies(history -> {
+            assertThat(history.getReferenceId()).isEqualTo(SOURCE_TASK_ID);
+            assertThat(history.getBeforeAmount()).isEqualByComparingTo("90.0000");
+            assertThat(history.getAfterAmount()).isEqualByComparingTo("120.0000");
+        });
         assertThat(capitalHistoryRepository.findByCapitalCycleIdAndActionType(
                 cycle.getId(),
                 CapitalActionType.OVER_ALLOCATION_APPROVED,
@@ -347,7 +425,7 @@ class AllocationServiceIntegrationTest {
     }
 
     @Test
-    void changeAllocationDecreaseReleasesDeltaAndKeepsAllocationHistory() {
+    void changeAllocationDecreaseRecordsReallocationAndKeepsReleaseBalanceUntouched() {
         CapitalCycle cycle = createCycle("August 9", LocalDate.of(2026, 8, 9), false);
         capitalService.setupTimeCapital(OWNER_ID, cycle.getId(), new SetupTimeCapitalRequest(100L));
         activateCycle(cycle);
@@ -383,7 +461,7 @@ class AllocationServiceIntegrationTest {
         assertThat(response.historyIds()).hasSize(1);
         assertThat(findTaskAllocation(cycle, SOURCE_TASK_ID)).satisfies(changedAllocation -> {
             assertThat(changedAllocation.getAllocatedAmount()).isEqualByComparingTo("50.0000");
-            assertThat(changedAllocation.getReleasedAmount()).isEqualByComparingTo("30.0000");
+            assertThat(changedAllocation.getReleasedAmount()).isEqualByComparingTo("0.0000");
             assertThat(changedAllocation.getStatus()).isEqualTo(AllocationStatus.ACTIVE);
         });
         assertThat(capitalHistoryRepository.findByCapitalCycleIdAndActionType(
@@ -395,11 +473,65 @@ class AllocationServiceIntegrationTest {
                 cycle.getId(),
                 CapitalActionType.RELEASE,
                 PageRequest.of(0, 10)
+        ).getContent()).isEmpty();
+        assertThat(capitalHistoryRepository.findByCapitalCycleIdAndActionType(
+                cycle.getId(),
+                CapitalActionType.REALLOCATE,
+                PageRequest.of(0, 10)
         ).getContent()).singleElement().satisfies(history -> {
             assertThat(history.getReferenceId()).isEqualTo(SOURCE_TASK_ID);
             assertThat(history.getBeforeAmount()).isEqualByComparingTo("80.0000");
             assertThat(history.getAfterAmount()).isEqualByComparingTo("50.0000");
         });
+    }
+
+    @Test
+    void changeAllocationDecreaseRejectsAmountBelowSpentAndDoesNotWriteReallocationHistory() {
+        CapitalCycle cycle = createCycle("August 11", LocalDate.of(2026, 8, 11), false);
+        capitalService.setupTimeCapital(OWNER_ID, cycle.getId(), new SetupTimeCapitalRequest(100L));
+        activateCycle(cycle);
+        allocationService.allocateCapital(
+                OWNER_ID,
+                cycle.getId(),
+                new AllocateCapitalRequest(
+                        CapitalKind.TIME,
+                        AllocationTargetType.TASK,
+                        SOURCE_TASK_ID,
+                        new BigDecimal("80.0000"),
+                        false,
+                        "Initial"
+                )
+        );
+        CapitalAllocation allocation = findTaskAllocation(cycle, SOURCE_TASK_ID);
+        allocation.spend(new BigDecimal("60.0000"));
+        capitalAllocationRepository.saveAndFlush(allocation);
+        entityManager.flush();
+        entityManager.clear();
+
+        CapitalAllocation spentAllocation = findTaskAllocation(cycle, SOURCE_TASK_ID);
+        assertThatThrownBy(() -> capitalAllocationService.changeAllocation(
+                OWNER_ID,
+                spentAllocation.getId(),
+                new CapitalAllocationChangeRequest(
+                        new BigDecimal("50.0000"),
+                        false,
+                        "Below spent amount"
+                )
+        )).isInstanceOf(InsufficientAllocatedCapitalException.class);
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(findTaskAllocation(cycle, SOURCE_TASK_ID)).satisfies(unchangedAllocation -> {
+            assertThat(unchangedAllocation.getAllocatedAmount()).isEqualByComparingTo("80.0000");
+            assertThat(unchangedAllocation.getSpentAmount()).isEqualByComparingTo("60.0000");
+            assertThat(unchangedAllocation.getReleasedAmount()).isEqualByComparingTo("0.0000");
+            assertThat(unchangedAllocation.getStatus()).isEqualTo(AllocationStatus.ACTIVE);
+        });
+        assertThat(capitalHistoryRepository.findByCapitalCycleIdAndActionType(
+                cycle.getId(),
+                CapitalActionType.REALLOCATE,
+                PageRequest.of(0, 10)
+        ).getContent()).isEmpty();
     }
 
     @Test
@@ -439,6 +571,78 @@ class AllocationServiceIntegrationTest {
                         "Too late"
                 )
         )).isInstanceOf(InvalidAllocationStateException.class);
+    }
+
+    @Test
+    void releaseCapitalByAllocationIdSupportsPartialAndFullReleaseWithLedgerAndHistory() {
+        CapitalCycle cycle = createCycle("August 11", LocalDate.of(2026, 8, 11), false);
+        capitalService.setupTimeCapital(OWNER_ID, cycle.getId(), new SetupTimeCapitalRequest(100L));
+        activateCycle(cycle);
+        allocationService.allocateCapital(
+                OWNER_ID,
+                cycle.getId(),
+                new AllocateCapitalRequest(
+                        CapitalKind.TIME,
+                        AllocationTargetType.TASK,
+                        SOURCE_TASK_ID,
+                        new BigDecimal("80.0000"),
+                        false,
+                        "Initial release budget"
+                )
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        CapitalAllocation allocation = findTaskAllocation(cycle, SOURCE_TASK_ID);
+        AllocationResponse partialRelease = capitalAllocationService.releaseCapital(
+                OWNER_ID,
+                allocation.getId(),
+                new CapitalAllocationReleaseRequest(new BigDecimal("30.0000"), "Partial release")
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(partialRelease.targetAllocatedAmount()).isEqualByComparingTo("50.0000");
+        assertThat(partialRelease.totalAllocatedAmount()).isEqualByComparingTo("50.0000");
+        assertThat(partialRelease.remainingAmount()).isEqualByComparingTo("50.0000");
+        assertThat(partialRelease.historyIds()).hasSize(1);
+        assertThat(findTaskAllocation(cycle, SOURCE_TASK_ID)).satisfies(partiallyReleased -> {
+            assertThat(partiallyReleased.getAllocatedAmount()).isEqualByComparingTo("50.0000");
+            assertThat(partiallyReleased.getReleasedAmount()).isEqualByComparingTo("30.0000");
+            assertThat(partiallyReleased.getStatus()).isEqualTo(AllocationStatus.ACTIVE);
+        });
+        assertThat(capitalReleaseRepository.findByAllocationId(allocation.getId()))
+                .singleElement()
+                .satisfies(release -> {
+                    assertThat(release.getReleasedAmount()).isEqualByComparingTo("30.0000");
+                    assertThat(release.getReason()).isEqualTo("Partial release");
+                });
+
+        AllocationResponse fullRelease = capitalAllocationService.releaseCapital(
+                OWNER_ID,
+                allocation.getId(),
+                new CapitalAllocationReleaseRequest(new BigDecimal("50.0000"), "Release remaining")
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(fullRelease.targetAllocatedAmount()).isEqualByComparingTo("0.0000");
+        assertThat(fullRelease.totalAllocatedAmount()).isEqualByComparingTo("0.0000");
+        assertThat(fullRelease.remainingAmount()).isEqualByComparingTo("100.0000");
+        assertThat(fullRelease.historyIds()).hasSize(1);
+        assertThat(findTaskAllocation(cycle, SOURCE_TASK_ID)).satisfies(released -> {
+            assertThat(released.getAllocatedAmount()).isEqualByComparingTo("0.0000");
+            assertThat(released.getReleasedAmount()).isEqualByComparingTo("80.0000");
+            assertThat(released.getStatus()).isEqualTo(AllocationStatus.RELEASED);
+        });
+        assertThat(capitalReleaseRepository.findByAllocationId(allocation.getId()))
+                .extracting(CapitalRelease::getReleasedAmount)
+                .containsExactlyInAnyOrder(new BigDecimal("30.0000"), new BigDecimal("50.0000"));
+        assertThat(capitalHistoryRepository.findByCapitalCycleIdAndActionType(
+                cycle.getId(),
+                CapitalActionType.RELEASE,
+                PageRequest.of(0, 10)
+        ).getContent()).hasSize(2);
     }
 
     @Test
