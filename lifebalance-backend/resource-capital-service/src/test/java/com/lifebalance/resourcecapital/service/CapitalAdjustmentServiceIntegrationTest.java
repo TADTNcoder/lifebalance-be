@@ -138,7 +138,8 @@ class CapitalAdjustmentServiceIntegrationTest {
                         new BigDecimal("125.2500"),
                         "Cancel purchase",
                         "usd",
-                        false
+                        false,
+                        null // <-- Bổ sung null vào đây
                 )
         );
         entityManager.flush();
@@ -191,7 +192,8 @@ class CapitalAdjustmentServiceIntegrationTest {
                         new BigDecimal("125.2500"),
                         "Wrong unit",
                         "VND",
-                        false
+                        false,
+                        null // <-- Bổ sung null vào đây
                 )
         )).isInstanceOf(InvalidAdjustmentAmountException.class)
                 .hasMessageContaining("must match cycle money capital currency USD");

@@ -191,7 +191,9 @@ class CapitalAdjustmentServiceImplTest {
                         CapitalAdjustmentType.INCREASE,
                         new BigDecimal("25.5000"),
                         "Top up budget",
-                        false
+                        "VND",
+                        false,
+                        null // <-- Bổ sung null
                 )
         );
 
@@ -225,7 +227,8 @@ class CapitalAdjustmentServiceImplTest {
                         new BigDecimal("25.5000"),
                         "Top up budget",
                         "VND",
-                        false
+                        false,
+                        null // <-- Bổ sung null
                 )
         )).isInstanceOf(InvalidAdjustmentAmountException.class)
                 .hasMessageContaining("must match cycle money capital currency USD");
@@ -251,7 +254,9 @@ class CapitalAdjustmentServiceImplTest {
                         CapitalAdjustmentType.DECREASE,
                         new BigDecimal("25.0001"),
                         "Too much",
-                        false
+                        null, // <-- Bổ sung null
+                        false,
+                        null  // <-- Bổ sung null
                 )
         )).isInstanceOf(OverAllocationNotAllowedException.class);
 
@@ -283,6 +288,7 @@ class CapitalAdjustmentServiceImplTest {
                         CapitalAdjustmentType.DECREASE,
                         new BigDecimal("40.0000"),
                         "Approved below allocation",
+                        null, // <-- Bổ sung null cho currency
                         true,
                         adjustmentConfirmationKey(
                                 CapitalKind.MONEY,
@@ -328,6 +334,7 @@ class CapitalAdjustmentServiceImplTest {
                         CapitalAdjustmentType.DECREASE,
                         new BigDecimal("40.0000"),
                         "Wrong confirmation snapshot",
+                        null, // <-- Bổ sung null cho currency
                         true,
                         adjustmentConfirmationKey(
                                 CapitalKind.MONEY,

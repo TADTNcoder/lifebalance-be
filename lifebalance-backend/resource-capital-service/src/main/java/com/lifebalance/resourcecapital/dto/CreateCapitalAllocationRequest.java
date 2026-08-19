@@ -63,9 +63,10 @@ public record CreateCapitalAllocationRequest(
                 targetId,
                 taskId,
                 taskCatalogId,
+                null, // Bổ sung null cho projectId bị thiếu ở đây
                 amount,
                 allowOverAllocation,
-                null,
+                null, // Bổ sung null cho overAllocationConfirmationKey
                 reason
         );
     }
