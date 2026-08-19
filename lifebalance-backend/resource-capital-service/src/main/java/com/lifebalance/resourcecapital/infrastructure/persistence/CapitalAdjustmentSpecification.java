@@ -25,6 +25,7 @@ public final class CapitalAdjustmentSpecification {
             LocalDateTime startDate,
             LocalDateTime endDate
     ) {
+        
         UUID ownerId = Objects.requireNonNull(userId, "Adjustment owner id is required.");
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
