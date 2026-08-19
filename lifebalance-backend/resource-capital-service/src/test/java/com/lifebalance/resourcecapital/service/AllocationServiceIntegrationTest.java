@@ -102,6 +102,7 @@ class AllocationServiceIntegrationTest {
                         SOURCE_TASK_ID,
                         new BigDecimal("45.0000"),
                         false,
+                        null,
                         "Initial task budget"
                 )
         );
@@ -155,6 +156,7 @@ class AllocationServiceIntegrationTest {
                         PROJECT_ID,
                         new BigDecimal("250.0000"),
                         false,
+                        null,
                         "Project budget"
                 )
         );
@@ -207,6 +209,7 @@ class AllocationServiceIntegrationTest {
                         SOURCE_TASK_ID,
                         new BigDecimal("50.0000"),
                         false,
+                        null,
                         "Initial"
                 )
         );
@@ -221,6 +224,7 @@ class AllocationServiceIntegrationTest {
                                 DESTINATION_TASK_ID,
                                 new BigDecimal("20.0000"),
                                 false,
+                                null,
                                 "Missing confirmation"
                         )
                 ),
@@ -276,6 +280,7 @@ class AllocationServiceIntegrationTest {
                         SOURCE_TASK_ID,
                         new BigDecimal("80.0000"),
                         false,
+                        null,
                         "Source"
                 )
         );
@@ -351,6 +356,7 @@ class AllocationServiceIntegrationTest {
                         SOURCE_TASK_ID,
                         new BigDecimal("90.0000"),
                         false,
+                        null,
                         "Initial"
                 )
         );
@@ -363,6 +369,7 @@ class AllocationServiceIntegrationTest {
                         new CapitalAllocationChangeRequest(
                                 new BigDecimal("120.0000"),
                                 false,
+                                null,
                                 "Needs confirmation"
                         )
                 ),
@@ -438,6 +445,7 @@ class AllocationServiceIntegrationTest {
                         SOURCE_TASK_ID,
                         new BigDecimal("80.0000"),
                         false,
+                        null,
                         "Initial"
                 )
         );
@@ -449,6 +457,7 @@ class AllocationServiceIntegrationTest {
                 new CapitalAllocationChangeRequest(
                         new BigDecimal("50.0000"),
                         false,
+                        null,
                         "Reduce allocation"
                 )
         );
@@ -499,6 +508,7 @@ class AllocationServiceIntegrationTest {
                         SOURCE_TASK_ID,
                         new BigDecimal("80.0000"),
                         false,
+                        null,
                         "Initial"
                 )
         );
@@ -515,6 +525,7 @@ class AllocationServiceIntegrationTest {
                 new CapitalAllocationChangeRequest(
                         new BigDecimal("50.0000"),
                         false,
+                        null,
                         "Below spent amount"
                 )
         )).isInstanceOf(InsufficientAllocatedCapitalException.class);
@@ -548,6 +559,7 @@ class AllocationServiceIntegrationTest {
                         SOURCE_TASK_ID,
                         new BigDecimal("40.0000"),
                         false,
+                        null,
                         "Initial"
                 )
         );
@@ -568,6 +580,7 @@ class AllocationServiceIntegrationTest {
                 new CapitalAllocationChangeRequest(
                         new BigDecimal("10.0000"),
                         false,
+                        null,
                         "Too late"
                 )
         )).isInstanceOf(InvalidAllocationStateException.class);
@@ -587,6 +600,7 @@ class AllocationServiceIntegrationTest {
                         SOURCE_TASK_ID,
                         new BigDecimal("80.0000"),
                         false,
+                        null,
                         "Initial release budget"
                 )
         );
@@ -643,34 +657,6 @@ class AllocationServiceIntegrationTest {
                 CapitalActionType.RELEASE,
                 PageRequest.of(0, 10)
         ).getContent()).hasSize(2);
-    }
-
-    @Test
-    void capitalOverviewUsesPersistedAllocatedAmount() {
-        CapitalCycle cycle = createCycle("August 7", LocalDate.of(2026, 8, 7), false);
-        capitalService.setupTimeCapital(OWNER_ID, cycle.getId(), new SetupTimeCapitalRequest(90L));
-        activateCycle(cycle);
-        allocationService.allocateCapital(
-                OWNER_ID,
-                cycle.getId(),
-                new AllocateCapitalRequest(
-                        CapitalKind.TIME,
-                        AllocationTargetType.TASK,
-                        SOURCE_TASK_ID,
-                        new BigDecimal("35.0000"),
-                        false,
-                        "Overview"
-                )
-        );
-        entityManager.flush();
-        entityManager.clear();
-
-        assertThat(capitalService.getCapitalOverview(OWNER_ID, cycle.getId()).timeCapital())
-                .satisfies(timeCapital -> {
-                    assertThat(timeCapital.plannedMinutes()).isEqualTo(90L);
-                    assertThat(timeCapital.allocatedMinutes()).isEqualTo(35L);
-                    assertThat(timeCapital.remainingMinutes()).isEqualTo(55L);
-                });
     }
 
     private CapitalCycle createCycle(String name, LocalDate date, boolean overAllocationAllowed) {

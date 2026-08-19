@@ -85,6 +85,7 @@ class CapitalBalanceServiceIntegrationTest {
                         TASK_ID,
                         new BigDecimal("120.0000"),
                         false,
+                        null,
                         "Plan focus work"
                 )
         );
@@ -135,6 +136,7 @@ class CapitalBalanceServiceIntegrationTest {
                         TASK_ID,
                         new BigDecimal("120.0000"),
                         false,
+                        null,
                         "Plan focus work"
                 )
         );
@@ -178,6 +180,7 @@ class CapitalBalanceServiceIntegrationTest {
                         TASK_ID,
                         new BigDecimal("100.0000"),
                         false,
+                        null,
                         "Initial task budget"
                 )
         );
@@ -217,6 +220,7 @@ class CapitalBalanceServiceIntegrationTest {
                         TASK_ID,
                         new BigDecimal("100.0000"),
                         false,
+                        null,
                         "Initial task budget"
                 )
         );
@@ -255,20 +259,24 @@ class CapitalBalanceServiceIntegrationTest {
     void getCycleBalanceMarksNegativeRemainingAsOverAllocated() {
         CapitalCycle cycle = dailyCycle("September 4", LocalDate.of(2026, 9, 4));
         cycle.allowOverAllocation();
-        cycle = capitalCycleRepository.saveAndFlush(cycle);
-        capitalService.setupTimeCapital(OWNER_ID, cycle.getId(), new SetupTimeCapitalRequest(600L));
-        activateCycle(cycle);
+
+        // SỬA LỖI Ở ĐÂY: Tạo biến savedCycle mới để giữ nguyên tính final cho Lambda expression
+        CapitalCycle savedCycle = capitalCycleRepository.saveAndFlush(cycle);
+
+        capitalService.setupTimeCapital(OWNER_ID, savedCycle.getId(), new SetupTimeCapitalRequest(600L));
+        activateCycle(savedCycle);
 
         OverAllocationConfirmationRequiredException confirmationRequired = catchThrowableOfType(
                 () -> allocationService.allocateCapital(
                         OWNER_ID,
-                        cycle.getId(),
+                        savedCycle.getId(), // Dùng biến mới
                         new AllocateCapitalRequest(
                                 CapitalKind.TIME,
                                 AllocationTargetType.TASK,
                                 TASK_ID,
                                 new BigDecimal("720.0000"),
                                 false,
+                                null, // Bổ sung tham số confirmationKey = null
                                 "Needs confirmation"
                         )
                 ),
@@ -278,7 +286,7 @@ class CapitalBalanceServiceIntegrationTest {
 
         allocationService.allocateCapital(
                 OWNER_ID,
-                cycle.getId(),
+                savedCycle.getId(), // Dùng biến mới
                 new AllocateCapitalRequest(
                         CapitalKind.TIME,
                         AllocationTargetType.TASK,
@@ -292,7 +300,7 @@ class CapitalBalanceServiceIntegrationTest {
         entityManager.flush();
         entityManager.clear();
 
-        CapitalBalanceResponse balance = capitalBalanceService.getCycleBalance(OWNER_ID, cycle.getId());
+        CapitalBalanceResponse balance = capitalBalanceService.getCycleBalance(OWNER_ID, savedCycle.getId()); // Dùng biến mới
 
         assertThat(balance.timeCapital().total()).isEqualByComparingTo("600.0000");
         assertThat(balance.timeCapital().allocated()).isEqualByComparingTo("720.0000");

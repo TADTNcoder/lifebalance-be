@@ -6,6 +6,7 @@ import com.lifebalance.resourcecapital.domain.capital.exception.CapitalNotSetupE
 import com.lifebalance.resourcecapital.domain.capitalallocation.AllocationStatus;
 import com.lifebalance.resourcecapital.domain.capitalallocation.AllocationTargetType;
 import com.lifebalance.resourcecapital.domain.capitalallocation.CapitalAllocation;
+import com.lifebalance.resourcecapital.domain.capitalallocation.OverAllocationConfirmation;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.AllocationNotFoundException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InsufficientAllocatedCapitalException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InvalidAllocationAmountException;
@@ -581,7 +582,7 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
                 overAllocationConfirmed,
                 request.overAllocationConfirmationKey(),
                 CapitalActionType.REALLOCATE.name(),
-                OverAllocationConfirmation.targetReference(allocation.getTargetType(), allocation.getTargetId())
+                OverAllocationConfirmation.allocationReference(allocation.getTargetType(), allocation.getTargetId())
         );
 
         allocation.increase(delta);
