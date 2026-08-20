@@ -27,6 +27,16 @@ class TaskTest {
     }
 
     @Test
+    void belongsToChecksBothOwnerAndUserId() {
+        UUID otherUserId = UUID.randomUUID();
+        Task task = baseTask();
+
+        assertThat(task.belongsTo(userId)).isTrue();
+        assertThat(task.belongsTo(otherUserId)).isFalse();
+        assertThat(task.belongsTo(null)).isFalse();
+    }
+
+    @Test
     void updateProgressAcceptsOnlyZeroToOneHundred() {
         Task task = baseTask();
 
@@ -56,6 +66,35 @@ class TaskTest {
     }
 
     @Test
+    void planningAttributesAcceptNullOrPositiveValues() {
+        Task task = baseTask();
+
+        task.setEstimatedMinutes(null);
+        assertThat(task.getEstimatedMinutes()).isNull();
+
+        task.setEstimatedMinutes(0);
+        assertThat(task.getEstimatedMinutes()).isZero();
+
+        task.setEstimatedMinutes(60);
+        assertThat(task.getEstimatedMinutes()).isEqualTo(60);
+
+        assertThatThrownBy(() -> task.setEstimatedMinutes(-5))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        task.setEstimatedCost(null);
+        assertThat(task.getEstimatedCost()).isNull();
+
+        task.setEstimatedCost(BigDecimal.ZERO);
+        assertThat(task.getEstimatedCost()).isEqualByComparingTo(BigDecimal.ZERO);
+
+        task.setEstimatedCost(BigDecimal.valueOf(100.50));
+        assertThat(task.getEstimatedCost()).isEqualByComparingTo("100.50");
+
+        assertThatThrownBy(() -> task.setEstimatedCost(BigDecimal.valueOf(-1)))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void lifecycleSupportsPauseResumeCompleteCancelReopenArchiveRestore() {
         Task task = baseTask();
 
@@ -69,11 +108,69 @@ class TaskTest {
         assertThat(task.getStatus()).isEqualTo(TaskStatus.COMPLETED);
 
         task.reopen();
-        task.cancel();
-        task.reopen();
-        task.archive();
-        task.restore();
+        assertThat(task.getStatus()).isEqualTo(TaskStatus.PLANNED);
 
+        task.cancel();
+        assertThat(task.getStatus()).isEqualTo(TaskStatus.CANCELLED);
+
+        task.reopen();
+        assertThat(task.getStatus()).isEqualTo(TaskStatus.PLANNED);
+
+        task.archive();
+        assertThat(task.getStatus()).isEqualTo(TaskStatus.ARCHIVED);
+
+        task.restore();
+        assertThat(task.getStatus()).isEqualTo(TaskStatus.PLANNED);
+    }
+
+    @Test
+    void transitionToCoversAllLifecycleStates() {
+        Task task = baseTask();
+
+        // DRAFT -> PLANNED
+        task.transitionTo(TaskStatus.PLANNED);
+        assertThat(task.getStatus()).isEqualTo(TaskStatus.PLANNED);
+
+        // PLANNED -> DRAFT
+        task.transitionTo(TaskStatus.DRAFT);
+        assertThat(task.getStatus()).isEqualTo(TaskStatus.DRAFT);
+
+        // DRAFT -> SCHEDULED
+        task.setDeadline(LocalDate.now().plusDays(2));
+        task.setEstimatedMinutes(60);
+        task.transitionTo(TaskStatus.SCHEDULED);
+        assertThat(task.getStatus()).isEqualTo(TaskStatus.SCHEDULED);
+
+        // SCHEDULED -> IN_PROGRESS
+        task.transitionTo(TaskStatus.IN_PROGRESS);
+        assertThat(task.getStatus()).isEqualTo(TaskStatus.IN_PROGRESS);
+
+        // IN_PROGRESS -> ON_HOLD
+        task.transitionTo(TaskStatus.ON_HOLD);
+        assertThat(task.getStatus()).isEqualTo(TaskStatus.ON_HOLD);
+
+        // ON_HOLD -> IN_PROGRESS
+        task.transitionTo(TaskStatus.IN_PROGRESS);
+        assertThat(task.getStatus()).isEqualTo(TaskStatus.IN_PROGRESS);
+
+        // IN_PROGRESS -> COMPLETED
+        task.transitionTo(TaskStatus.COMPLETED);
+        assertThat(task.getStatus()).isEqualTo(TaskStatus.COMPLETED);
+
+        // COMPLETED -> ARCHIVED
+        task.transitionTo(TaskStatus.ARCHIVED);
+        assertThat(task.getStatus()).isEqualTo(TaskStatus.ARCHIVED);
+
+        // ARCHIVED -> PLANNED
+        task.transitionTo(TaskStatus.PLANNED);
+        assertThat(task.getStatus()).isEqualTo(TaskStatus.PLANNED);
+
+        // PLANNED -> CANCELLED
+        task.transitionTo(TaskStatus.CANCELLED);
+        assertThat(task.getStatus()).isEqualTo(TaskStatus.CANCELLED);
+
+        // CANCELLED -> PLANNED
+        task.transitionTo(TaskStatus.PLANNED);
         assertThat(task.getStatus()).isEqualTo(TaskStatus.PLANNED);
     }
 
@@ -138,8 +235,6 @@ class TaskTest {
     void beanValidationCatchesRequiredAndRangeConstraints() {
         Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
         Task task = Task.builder()
-                .ownerId(userId)
-                .userId(userId)
                 .name(" ")
                 .status(TaskStatus.DRAFT)
                 .progress(101)
@@ -149,7 +244,32 @@ class TaskTest {
 
         assertThat(validator.validate(task))
                 .extracting(violation -> violation.getPropertyPath().toString())
-                .contains("name", "progress", "estimatedMinutes", "estimatedCost");
+                .contains("ownerId", "userId", "name", "progress", "estimatedMinutes", "estimatedCost");
+    }
+
+    @Test
+    void taskNameCannotBeBlankOrExceedMaxLength() {
+        Task task = baseTask();
+
+        assertThatThrownBy(() -> task.setName("   "))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        assertThatThrownBy(() -> task.setName("a".repeat(256)))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        task.setName("Valid task name");
+        assertThat(task.getName()).isEqualTo("Valid task name");
+    }
+
+    @Test
+    void taskDescriptionCannotExceedMaxLength() {
+        Task task = baseTask();
+
+        assertThatThrownBy(() -> task.setDescription("d".repeat(2001)))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        task.setDescription("Valid description");
+        assertThat(task.getDescription()).isEqualTo("Valid description");
     }
 
     private Task baseTask() {

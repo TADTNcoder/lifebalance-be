@@ -80,6 +80,7 @@ class TaskTagTest {
     private Task persistedTask(UUID userId) {
         return Task.builder()
                 .id(UUID.randomUUID())
+                .ownerId(userId)
                 .userId(userId)
                 .name("Planning")
                 .build();

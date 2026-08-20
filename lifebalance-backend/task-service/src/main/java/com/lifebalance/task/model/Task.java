@@ -58,6 +58,7 @@ public class Task extends BaseAuditableEntity {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @NotNull
     @Column(name = "owner_id", nullable = false)
     private UUID ownerId;
 
@@ -112,6 +113,11 @@ public class Task extends BaseAuditableEntity {
 
     @PrePersist
     void onCreate() {
+        if (ownerId == null && userId != null) {
+            ownerId = userId;
+        } else if (userId == null && ownerId != null) {
+            userId = ownerId;
+        }
         if (status == null) {
             status = TaskStatus.DRAFT;
         }
@@ -168,7 +174,7 @@ public class Task extends BaseAuditableEntity {
     }
 
     public void pause() {
-        ensureStatusAllows("pause", TaskStatus.IN_PROGRESS);
+        ensureStatusAllows("pause", TaskStatus.IN_PROGRESS, TaskStatus.SCHEDULED, TaskStatus.PLANNED);
         this.status = TaskStatus.ON_HOLD;
     }
 
@@ -220,22 +226,39 @@ public class Task extends BaseAuditableEntity {
             return;
         }
         switch (targetStatus) {
-            case DRAFT -> ensureStatusAllows("move to draft", TaskStatus.PLANNED);
+            case DRAFT -> {
+                ensureStatusAllows("move to draft", TaskStatus.PLANNED);
+                this.status = TaskStatus.DRAFT;
+            }
             case PLANNED -> {
                 if (status == TaskStatus.DRAFT) {
-                    plan(priority, deadline, estimatedMinutes, estimatedCost, category);
+                    this.status = TaskStatus.PLANNED;
                     return;
                 }
-                ensureStatusAllows("move to planned", TaskStatus.SCHEDULED);
+                if (status == TaskStatus.COMPLETED || status == TaskStatus.CANCELLED) {
+                    reopen();
+                    return;
+                }
+                if (status == TaskStatus.ARCHIVED) {
+                    restore();
+                    return;
+                }
+                ensureStatusAllows("move to planned", TaskStatus.SCHEDULED, TaskStatus.ON_HOLD);
+                this.status = TaskStatus.PLANNED;
             }
             case SCHEDULED -> schedule(deadline, estimatedMinutes);
-            case IN_PROGRESS -> start();
+            case IN_PROGRESS -> {
+                if (status == TaskStatus.ON_HOLD) {
+                    resume();
+                } else {
+                    start();
+                }
+            }
             case ON_HOLD -> pause();
             case COMPLETED -> markAsCompleted();
             case CANCELLED -> cancel();
             case ARCHIVED -> archive();
         }
-        this.status = targetStatus;
     }
 
     public void updateProgress(int progress) {
@@ -259,7 +282,10 @@ public class Task extends BaseAuditableEntity {
     }
 
     public boolean belongsTo(UUID userId) {
-        return Objects.equals(this.userId, userId);
+        if (userId == null) {
+            return false;
+        }
+        return Objects.equals(this.userId, userId) || Objects.equals(this.ownerId, userId);
     }
 
     public TaskTag assignTag(Tag tag) {
@@ -313,9 +339,8 @@ public class Task extends BaseAuditableEntity {
     }
 
     public void setEstimatedMinutes(Integer estimatedMinutes) {
-        if (estimatedMinutes == null || estimatedMinutes <= 0) {
-            throw new IllegalStateException(
-                    "Task estimatedMinutes must be greater than 0 before scheduling.");
+        if (estimatedMinutes != null && estimatedMinutes < 0) {
+            throw new IllegalArgumentException("Task estimatedMinutes must not be negative.");
         }
         this.estimatedMinutes = estimatedMinutes;
     }
