@@ -244,6 +244,7 @@ public class TaskServiceImpl implements TaskService {
         TaskResponse response = new TaskResponse();
 
         response.setId(task.getId());
+        response.setOwnerId(task.getOwnerId());
         response.setUserId(task.getUserId());
         response.setName(task.getName());
         response.setDescription(

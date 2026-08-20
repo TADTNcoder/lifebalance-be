@@ -16,6 +16,8 @@ public class TaskResponse {
 
     private UUID id;
 
+    private UUID ownerId;
+
     private UUID userId;
 
     private String name;
