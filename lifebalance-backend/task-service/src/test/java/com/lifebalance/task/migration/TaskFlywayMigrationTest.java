@@ -415,10 +415,10 @@ class TaskFlywayMigrationTest {
 
     private UUID insertTask(UUID userId, String name) {
         return jdbcTemplate.queryForObject("""
-                INSERT INTO task.tasks (user_id, name, status, priority)
-                VALUES (?, ?, 'DRAFT', 'LOW')
+                INSERT INTO task.tasks (user_id, owner_id, name, status, priority)
+                VALUES (?, ?, ?, 'DRAFT', 'LOW')
                 RETURNING id
-                """, UUID.class, userId, name);
+                """, UUID.class, userId, userId, name);
     }
 
     private void insertTaskTag(UUID taskId, UUID tagId) {

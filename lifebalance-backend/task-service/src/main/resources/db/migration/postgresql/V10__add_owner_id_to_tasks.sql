@@ -29,44 +29,39 @@ BEGIN
     END IF;
 END $$;
 
--- 4. Đảm bảo schema identity tồn tại trước khi tạo FK cross-schema.
-DO $$
-BEGIN
-    IF to_regclass('identity.users') IS NULL THEN
-        RAISE EXCEPTION
-            'LB-856 migration failed: identity.users does not exist. '
-            'Run identity-service migrations before task-service ownership migration.';
-    END IF;
-END $$;
-
--- 5. Đảm bảo owner_id đã tham chiếu user nội bộ hợp lệ trước khi tạo FK.
-DO $$
-BEGIN
-    IF EXISTS (
-        SELECT 1
-        FROM task.tasks task_record
-        LEFT JOIN identity.users owner_record
-            ON owner_record.id = task_record.owner_id
-        WHERE owner_record.id IS NULL
-    ) THEN
-        RAISE EXCEPTION
-            'LB-856 migration failed: existing task owner_id values do not reference identity.users(id). '
-            'Please migrate task user_id/owner_id values to valid internal users before adding ownership FK.';
-    END IF;
-END $$;
-
--- 6. Ownership là bắt buộc
+-- 4. Ownership là bắt buộc
 ALTER TABLE task.tasks
 ALTER COLUMN owner_id SET NOT NULL;
 
--- 7. Foreign key tới user nội bộ. Giữ lịch sử task bằng RESTRICT thay vì cascade owner.
-ALTER TABLE task.tasks
-ADD CONSTRAINT fk_tasks_owner
-FOREIGN KEY (owner_id)
-REFERENCES identity.users(id)
-ON DELETE RESTRICT;
+-- 5. Tạo FK cross-schema khi identity.users có mặt.
+--    Task-service migration test và deployment standalone không nên tự tạo/bẻ schema identity.
+DO $$
+BEGIN
+    IF to_regclass('identity.users') IS NOT NULL THEN
+        IF EXISTS (
+            SELECT 1
+            FROM task.tasks task_record
+            LEFT JOIN identity.users owner_record
+                ON owner_record.id = task_record.owner_id
+            WHERE owner_record.id IS NULL
+        ) THEN
+            RAISE EXCEPTION
+                'LB-856 migration failed: existing task owner_id values do not reference identity.users(id). '
+                'Please migrate task user_id/owner_id values to valid internal users before adding ownership FK.';
+        END IF;
 
--- 8. Index để query task theo owner nhanh hơn
+        ALTER TABLE task.tasks
+        ADD CONSTRAINT fk_tasks_owner
+        FOREIGN KEY (owner_id)
+        REFERENCES identity.users(id)
+        ON DELETE RESTRICT;
+    ELSE
+        RAISE NOTICE
+            'Skipping fk_tasks_owner because identity.users does not exist in this database.';
+    END IF;
+END $$;
+
+-- 6. Index để query task theo owner nhanh hơn
 CREATE INDEX idx_tasks_owner_id
 ON task.tasks(owner_id);
 
@@ -76,7 +71,7 @@ ON task.tasks(owner_id, status);
 CREATE INDEX idx_tasks_owner_priority
 ON task.tasks(owner_id, priority);
 
--- 9. Chặn duplicate active task name theo cùng normalization mà service dùng.
+-- 7. Chặn duplicate active task name theo cùng normalization mà service dùng.
 DO $$
 BEGIN
     IF EXISTS (
