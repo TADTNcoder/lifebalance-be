@@ -56,6 +56,7 @@ class TaskPersistenceTest {
 
         Task persisted = entityManager.find(Task.class, task.getId());
 
+        assertThat(persisted.getOwnerId()).isEqualTo(userId);
         assertThat(persisted.getUserId()).isEqualTo(userId);
         assertThat(persisted.getName()).isEqualTo("Exercise");
         assertThat(persisted.getStatus()).isEqualTo(TaskStatus.DRAFT);
