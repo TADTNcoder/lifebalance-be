@@ -36,9 +36,3 @@ END $$;
 -- 5. Ownership là bắt buộc
 ALTER TABLE task.tasks
 ALTER COLUMN owner_id SET NOT NULL;
-
-IF EXISTS (
-    SELECT 1
-    FROM task.tasks
-    WHERE owner_id IS NULL
-)
