@@ -31,13 +31,18 @@ public class TaskTagServiceImpl implements TaskTagService {
     @Override
     @Transactional
     public void assignTag(
+            UUID ownerId,
             UUID taskId,
             UUID tagId) {
 
-        Task task = taskRepository.findById(taskId)
+        Task task = taskRepository.findByIdAndOwnerId(
+                taskId,
+                ownerId)
                 .orElseThrow(TaskExceptions::taskNotFound);
 
-        Tag tag = tagRepository.findById(tagId)
+        Tag tag = tagRepository.findByIdAndUserId(
+                tagId,
+                ownerId)
                 .orElseThrow(TaskExceptions::tagNotFound);
 
         if (taskTagRepository.existsByTaskIdAndTagId(
@@ -60,14 +65,19 @@ public class TaskTagServiceImpl implements TaskTagService {
     @Override
     @Transactional
     public void removeTag(
+            UUID ownerId,
             UUID taskId,
             UUID tagId) {
 
-        if (!taskRepository.existsById(taskId)) {
+        if (taskRepository.findByIdAndOwnerId(
+                taskId,
+                ownerId).isEmpty()) {
             throw TaskExceptions.taskNotFound();
         }
 
-        if (!tagRepository.existsById(tagId)) {
+        if (!tagRepository.existsByIdAndUserId(
+                tagId,
+                ownerId)) {
             throw TaskExceptions.tagNotFound();
         }
 
@@ -85,15 +95,20 @@ public class TaskTagServiceImpl implements TaskTagService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<TagResponse> getTags(UUID taskId) {
+    public List<TagResponse> getTags(
+            UUID ownerId,
+            UUID taskId) {
 
-        if (!taskRepository.existsById(taskId)) {
+        if (taskRepository.findByIdAndOwnerId(
+                taskId,
+                ownerId).isEmpty()) {
             throw TaskExceptions.taskNotFound();
         }
 
-        return taskTagRepository.findByTaskId(taskId)
+        return tagRepository.findByTaskIdAndUserId(
+                taskId,
+                ownerId)
                 .stream()
-                .map(TaskTag::getTag)
                 .map(this::mapToResponse)
                 .toList();
     }

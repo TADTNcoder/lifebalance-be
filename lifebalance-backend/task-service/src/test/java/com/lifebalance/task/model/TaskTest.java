@@ -27,13 +27,22 @@ class TaskTest {
     }
 
     @Test
-    void belongsToChecksBothOwnerAndUserId() {
+    void belongsToChecksOwnerIdOnly() {
         UUID otherUserId = UUID.randomUUID();
         Task task = baseTask();
 
         assertThat(task.belongsTo(userId)).isTrue();
         assertThat(task.belongsTo(otherUserId)).isFalse();
         assertThat(task.belongsTo(null)).isFalse();
+
+        Task migratedTask = Task.builder()
+                .ownerId(userId)
+                .userId(otherUserId)
+                .name("Migrated task")
+                .build();
+
+        assertThat(migratedTask.belongsTo(userId)).isTrue();
+        assertThat(migratedTask.belongsTo(otherUserId)).isFalse();
     }
 
     @Test
