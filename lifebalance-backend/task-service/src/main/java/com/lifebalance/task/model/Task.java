@@ -22,6 +22,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -112,11 +113,18 @@ public class Task extends BaseAuditableEntity {
     private Set<TaskTag> taskTags = new HashSet<>();
 
     @PrePersist
-    void onCreate() {
+    @PreUpdate
+    void normalizeBeforeSave() {
         if (ownerId == null && userId != null) {
             ownerId = userId;
         } else if (userId == null && ownerId != null) {
             userId = ownerId;
+        }
+        if (name != null) {
+            name = name.trim();
+        }
+        if (description != null) {
+            description = normalizeOptionalText(description);
         }
         if (status == null) {
             status = TaskStatus.DRAFT;
@@ -285,7 +293,7 @@ public class Task extends BaseAuditableEntity {
         if (userId == null) {
             return false;
         }
-        return Objects.equals(this.userId, userId) || Objects.equals(this.ownerId, userId);
+        return Objects.equals(this.ownerId, userId);
     }
 
     public TaskTag assignTag(Tag tag) {
@@ -379,7 +387,7 @@ public class Task extends BaseAuditableEntity {
         if (value == null) {
             return null;
         }
-        String normalized = value.trim();
+        String normalized = normalizeOptionalText(value);
         if (normalized.isEmpty()) {
             return null;
         }
@@ -387,6 +395,10 @@ public class Task extends BaseAuditableEntity {
             throw new IllegalArgumentException("Task " + fieldName + " must not exceed " + maxLength + " characters.");
         }
         return normalized;
+    }
+
+    private String normalizeOptionalText(String value) {
+        return value == null ? null : value.trim();
     }
 
     @Override

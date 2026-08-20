@@ -2,6 +2,7 @@ package com.lifebalance.task.model;
 
 import com.lifebalance.task.model.enums.PriorityLevel;
 import com.lifebalance.task.model.enums.TaskStatus;
+import com.lifebalance.task.repository.TaskRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.validation.ConstraintViolationException;
 import org.junit.jupiter.api.Test;
@@ -27,6 +28,9 @@ class TaskPersistenceTest {
 
     @Autowired
     private EntityManager entityManager;
+
+    @Autowired
+    private TaskRepository taskRepository;
 
     @Test
     void persistsTaskCoreMappingWithCategoryRelation() {
@@ -65,6 +69,27 @@ class TaskPersistenceTest {
         assertThat(persisted.getEstimatedMinutes()).isEqualTo(60);
         assertThat(persisted.getEstimatedCost()).isEqualByComparingTo("15.5000");
         assertThat(persisted.getCategory().getName()).isEqualTo("Health");
+    }
+
+    @Test
+    void taskNameLookupUsesTrimmedCaseInsensitiveOwnerScope() {
+        UUID ownerId = UUID.randomUUID();
+        Task task = Task.builder()
+                .ownerId(ownerId)
+                .userId(ownerId)
+                .name("  Deep Work  ")
+                .progress(0)
+                .build();
+
+        entityManager.persist(task);
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(taskRepository.findByNameAndOwnerId("deep work", ownerId))
+                .isPresent()
+                .get()
+                .extracting(Task::getName)
+                .isEqualTo("Deep Work");
     }
 
     @Test
