@@ -1,6 +1,8 @@
 package com.lifebalance.identity.controller;
 
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -59,12 +61,9 @@ class AuthenticationFlowIntegrationTest {
 
     @Test
     void shouldAllowIdentityStatusEndpointWithoutAuthentication() throws Exception {
-        // Kịch bản 3: Endpoint status cũng phải được bảo vệ
-        // 3.1 - Không token -> 401
         mockMvc.perform(get("/api/v1/identity/status"))
                 .andExpect(status().isOk());
 
-        // 3.2 - Có token -> 200
         Jwt mockJwt = new Jwt("fake-token", Instant.now(), Instant.now().plusSeconds(3600),
                 Map.of("alg", "RS256"), Map.of(
                 "sub", "kc-admin-1",
@@ -76,5 +75,18 @@ class AuthenticationFlowIntegrationTest {
         mockMvc.perform(get("/api/v1/identity/status")
                         .header("Authorization", "Bearer fake-token"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void shouldAllowIdentityReadinessEndpointsWithInvalidAuthorizationHeader() throws Exception {
+        mockMvc.perform(get("/api/v1/identity/status")
+                        .header("Authorization", "Bearer expired-token"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/identity/health")
+                        .header("Authorization", "Bearer expired-token"))
+                .andExpect(status().isOk());
+
+        verify(jwtDecoder, never()).decode("expired-token");
     }
 }

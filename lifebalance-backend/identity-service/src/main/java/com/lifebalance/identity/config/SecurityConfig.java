@@ -2,6 +2,8 @@ package com.lifebalance.identity.config;
 
 import com.lifebalance.security.keycloak.LifebalanceAccessDeniedHandler;
 import com.lifebalance.security.keycloak.LifebalanceAuthenticationEntryPoint;
+import com.lifebalance.security.keycloak.PublicReadinessBearerTokenResolver;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -9,6 +11,7 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
 import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
@@ -18,8 +21,12 @@ public class SecurityConfig {
         SecurityFilterChain securityFilterChain(
                         HttpSecurity http,
                         LifebalanceAuthenticationEntryPoint authenticationEntryPoint,
-                        LifebalanceAccessDeniedHandler accessDeniedHandler
+                        LifebalanceAccessDeniedHandler accessDeniedHandler,
+                        ObjectProvider<BearerTokenResolver> bearerTokenResolverProvider
         ) throws Exception {
+                BearerTokenResolver bearerTokenResolver = bearerTokenResolverProvider
+                                .getIfAvailable(PublicReadinessBearerTokenResolver::new);
+
                 return http
                                 .csrf(AbstractHttpConfigurer::disable)
                                 .cors(Customizer.withDefaults())
@@ -29,7 +36,14 @@ public class SecurityConfig {
                                                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                                 .authorizeHttpRequests(auth -> auth
                                                 .requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
-                                                .requestMatchers(HttpMethod.GET, "/api/*/status", "/api/*/*/status").permitAll()
+                                                .requestMatchers(HttpMethod.GET,
+                                                                "/api/*/status",
+                                                                "/api/*/*/status",
+                                                                "/api/*/*/*/status",
+                                                                "/api/*/health",
+                                                                "/api/*/*/health",
+                                                                "/api/*/*/*/health")
+                                                .permitAll()
                                                 .requestMatchers("/v3/api-docs/**", "/swagger-ui/**",
                                                                 "/swagger-ui.html")
                                                 .permitAll()
@@ -39,6 +53,7 @@ public class SecurityConfig {
                                                 .accessDeniedHandler(accessDeniedHandler))
                                 .oauth2ResourceServer(oauth2 -> oauth2
                                                 .authenticationEntryPoint(authenticationEntryPoint)
+                                                .bearerTokenResolver(bearerTokenResolver)
                                                 .jwt(Customizer.withDefaults()))
                                 .build();
         }
