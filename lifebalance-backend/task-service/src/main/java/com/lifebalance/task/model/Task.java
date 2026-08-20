@@ -1,6 +1,7 @@
 package com.lifebalance.task.model;
 
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.math.BigDecimal;
 import java.util.HashSet;
 import java.util.Objects;
@@ -89,6 +90,33 @@ public class Task extends BaseAuditableEntity {
     @Column(name = "deadline")
     private LocalDate deadline;
 
+    @Column(name = "planned_start_at")
+    private OffsetDateTime plannedStartAt;
+
+    @Column(name = "planned_end_at")
+    private OffsetDateTime plannedEndAt;
+
+    @Column(name = "scheduled_start_at")
+    private OffsetDateTime scheduledStartAt;
+
+    @Column(name = "scheduled_end_at")
+    private OffsetDateTime scheduledEndAt;
+
+    @Column(name = "completed_at")
+    private OffsetDateTime completedAt;
+
+    @Column(name = "cancelled_at")
+    private OffsetDateTime cancelledAt;
+
+    @Column(name = "archived_at")
+    private OffsetDateTime archivedAt;
+
+    @Column(name = "created_by")
+    private UUID createdBy;
+
+    @Column(name = "updated_by")
+    private UUID updatedBy;
+
     @NotNull
     @Min(0)
     @Max(100)
@@ -176,6 +204,34 @@ public class Task extends BaseAuditableEntity {
         this.status = TaskStatus.SCHEDULED;
     }
 
+    public void schedule(
+            OffsetDateTime scheduledStartAt,
+            OffsetDateTime scheduledEndAt) {
+
+        ensureStatusAllows("schedule", TaskStatus.DRAFT, TaskStatus.PLANNED, TaskStatus.SCHEDULED);
+        requireChronologicalWindow(scheduledStartAt, scheduledEndAt, "scheduled");
+        if (estimatedMinutes == null || estimatedMinutes <= 0) {
+            throw new IllegalStateException("Task estimatedMinutes must be greater than 0 before scheduling.");
+        }
+
+        this.deadline = scheduledEndAt.toLocalDate();
+        this.scheduledStartAt = scheduledStartAt;
+        this.scheduledEndAt = scheduledEndAt;
+        this.status = TaskStatus.SCHEDULED;
+    }
+
+    public void planWindow(
+            OffsetDateTime plannedStartAt,
+            OffsetDateTime plannedEndAt) {
+
+        ensurePlanningEditable();
+        if (plannedStartAt != null || plannedEndAt != null) {
+            requireChronologicalWindow(plannedStartAt, plannedEndAt, "planned");
+        }
+        this.plannedStartAt = plannedStartAt;
+        this.plannedEndAt = plannedEndAt;
+    }
+
     public void start() {
         ensureStatusAllows("start", TaskStatus.PLANNED, TaskStatus.SCHEDULED, TaskStatus.ON_HOLD);
         this.status = TaskStatus.IN_PROGRESS;
@@ -199,6 +255,7 @@ public class Task extends BaseAuditableEntity {
                 TaskStatus.IN_PROGRESS,
                 TaskStatus.ON_HOLD);
         this.status = TaskStatus.COMPLETED;
+        this.completedAt = OffsetDateTime.now();
     }
 
     public void cancel() {
@@ -210,11 +267,14 @@ public class Task extends BaseAuditableEntity {
                 TaskStatus.IN_PROGRESS,
                 TaskStatus.ON_HOLD);
         this.status = TaskStatus.CANCELLED;
+        this.cancelledAt = OffsetDateTime.now();
     }
 
     public void reopen() {
         ensureStatusAllows("reopen", TaskStatus.COMPLETED, TaskStatus.CANCELLED);
         this.status = TaskStatus.PLANNED;
+        this.completedAt = null;
+        this.cancelledAt = null;
     }
 
     public void archive() {
@@ -222,11 +282,13 @@ public class Task extends BaseAuditableEntity {
             return;
         }
         this.status = TaskStatus.ARCHIVED;
+        this.archivedAt = OffsetDateTime.now();
     }
 
     public void restore() {
         ensureStatusAllows("restore", TaskStatus.ARCHIVED);
         this.status = TaskStatus.PLANNED;
+        this.archivedAt = null;
     }
 
     public void transitionTo(TaskStatus targetStatus) {
@@ -360,6 +422,17 @@ public class Task extends BaseAuditableEntity {
         this.estimatedCost = estimatedCost;
     }
 
+    public void setScheduledWindow(
+            OffsetDateTime scheduledStartAt,
+            OffsetDateTime scheduledEndAt) {
+
+        if (scheduledStartAt != null || scheduledEndAt != null) {
+            requireChronologicalWindow(scheduledStartAt, scheduledEndAt, "scheduled");
+        }
+        this.scheduledStartAt = scheduledStartAt;
+        this.scheduledEndAt = scheduledEndAt;
+    }
+
     private void ensurePlanningEditable() {
         if (status == TaskStatus.COMPLETED || status == TaskStatus.CANCELLED || status == TaskStatus.ARCHIVED) {
             throw new IllegalStateException("Task planning cannot be edited in status " + status + ".");
@@ -373,6 +446,16 @@ public class Task extends BaseAuditableEntity {
             }
         }
         throw new IllegalStateException("Task status " + status + " does not allow action " + action + ".");
+    }
+
+    private void requireChronologicalWindow(
+            OffsetDateTime startAt,
+            OffsetDateTime endAt,
+            String fieldName) {
+
+        if (startAt == null || endAt == null || !startAt.isBefore(endAt)) {
+            throw new IllegalArgumentException("Task " + fieldName + " window must have start before end.");
+        }
     }
 
     private String requireName(String value) {
