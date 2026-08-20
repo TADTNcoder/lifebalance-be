@@ -117,6 +117,107 @@ class TaskFlywayMigrationTest {
     }
 
     @Test
+    void flywayCreatesRecurringRuleAndReminderStorageWithoutEnablingOptionalFeature() {
+        assertTableExists("task_feature_policy_approvals");
+        assertColumnExists("task_feature_policy_approvals", "owner_id", "uuid");
+        assertColumnExists("task_feature_policy_approvals", "task_id", "uuid");
+        assertColumnExists("task_feature_policy_approvals", "feature_code", "character varying");
+        assertColumnExists("task_feature_policy_approvals", "approval_status", "character varying");
+        assertColumnExists("task_feature_policy_approvals", "requested_at", "timestamp with time zone");
+        assertColumnExists("task_feature_policy_approvals", "decided_at", "timestamp with time zone");
+        assertColumnExists("task_feature_policy_approvals", "decision_reason", "character varying");
+        assertColumnIsNotNullable("task_feature_policy_approvals", "owner_id");
+        assertColumnIsNotNullable("task_feature_policy_approvals", "feature_code");
+        assertColumnIsNotNullable("task_feature_policy_approvals", "approval_status");
+        assertCheckConstraintExists("chk_task_feature_policy_feature_code");
+        assertCheckConstraintExists("chk_task_feature_policy_status");
+        assertCheckConstraintExists("chk_task_feature_policy_decision_state");
+
+        assertTableExists("task_recurring_rules");
+        assertColumnExists("task_recurring_rules", "owner_id", "uuid");
+        assertColumnExists("task_recurring_rules", "task_id", "uuid");
+        assertColumnExists("task_recurring_rules", "policy_approval_id", "uuid");
+        assertColumnExists("task_recurring_rules", "policy_feature_code", "character varying");
+        assertColumnExists("task_recurring_rules", "policy_approval_status", "character varying");
+        assertColumnExists("task_recurring_rules", "rule_status", "character varying");
+        assertColumnExists("task_recurring_rules", "frequency", "character varying");
+        assertColumnExists("task_recurring_rules", "interval_count", "integer");
+        assertColumnExists("task_recurring_rules", "next_run_at", "timestamp with time zone");
+        assertCheckConstraintExists("chk_task_recurring_rules_policy_feature");
+        assertCheckConstraintExists("chk_task_recurring_rules_policy_status");
+        assertCheckConstraintExists("chk_task_recurring_rules_active_schedule");
+
+        assertTableExists("task_reminders");
+        assertColumnExists("task_reminders", "owner_id", "uuid");
+        assertColumnExists("task_reminders", "task_id", "uuid");
+        assertColumnExists("task_reminders", "recurring_rule_id", "uuid");
+        assertColumnExists("task_reminders", "policy_approval_id", "uuid");
+        assertColumnExists("task_reminders", "policy_feature_code", "character varying");
+        assertColumnExists("task_reminders", "policy_approval_status", "character varying");
+        assertColumnExists("task_reminders", "reminder_status", "character varying");
+        assertColumnExists("task_reminders", "reminder_kind", "character varying");
+        assertColumnExists("task_reminders", "remind_at", "timestamp with time zone");
+        assertCheckConstraintExists("chk_task_reminders_policy_feature");
+        assertCheckConstraintExists("chk_task_reminders_policy_status");
+        assertCheckConstraintExists("chk_task_reminders_sent_state");
+
+        assertIndexExists("idx_task_feature_policy_owner_feature_status");
+        assertIndexExists("idx_task_recurring_rules_owner_status_next_run");
+        assertIndexExists("idx_task_reminders_owner_status_remind_at");
+    }
+
+    @Test
+    void recurringRulesAndRemindersRequireApprovedPolicyDecision() {
+        UUID userId = UUID.randomUUID();
+        UUID taskId = insertTask(userId, "Policy gated task");
+        UUID pendingRecurringPolicyId = insertFeaturePolicy(userId, taskId, "RECURRING_RULE", "PENDING");
+
+        assertThatThrownBy(() -> insertRecurringRule(userId, taskId, pendingRecurringPolicyId))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("fk_task_recurring_rules_policy_approved");
+
+        UUID approvedRecurringPolicyId = insertFeaturePolicy(userId, taskId, "RECURRING_RULE", "APPROVED");
+        UUID recurringRuleId = insertRecurringRule(userId, taskId, approvedRecurringPolicyId);
+
+        UUID pendingReminderPolicyId = insertFeaturePolicy(userId, taskId, "REMINDER", "PENDING");
+        assertThatThrownBy(() -> insertReminder(userId, taskId, recurringRuleId, pendingReminderPolicyId))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("fk_task_reminders_policy_approved");
+
+        UUID approvedReminderPolicyId = insertFeaturePolicy(userId, taskId, "REMINDER", "APPROVED");
+        UUID reminderId = insertReminder(userId, taskId, recurringRuleId, approvedReminderPolicyId);
+
+        assertThat(recurringRuleId).isNotNull();
+        assertThat(reminderId).isNotNull();
+    }
+
+    @Test
+    void v11DoesNotSeedOptionalFeatureRowsOnFreshDatabase() {
+        try (PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16.4-alpine")
+                .withDatabaseName("task_v11_optional_features")
+                .withUsername("task")
+                .withPassword("task")) {
+            postgres.start();
+
+            DriverManagerDataSource dataSource = new DriverManagerDataSource(
+                    postgres.getJdbcUrl(),
+                    postgres.getUsername(),
+                    postgres.getPassword()
+            );
+            dataSource.setDriverClassName("org.postgresql.Driver");
+            JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+
+            flywayConfiguration(dataSource)
+                    .load()
+                    .migrate();
+
+            assertThat(countRows(jdbc, "task_feature_policy_approvals")).isZero();
+            assertThat(countRows(jdbc, "task_recurring_rules")).isZero();
+            assertThat(countRows(jdbc, "task_reminders")).isZero();
+        }
+    }
+
+    @Test
     void flywayExtendsCategoriesTableForDefaultCategoryMetadata() {
         assertTableExists("categories");
         assertColumnExists("categories", "slug", "character varying");
@@ -415,6 +516,72 @@ class TaskFlywayMigrationTest {
                 """, UUID.class, userId, name, slug);
     }
 
+    private UUID insertFeaturePolicy(UUID userId, UUID taskId, String featureCode, String approvalStatus) {
+        if ("PENDING".equals(approvalStatus)) {
+            return jdbcTemplate.queryForObject("""
+                    INSERT INTO task.task_feature_policy_approvals (
+                        owner_id,
+                        task_id,
+                        feature_code,
+                        approval_status,
+                        requested_by
+                    )
+                    VALUES (?, ?, ?, ?, ?)
+                    RETURNING id
+                    """, UUID.class, userId, taskId, featureCode, approvalStatus, userId);
+        }
+
+        return jdbcTemplate.queryForObject("""
+                INSERT INTO task.task_feature_policy_approvals (
+                    owner_id,
+                    task_id,
+                    feature_code,
+                    approval_status,
+                    requested_by,
+                    decided_at,
+                    decided_by,
+                    decision_reason
+                )
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?)
+                RETURNING id
+                """, UUID.class, userId, taskId, featureCode, approvalStatus, userId, userId, "Approved for test");
+    }
+
+    private UUID insertRecurringRule(UUID userId, UUID taskId, UUID policyApprovalId) {
+        return jdbcTemplate.queryForObject("""
+                INSERT INTO task.task_recurring_rules (
+                    owner_id,
+                    task_id,
+                    policy_approval_id,
+                    rule_status,
+                    frequency,
+                    starts_at,
+                    next_run_at,
+                    created_by,
+                    updated_by
+                )
+                VALUES (?, ?, ?, 'ACTIVE', 'WEEKLY', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '1 day', ?, ?)
+                RETURNING id
+                """, UUID.class, userId, taskId, policyApprovalId, userId, userId);
+    }
+
+    private UUID insertReminder(UUID userId, UUID taskId, UUID recurringRuleId, UUID policyApprovalId) {
+        return jdbcTemplate.queryForObject("""
+                INSERT INTO task.task_reminders (
+                    owner_id,
+                    task_id,
+                    recurring_rule_id,
+                    policy_approval_id,
+                    reminder_kind,
+                    remind_at,
+                    created_by,
+                    updated_by
+                )
+                VALUES (?, ?, ?, ?, 'RECURRING_INSTANCE', CURRENT_TIMESTAMP + INTERVAL '1 hour', ?, ?)
+                RETURNING id
+                """, UUID.class, userId, taskId, recurringRuleId, policyApprovalId, userId, userId);
+    }
+
     // [TRICK CỦA QA]: ĐÃ FIX TẬN GỐC - Tạo user giả trong bảng identity.users trước để lách Khóa Ngoại
     private UUID insertTask(UUID userId, String name) {
         jdbcTemplate.update("INSERT INTO identity.users (id) VALUES (?) ON CONFLICT (id) DO NOTHING", userId);
@@ -462,6 +629,11 @@ class TaskFlywayMigrationTest {
                 FROM task.categories
                 WHERE slug = ?
                 """, Long.class, slug);
+        return count == null ? 0L : count;
+    }
+
+    private long countRows(JdbcTemplate jdbc, String tableName) {
+        Long count = jdbc.queryForObject("SELECT count(*) FROM task." + tableName, Long.class);
         return count == null ? 0L : count;
     }
 
@@ -553,6 +725,18 @@ class TaskFlywayMigrationTest {
                 WHERE lower(schemaname) = 'task'
                   AND lower(indexname) = lower(?)
                 """, Integer.class, indexName);
+
+        assertThat(count).isEqualTo(1);
+    }
+
+    private void assertCheckConstraintExists(String constraintName) {
+        Integer count = jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                FROM information_schema.table_constraints
+                WHERE lower(constraint_schema) = 'task'
+                  AND lower(constraint_name) = lower(?)
+                  AND lower(constraint_type) = 'check'
+                """, Integer.class, constraintName);
 
         assertThat(count).isEqualTo(1);
     }
