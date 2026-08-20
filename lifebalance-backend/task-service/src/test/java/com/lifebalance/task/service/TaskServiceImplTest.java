@@ -3,6 +3,7 @@ package com.lifebalance.task.service;
 import com.lifebalance.task.dto.request.CreateTaskRequest;
 import com.lifebalance.task.dto.request.UpdateTaskRequest;
 import com.lifebalance.task.dto.response.TaskResponse;
+import com.lifebalance.task.history.TaskChangeHistoryService;
 import com.lifebalance.task.model.Category;
 import com.lifebalance.task.model.Task;
 import com.lifebalance.task.model.enums.PriorityLevel;
@@ -10,6 +11,7 @@ import com.lifebalance.task.model.enums.TaskStatus;
 import com.lifebalance.task.repository.CategoryRepository;
 import com.lifebalance.task.repository.TaskRepository;
 import com.lifebalance.task.service.impl.TaskServiceImpl;
+import com.lifebalance.task.validation.TaskLifecyclePolicy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,6 +40,12 @@ class TaskServiceImplTest {
 
     @Mock
     private CategoryRepository categoryRepository;
+
+    @Mock
+    private TaskLifecyclePolicy taskLifecyclePolicy;
+
+    @Mock
+    private TaskChangeHistoryService taskChangeHistoryService;
 
     @InjectMocks
     private TaskServiceImpl taskService;
