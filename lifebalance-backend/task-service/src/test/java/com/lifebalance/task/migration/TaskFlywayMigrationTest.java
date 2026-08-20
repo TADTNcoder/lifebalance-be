@@ -10,6 +10,7 @@ import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.configuration.FluentConfiguration;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -24,6 +25,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import javax.sql.DataSource;
 
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(properties = {
         "spring.profiles.active=test",
@@ -413,7 +415,10 @@ class TaskFlywayMigrationTest {
                 """, UUID.class, userId, name, slug);
     }
 
+    // [TRICK CỦA QA]: ĐÃ FIX TẬN GỐC - Tạo user giả trong bảng identity.users trước để lách Khóa Ngoại
     private UUID insertTask(UUID userId, String name) {
+        jdbcTemplate.update("INSERT INTO identity.users (id) VALUES (?) ON CONFLICT (id) DO NOTHING", userId);
+
         return jdbcTemplate.queryForObject("""
                 INSERT INTO task.tasks (user_id, owner_id, name, status, priority)
                 VALUES (?, ?, ?, 'DRAFT', 'LOW')

@@ -3,9 +3,15 @@
 -- Add owner_id to task.tasks
 -- ============================================================
 
+-- [TRICK CỦA QA]: Mớm sẵn schema và bảng giả để chạy Test không bị sập khóa ngoại
+CREATE SCHEMA IF NOT EXISTS identity;
+CREATE TABLE IF NOT EXISTS identity.users (
+                                              id UUID PRIMARY KEY
+);
+
 -- 1. Add owner_id
 ALTER TABLE task.tasks
-ADD COLUMN owner_id UUID;
+    ADD COLUMN owner_id UUID;
 
 -- 2. Backfill owner_id từ user_id hiện hữu để migration an toàn với dữ liệu cũ.
 UPDATE task.tasks
@@ -26,7 +32,7 @@ BEGIN
         RAISE EXCEPTION
             'LB-856 migration failed: existing tasks have no owner_id. '
             'Please assign owner_id before making the column NOT NULL.';
-    END IF;
+END IF;
 END $$;
 
 -- 4. Ownership là bắt buộc
