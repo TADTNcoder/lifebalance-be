@@ -2,6 +2,7 @@ package com.lifebalance.task.dto.request;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 import com.lifebalance.task.model.enums.PriorityLevel;
@@ -26,6 +27,10 @@ public class CreateTaskRequest {
     private PriorityLevel priority;
 
     private LocalDate deadline;
+
+    private OffsetDateTime plannedStartAt;
+
+    private OffsetDateTime plannedEndAt;
 
     @PositiveOrZero
     private Integer estimatedMinutes;

@@ -1,5 +1,6 @@
 package com.lifebalance.task.controller;
 
+import java.time.LocalDate;
 import java.util.UUID;
 
 import com.lifebalance.common.web.PageableLimits;
@@ -13,6 +14,8 @@ import com.lifebalance.security.keycloak.KeycloakUserPrincipal;
 import com.lifebalance.task.dto.request.CreateTaskRequest;
 import com.lifebalance.task.dto.request.UpdateTaskRequest;
 import com.lifebalance.task.dto.response.TaskResponse;
+import com.lifebalance.task.model.enums.PriorityLevel;
+import com.lifebalance.task.model.enums.TaskStatus;
 import com.lifebalance.task.service.TaskService;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -53,6 +56,11 @@ public class TaskController {
     @GetMapping
     public Page<TaskResponse> search(
             @RequestParam(defaultValue = "") String keyword,
+            @RequestParam(required = false) TaskStatus status,
+            @RequestParam(required = false) PriorityLevel priority,
+            @RequestParam(required = false) UUID categoryId,
+            @RequestParam(required = false) LocalDate deadlineFrom,
+            @RequestParam(required = false) LocalDate deadlineTo,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             HttpServletRequest httpRequest) {
@@ -64,6 +72,11 @@ public class TaskController {
         return taskService.search(
                 ownerId,
                 keyword,
+                status,
+                priority,
+                categoryId,
+                deadlineFrom,
+                deadlineTo,
                 pageable);
     }
 

@@ -1,5 +1,6 @@
 package com.lifebalance.task.service;
 
+import java.time.LocalDate;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -8,6 +9,8 @@ import org.springframework.data.domain.Pageable;
 import com.lifebalance.task.dto.request.CreateTaskRequest;
 import com.lifebalance.task.dto.request.UpdateTaskRequest;
 import com.lifebalance.task.dto.response.TaskResponse;
+import com.lifebalance.task.model.enums.PriorityLevel;
+import com.lifebalance.task.model.enums.TaskStatus;
 
 public interface TaskService {
 
@@ -23,6 +26,16 @@ public interface TaskService {
         Page<TaskResponse> search(
                         UUID ownerId,
                         String keyword,
+                        Pageable pageable);
+
+        Page<TaskResponse> search(
+                        UUID ownerId,
+                        String keyword,
+                        TaskStatus status,
+                        PriorityLevel priority,
+                        UUID categoryId,
+                        LocalDate deadlineFrom,
+                        LocalDate deadlineTo,
                         Pageable pageable);
 
         void archive(
