@@ -4,6 +4,9 @@ This document keeps the deployable database shape and the approved design
 surface aligned. Optional Task & Timeline Management features are modeled as
 policy-gated storage and are not enabled by this ERD alone.
 
+Sequence and activity flows for Task scheduling and lifecycle transitions are
+documented in [Task & Timeline Diagrams](task-timeline-diagrams.md).
+
 ## Resource Capital Management
 
 ```mermaid
