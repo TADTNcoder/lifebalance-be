@@ -114,7 +114,9 @@ class AnalyticsReportServiceImplTest {
         assertThat(new String(export.content(), StandardCharsets.UTF_8))
                 .contains("\"Report Type\",\"SUMMARY\"")
                 .contains("\"Actual Record Count\",\"7\"")
-                .contains("\"Average Efficiency Percent\",\"100.0000\"");
+                .contains("\"Average Efficiency Percent\",\"100.0000\"")
+                .contains("\"Variance Summary\",\"'=SUM(1,1)\"")
+                .contains("\"Reason\",\"'@audit\"");
         verify(historyRecorder).recordReport(
                 eq(OWNER_ID),
                 eq(OWNER_ID),
@@ -183,8 +185,8 @@ class AnalyticsReportServiceImplTest {
                 new BigDecimal("125.5000"),
                 "USD",
                 new BigDecimal("100.0000"),
-                "actualRecordCount=7;taskCount=4;totalActualMinutes=300",
-                "Monthly analytics"
+                "=SUM(1,1)",
+                "@audit"
         );
         ReflectionTestUtils.setField(report, "id", REPORT_ID);
         return report;
