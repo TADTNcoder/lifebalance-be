@@ -319,6 +319,7 @@ public class AdministrationSupportController {
     @GetMapping("/announcements")
     @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'announcement:read')")
     public Page<SystemAnnouncementResponse> searchAnnouncements(
+            @AuthenticationPrincipal Jwt jwt,
             @RequestParam(required = false) AnnouncementStatus status,
             @RequestParam(required = false) AnnouncementAudience audience,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime startsFrom,
@@ -327,6 +328,7 @@ public class AdministrationSupportController {
             Pageable pageable
     ) {
         return administrationSupportService.searchAnnouncements(
+                currentUser(jwt),
                 status,
                 audience,
                 startsFrom,

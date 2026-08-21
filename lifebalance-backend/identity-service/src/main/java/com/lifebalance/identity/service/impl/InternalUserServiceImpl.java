@@ -14,6 +14,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import com.lifebalance.identity.dto.UpdateUserRequest;
@@ -36,16 +37,30 @@ import com.lifebalance.identity.service.InternalUserService;
 import com.lifebalance.identity.service.UserAuthorizationCacheService;
 
 import jakarta.transaction.Transactional;
-import lombok.RequiredArgsConstructor;
-
-@RequiredArgsConstructor
 @Service
 public class InternalUserServiceImpl implements InternalUserService {
+
+    private static final String DEFAULT_USER_ROLE_CODE = "USER";
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final UserRoleRepository userRoleRepository;
     private final UserAuthorizationCacheService userAuthorizationCacheService;
+    private final boolean tokenRoleSyncEnabled;
+
+    public InternalUserServiceImpl(
+            UserRepository userRepository,
+            RoleRepository roleRepository,
+            UserRoleRepository userRoleRepository,
+            UserAuthorizationCacheService userAuthorizationCacheService,
+            @Value("${lifebalance.identity.token-role-sync.enabled:false}") boolean tokenRoleSyncEnabled
+    ) {
+        this.userRepository = userRepository;
+        this.roleRepository = roleRepository;
+        this.userRoleRepository = userRoleRepository;
+        this.userAuthorizationCacheService = userAuthorizationCacheService;
+        this.tokenRoleSyncEnabled = tokenRoleSyncEnabled;
+    }
 
     @Transactional
     @Override
@@ -58,7 +73,9 @@ public class InternalUserServiceImpl implements InternalUserService {
         if (optionalUser.isPresent()) {
             User user = requireActive(optionalUser.get());
             user = syncIdentityClaims(user, currentUser);
-            syncRolesFromToken(user, currentUser.getRoles());
+            if (tokenRoleSyncEnabled) {
+                syncRolesFromToken(user, currentUser.getRoles());
+            }
             return user;
         }
         if (userRepository.existsDeletedByKeycloakId(keycloakId)) {
@@ -75,11 +92,19 @@ public class InternalUserServiceImpl implements InternalUserService {
         }
 
         User user = new User();
+        UUID keycloakUuid = parseUuid(keycloakId);
+        if (keycloakUuid != null) {
+            user.setId(keycloakUuid);
+        }
         user.setKeycloakId(keycloakId);
         user.setUsername(username);
         user.setEmail(email);
         user = userRepository.save(user);
-        syncRolesFromToken(user, currentUser.getRoles());
+        if (tokenRoleSyncEnabled) {
+            syncRolesFromToken(user, currentUser.getRoles());
+        } else {
+            assignDefaultUserRole(user);
+        }
         return user;
     }
 
@@ -212,6 +237,26 @@ public class InternalUserServiceImpl implements InternalUserService {
         }
     }
 
+    private void assignDefaultUserRole(User user) {
+        if (user.getId() == null) {
+            return;
+        }
+
+        roleRepository.findByCode(DEFAULT_USER_ROLE_CODE).ifPresent(role -> {
+            if (userRoleRepository.existsByUserIdAndRoleId(user.getId(), role.getId())) {
+                return;
+            }
+            UserRole userRole = UserRole.builder()
+                    .id(new UserRoleId(user.getId(), role.getId()))
+                    .user(user)
+                    .role(role)
+                    .assignedAt(OffsetDateTime.now())
+                    .build();
+            userRoleRepository.save(userRole);
+            userAuthorizationCacheService.evictUser(user.getId());
+        });
+    }
+
     private static Set<String> normalizeRoles(Collection<String> roles) {
         if (roles == null || roles.isEmpty()) {
             return Set.of();
@@ -278,6 +323,14 @@ public class InternalUserServiceImpl implements InternalUserService {
 
         String normalized = value.trim();
         return normalized.isEmpty() ? null : normalized;
+    }
+
+    private static UUID parseUuid(String value) {
+        try {
+            return value == null ? null : UUID.fromString(value);
+        } catch (IllegalArgumentException exception) {
+            return null;
+        }
     }
 
 }

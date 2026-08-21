@@ -701,6 +701,7 @@ public class AdministrationSupportServiceImpl implements AdministrationSupportSe
 
     @Override
     public Page<SystemAnnouncementResponse> searchAnnouncements(
+            CurrentUser currentUser,
             AnnouncementStatus status,
             AnnouncementAudience audience,
             OffsetDateTime startsFrom,
@@ -708,14 +709,21 @@ public class AdministrationSupportServiceImpl implements AdministrationSupportSe
             String keyword,
             Pageable pageable
     ) {
+        ActorContext actor = actorContext(currentUser);
+        Set<AnnouncementAudience> visibleAudiences = actor.visibleAnnouncementAudiences();
+        Pageable normalizedPageable = PageableLimits.normalize(pageable);
+        if (audience != null && !visibleAudiences.contains(audience)) {
+            return Page.empty(normalizedPageable);
+        }
         validatePeriod(startsFrom, startsTo);
-        return systemAnnouncementRepository.search(
+        return systemAnnouncementRepository.searchVisible(
                 status,
                 audience,
+                visibleAudiences,
                 startsFrom,
                 startsTo,
                 keyword(keyword),
-                PageableLimits.normalize(pageable)
+                normalizedPageable
         ).map(this::toAnnouncementResponse);
     }
 
@@ -1327,8 +1335,27 @@ public class AdministrationSupportServiceImpl implements AdministrationSupportSe
 
     private record ActorContext(User user, Set<String> roleCodes) {
 
+        boolean isAdmin() {
+            return roleCodes.contains("admin");
+        }
+
         boolean canManageSupport() {
             return roleCodes.stream().anyMatch(STAFF_ROLE_CODES::contains);
+        }
+
+        Set<AnnouncementAudience> visibleAnnouncementAudiences() {
+            if (isAdmin()) {
+                return Set.of(
+                        AnnouncementAudience.ALL_USERS,
+                        AnnouncementAudience.STAFF,
+                        AnnouncementAudience.ADMINS
+                );
+            }
+            if (canManageSupport()) {
+                return Set.of(AnnouncementAudience.ALL_USERS, AnnouncementAudience.STAFF);
+            }
+
+            return Set.of(AnnouncementAudience.ALL_USERS);
         }
     }
 }

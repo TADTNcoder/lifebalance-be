@@ -1,6 +1,7 @@
 package com.lifebalance.identity.repository;
 
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -42,6 +43,41 @@ public interface SystemAnnouncementRepository extends JpaRepository<SystemAnnoun
     Page<SystemAnnouncement> search(
             @Param("status") AnnouncementStatus status,
             @Param("audience") AnnouncementAudience audience,
+            @Param("startsFrom") OffsetDateTime startsFrom,
+            @Param("startsTo") OffsetDateTime startsTo,
+            @Param("keyword") String keyword,
+            Pageable pageable
+    );
+
+    @Query(value = """
+            SELECT announcement
+            FROM SystemAnnouncement announcement
+            LEFT JOIN FETCH announcement.publishedBy
+            WHERE (:status IS NULL OR announcement.status = :status)
+              AND (:audience IS NULL OR announcement.audience = :audience)
+              AND announcement.audience IN :allowedAudiences
+              AND (:startsFrom IS NULL OR announcement.startsAt >= :startsFrom)
+              AND (:startsTo IS NULL OR announcement.startsAt <= :startsTo)
+              AND (:keyword IS NULL
+                   OR lower(announcement.title) LIKE :keyword
+                   OR lower(announcement.message) LIKE :keyword)
+            """,
+            countQuery = """
+            SELECT count(announcement)
+            FROM SystemAnnouncement announcement
+            WHERE (:status IS NULL OR announcement.status = :status)
+              AND (:audience IS NULL OR announcement.audience = :audience)
+              AND announcement.audience IN :allowedAudiences
+              AND (:startsFrom IS NULL OR announcement.startsAt >= :startsFrom)
+              AND (:startsTo IS NULL OR announcement.startsAt <= :startsTo)
+              AND (:keyword IS NULL
+                   OR lower(announcement.title) LIKE :keyword
+                   OR lower(announcement.message) LIKE :keyword)
+            """)
+    Page<SystemAnnouncement> searchVisible(
+            @Param("status") AnnouncementStatus status,
+            @Param("audience") AnnouncementAudience audience,
+            @Param("allowedAudiences") Collection<AnnouncementAudience> allowedAudiences,
             @Param("startsFrom") OffsetDateTime startsFrom,
             @Param("startsTo") OffsetDateTime startsTo,
             @Param("keyword") String keyword,

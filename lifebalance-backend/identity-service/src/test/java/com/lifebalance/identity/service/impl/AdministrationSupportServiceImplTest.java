@@ -8,8 +8,10 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -26,15 +28,19 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lifebalance.identity.dto.AssignSupportTicketRequest;
 import com.lifebalance.identity.dto.CreateSupportTicketRequest;
 import com.lifebalance.identity.dto.SupportTicketResponse;
+import com.lifebalance.identity.dto.SystemAnnouncementResponse;
 import com.lifebalance.identity.dto.UpdateSystemConfigurationRequest;
 import com.lifebalance.identity.exception.AdministrationSupportException;
 import com.lifebalance.identity.model.ActivityLog;
 import com.lifebalance.identity.model.SupportTicket;
 import com.lifebalance.identity.model.SupportTicketHistory;
+import com.lifebalance.identity.model.SystemAnnouncement;
 import com.lifebalance.identity.model.SystemConfiguration;
 import com.lifebalance.identity.model.User;
 import com.lifebalance.identity.model.enums.AccountStatus;
 import com.lifebalance.identity.model.enums.ActivityCategory;
+import com.lifebalance.identity.model.enums.AnnouncementAudience;
+import com.lifebalance.identity.model.enums.AnnouncementStatus;
 import com.lifebalance.identity.model.enums.AuditAction;
 import com.lifebalance.identity.model.enums.SupportTicketCategory;
 import com.lifebalance.identity.model.enums.SupportTicketPriority;
@@ -243,6 +249,66 @@ class AdministrationSupportServiceImplTest {
         verify(systemConfigurationRepository, never()).save(any());
         verify(activityLogRepository, never()).save(any());
         verify(auditLogService, never()).saveAudit(any(AuditLogCommand.class));
+    }
+
+    @Test
+    void searchAnnouncementsRestrictsRegularUserToPublicAudience() {
+        User regularUser = user(UUID.fromString("66666666-6666-6666-6666-666666666666"), "alice@example.com");
+        CurrentUser userPrincipal = new CurrentUser("kc-user-1", "alice", "alice@example.com", List.of("user"));
+
+        when(internalUserService.getCurrentUser(userPrincipal)).thenReturn(regularUser);
+        when(userRepository.findRoleCodesByUserId(regularUser.getId())).thenReturn(List.of("user"));
+
+        Page<SystemAnnouncementResponse> response = service.searchAnnouncements(
+                userPrincipal,
+                AnnouncementStatus.ACTIVE,
+                AnnouncementAudience.STAFF,
+                null,
+                null,
+                "",
+                Pageable.unpaged()
+        );
+
+        assertThat(response.getContent()).isEmpty();
+        verify(systemAnnouncementRepository, never()).searchVisible(any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void searchAnnouncementsAllowsStaffAudienceForManager() {
+        SystemAnnouncement announcement = SystemAnnouncement.builder()
+                .id(UUID.fromString("77777777-7777-7777-7777-777777777777"))
+                .title("Staff notice")
+                .message("Internal maintenance")
+                .audience(AnnouncementAudience.STAFF)
+                .status(AnnouncementStatus.ACTIVE)
+                .startsAt(OffsetDateTime.parse("2026-08-21T07:00:00Z"))
+                .publishedBy(actor)
+                .build();
+
+        when(internalUserService.getCurrentUser(currentUser)).thenReturn(actor);
+        when(userRepository.findRoleCodesByUserId(actor.getId())).thenReturn(List.of("manager"));
+        when(systemAnnouncementRepository.searchVisible(
+                eq(AnnouncementStatus.ACTIVE),
+                eq(AnnouncementAudience.STAFF),
+                eq(Set.of(AnnouncementAudience.ALL_USERS, AnnouncementAudience.STAFF)),
+                eq(null),
+                eq(null),
+                eq(null),
+                any(Pageable.class)
+        )).thenReturn(new PageImpl<>(List.of(announcement)));
+
+        Page<SystemAnnouncementResponse> response = service.searchAnnouncements(
+                currentUser,
+                AnnouncementStatus.ACTIVE,
+                AnnouncementAudience.STAFF,
+                null,
+                null,
+                "",
+                Pageable.unpaged()
+        );
+
+        assertThat(response.getContent()).hasSize(1);
+        assertThat(response.getContent().getFirst().audience()).isEqualTo(AnnouncementAudience.STAFF);
     }
 
     private static SupportTicket ticket(User requester) {

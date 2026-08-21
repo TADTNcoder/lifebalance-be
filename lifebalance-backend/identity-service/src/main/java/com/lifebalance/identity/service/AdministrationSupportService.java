@@ -124,6 +124,7 @@ public interface AdministrationSupportService {
     );
 
     Page<SystemAnnouncementResponse> searchAnnouncements(
+            CurrentUser currentUser,
             AnnouncementStatus status,
             AnnouncementAudience audience,
             OffsetDateTime startsFrom,
