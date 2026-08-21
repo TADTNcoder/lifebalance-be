@@ -1,9 +1,14 @@
 package com.lifebalance.identity.service.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.lifebalance.identity.error.IdentityErrorCode;
+import com.lifebalance.identity.exception.RolePermissionAssignmentException;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -110,6 +115,46 @@ class RolePermissionServiceImplTest {
         assertThat(auditCaptor.getValue().action()).isEqualTo(AuditAction.REVOKE_PERMISSION);
         assertThat(auditCaptor.getValue().actorId()).isEqualTo(actorId);
         assertThat(auditCaptor.getValue().oldValue()).isEqualTo("audit:read");
+    }
+
+    @Test
+    void shouldRejectAssigningPermissionThatIsAlreadyAssignedWithoutAuditOrCacheEviction() {
+        UUID roleId = UUID.randomUUID();
+        UUID permissionId = UUID.randomUUID();
+        AssignPermissionRequest request = new AssignPermissionRequest();
+        request.setPermissionId(permissionId);
+
+        when(roleRepository.findById(roleId)).thenReturn(Optional.of(role(roleId, "manager")));
+        when(permissionRepository.findById(permissionId)).thenReturn(Optional.of(permission(permissionId, "audit:read")));
+        when(rolePermissionRepository.existsByIdRoleIdAndIdPermissionId(roleId, permissionId)).thenReturn(true);
+
+        assertThatThrownBy(() -> createService().assignPermission(roleId, request))
+                .isInstanceOf(RolePermissionAssignmentException.class)
+                .extracting("code")
+                .isEqualTo(IdentityErrorCode.PERMISSION_ALREADY_ASSIGNED_TO_ROLE);
+
+        verify(rolePermissionRepository, never()).save(any());
+        verify(userAuthorizationCacheService, never()).evictUsersByRoleId(any());
+        verify(auditLogService, never()).saveAudit(any());
+    }
+
+    @Test
+    void shouldRejectRevokingPermissionThatIsNotAssignedWithoutAuditOrCacheEviction() {
+        UUID roleId = UUID.randomUUID();
+        UUID permissionId = UUID.randomUUID();
+
+        when(roleRepository.findById(roleId)).thenReturn(Optional.of(role(roleId, "manager")));
+        when(permissionRepository.findById(permissionId)).thenReturn(Optional.of(permission(permissionId, "audit:read")));
+        when(rolePermissionRepository.existsByIdRoleIdAndIdPermissionId(roleId, permissionId)).thenReturn(false);
+
+        assertThatThrownBy(() -> createService().removePermission(roleId, permissionId))
+                .isInstanceOf(RolePermissionAssignmentException.class)
+                .extracting("code")
+                .isEqualTo(IdentityErrorCode.PERMISSION_NOT_ASSIGNED_TO_ROLE);
+
+        verify(rolePermissionRepository, never()).deleteByIdRoleIdAndIdPermissionId(any(), any());
+        verify(userAuthorizationCacheService, never()).evictUsersByRoleId(any());
+        verify(auditLogService, never()).saveAudit(any());
     }
 
     private RolePermissionServiceImpl createService() {

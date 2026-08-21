@@ -20,6 +20,7 @@ import com.lifebalance.identity.dto.UpdateUserRequest;
 import com.lifebalance.identity.dto.UserResponse;
 import com.lifebalance.identity.exception.UserEmailAlreadyExistsException;
 import com.lifebalance.identity.exception.UserInactiveException;
+import com.lifebalance.identity.exception.UserNotFoundException;
 import com.lifebalance.identity.exception.UserUsernameAlreadyExistsException;
 import com.lifebalance.identity.exception.UserValidationException;
 import com.lifebalance.identity.model.User;
@@ -84,17 +85,21 @@ public class InternalUserServiceImpl implements InternalUserService {
 
     @Override
     public User getCurrentUser(CurrentUser currentUser) {
-        return userRepository.findByKeycloakId(currentUser.getUserId())
+        String keycloakId = requireKeycloakSubject(currentUser);
+
+        return userRepository.findByKeycloakId(keycloakId)
                 .map(InternalUserServiceImpl::requireActive)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new UserNotFoundException(keycloakId));
     }
 
     @Transactional
     @Override
     public User updateCurrentUser(CurrentUser currentUser, UpdateUserRequest request) {
-        User user = userRepository.findByKeycloakId(currentUser.getUserId())
+        String keycloakId = requireKeycloakSubject(currentUser);
+
+        User user = userRepository.findByKeycloakId(keycloakId)
                 .map(InternalUserServiceImpl::requireActive)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new UserNotFoundException(keycloakId));
 
         user.setDisplayName(request.getDisplayName());
         user.setEmail(request.getEmail());
@@ -233,15 +238,23 @@ public class InternalUserServiceImpl implements InternalUserService {
     }
 
     private static void validateCurrentUser(CurrentUser currentUser) {
-        if (currentUser == null) {
-            throw new UserValidationException("Current user is required");
-        }
-        if (normalize(currentUser.getUserId()) == null) {
-            throw new UserValidationException("Keycloak subject is required");
-        }
+        requireKeycloakSubject(currentUser);
         if (normalizeEmail(currentUser.getEmail()) == null) {
             throw new UserValidationException("Email is required");
         }
+    }
+
+    private static String requireKeycloakSubject(CurrentUser currentUser) {
+        if (currentUser == null) {
+            throw new UserValidationException("Current user is required");
+        }
+
+        String keycloakId = normalize(currentUser.getUserId());
+        if (keycloakId == null) {
+            throw new UserValidationException("Keycloak subject is required");
+        }
+
+        return keycloakId;
     }
 
     private static String normalizeEmail(String email) {

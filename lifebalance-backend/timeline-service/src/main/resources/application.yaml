@@ -9,6 +9,19 @@ spring:
   application:
     name: timeline-service
 
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: timeline
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    locations: classpath:db/migration/postgresql
+
 management:
   endpoints:
     web:
@@ -24,6 +37,9 @@ lifebalance:
   security:
     keycloak:
       client-id: ${KEYCLOAK_CLIENT_ID:lifebalance-api}
+  timeline:
+    policy:
+      conflict-policy: ${TIMELINE_CONFLICT_POLICY:REJECT}
 
 info:
   app:

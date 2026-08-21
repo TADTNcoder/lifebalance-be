@@ -11,6 +11,9 @@ import com.lifebalance.identity.audit.AuditRequestMetadata;
 import com.lifebalance.identity.audit.CurrentAuditActorResolver;
 import com.lifebalance.identity.audit.CurrentAuditRequestMetadataResolver;
 import com.lifebalance.identity.dto.AssignRoleRequest;
+import com.lifebalance.identity.exception.RoleNotFoundException;
+import com.lifebalance.identity.exception.UserNotFoundException;
+import com.lifebalance.identity.exception.UserRoleAssignmentException;
 import com.lifebalance.identity.dto.RoleResponse;
 import com.lifebalance.identity.model.Role;
 import com.lifebalance.identity.model.User;
@@ -56,16 +59,16 @@ public class UserRoleServiceImpl implements UserRoleService {
             AssignRoleRequest request,
             UUID assignedBy) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new UserNotFoundException(userId));
 
         Role role = roleRepository.findById(request.getRoleId())
-                .orElseThrow(() -> new RuntimeException("Role not found"));
+                .orElseThrow(() -> new RoleNotFoundException(request.getRoleId()));
 
         if (userRoleRepository.existsByUserIdAndRoleId(userId, request.getRoleId())) {
-            throw new RuntimeException("Role already assigned");
+            throw UserRoleAssignmentException.alreadyAssigned(userId, request.getRoleId());
         }
         User assigner = userRepository.findById(assignedBy)
-                .orElseThrow(() -> new RuntimeException("AssignedBy not found"));
+                .orElseThrow(() -> new UserNotFoundException(assignedBy));
         UserRole userRole = new UserRole();
 
         userRole.setId(new UserRoleId(
@@ -96,12 +99,12 @@ public class UserRoleServiceImpl implements UserRoleService {
             UUID roleId) {
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new UserNotFoundException(userId));
         Role role = roleRepository.findById(roleId)
-                .orElseThrow(() -> new RuntimeException("Role not found"));
+                .orElseThrow(() -> new RoleNotFoundException(roleId));
 
         if (!userRoleRepository.existsByUserIdAndRoleId(userId, roleId)) {
-            throw new RuntimeException("User does not have this role");
+            throw UserRoleAssignmentException.notAssigned(userId, roleId);
         }
 
         userRoleRepository.deleteByUserIdAndRoleId(userId, roleId);

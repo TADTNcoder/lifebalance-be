@@ -1,0 +1,25 @@
+package com.lifebalance.finance.error;
+
+public final class FinanceErrorCode {
+
+    public static final String FINANCE_ACCOUNT_NOT_FOUND = "FINANCE_ACCOUNT_NOT_FOUND";
+    public static final String FINANCE_ACCOUNT_ALREADY_EXISTS = "FINANCE_ACCOUNT_ALREADY_EXISTS";
+    public static final String FINANCE_ACCOUNT_NOT_ACTIVE = "FINANCE_ACCOUNT_NOT_ACTIVE";
+    public static final String FINANCE_CATEGORY_NOT_FOUND = "FINANCE_CATEGORY_NOT_FOUND";
+    public static final String FINANCE_CATEGORY_ALREADY_EXISTS = "FINANCE_CATEGORY_ALREADY_EXISTS";
+    public static final String FINANCE_CATEGORY_TYPE_MISMATCH = "FINANCE_CATEGORY_TYPE_MISMATCH";
+    public static final String FINANCE_TRANSACTION_NOT_FOUND = "FINANCE_TRANSACTION_NOT_FOUND";
+    public static final String FINANCE_TRANSACTION_INVALID = "FINANCE_TRANSACTION_INVALID";
+    public static final String FINANCE_TRANSACTION_NOT_POSTED = "FINANCE_TRANSACTION_NOT_POSTED";
+    public static final String FINANCE_BUDGET_NOT_FOUND = "FINANCE_BUDGET_NOT_FOUND";
+    public static final String FINANCE_BUDGET_INVALID = "FINANCE_BUDGET_INVALID";
+    public static final String FINANCE_BUDGET_ALREADY_EXISTS = "FINANCE_BUDGET_ALREADY_EXISTS";
+    public static final String FINANCE_RECURRING_RULE_NOT_FOUND = "FINANCE_RECURRING_RULE_NOT_FOUND";
+    public static final String FINANCE_RECURRING_RULE_INVALID = "FINANCE_RECURRING_RULE_INVALID";
+    public static final String FINANCE_CURRENCY_MISMATCH = "FINANCE_CURRENCY_MISMATCH";
+    public static final String FINANCE_INVALID_CURRENCY = "FINANCE_INVALID_CURRENCY";
+    public static final String FINANCE_INVALID_PERIOD = "FINANCE_INVALID_PERIOD";
+
+    private FinanceErrorCode() {
+    }
+}

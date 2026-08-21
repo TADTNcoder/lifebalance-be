@@ -30,6 +30,7 @@ import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalCycleRe
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalHistoryRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.MoneyCapitalRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.TimeCapitalRepository;
+import com.lifebalance.resourcecapital.integration.CapitalIntegrationPublisher;
 import com.lifebalance.resourcecapital.service.CapitalAdjustmentService;
 import com.lifebalance.resourcecapital.service.CapitalAllocationReader;
 import org.springframework.data.domain.Page;
@@ -61,6 +62,7 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
     private final CapitalAdjustmentRepository capitalAdjustmentRepository;
     private final CapitalHistoryRepository capitalHistoryRepository;
     private final CapitalAllocationReader capitalAllocationReader;
+    private final CapitalIntegrationPublisher capitalIntegrationPublisher;
 
     public CapitalAdjustmentServiceImpl(
             CapitalCycleRepository capitalCycleRepository,
@@ -68,13 +70,15 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
             MoneyCapitalRepository moneyCapitalRepository,
             CapitalAdjustmentRepository capitalAdjustmentRepository,
             CapitalHistoryRepository capitalHistoryRepository,
-            CapitalAllocationReader capitalAllocationReader) {
+            CapitalAllocationReader capitalAllocationReader,
+            CapitalIntegrationPublisher capitalIntegrationPublisher) {
         this.capitalCycleRepository = capitalCycleRepository;
         this.timeCapitalRepository = timeCapitalRepository;
         this.moneyCapitalRepository = moneyCapitalRepository;
         this.capitalAdjustmentRepository = capitalAdjustmentRepository;
         this.capitalHistoryRepository = capitalHistoryRepository;
         this.capitalAllocationReader = capitalAllocationReader;
+        this.capitalIntegrationPublisher = capitalIntegrationPublisher;
     }
 
     @Transactional
@@ -163,6 +167,13 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
                 overAllocation,
                 reason,
                 "Over-allocation approved for time capital adjustment.");
+        publishAdjustmentOverAllocationIfNeeded(
+                ownerId,
+                cycleId,
+                CapitalKind.TIME,
+                actionType,
+                overAllocation,
+                reason);
 
         return new TimeCapitalAdjustmentResponse(
                 cycleId,
@@ -228,6 +239,13 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
                 overAllocation,
                 reason,
                 "Over-allocation approved for money capital adjustment.");
+        publishAdjustmentOverAllocationIfNeeded(
+                ownerId,
+                cycleId,
+                CapitalKind.MONEY,
+                actionType,
+                overAllocation,
+                reason);
 
         return new MoneyCapitalAdjustmentResponse(
                 cycleId,
@@ -335,6 +353,13 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
                 overAllocation,
                 reason,
                 "Over-allocation approved for time capital adjustment.");
+        publishAdjustmentOverAllocationIfNeeded(
+                ownerId,
+                cycle.getId(),
+                CapitalKind.TIME,
+                toHistoryActionType(adjustmentType),
+                overAllocation,
+                reason);
         return response;
     }
 
@@ -409,6 +434,13 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
                 overAllocation,
                 reason,
                 "Over-allocation approved for money capital adjustment.");
+        publishAdjustmentOverAllocationIfNeeded(
+                ownerId,
+                cycle.getId(),
+                CapitalKind.MONEY,
+                toHistoryActionType(adjustmentType),
+                overAllocation,
+                reason);
         return response;
     }
 
@@ -579,6 +611,27 @@ public class CapitalAdjustmentServiceImpl implements CapitalAdjustmentService {
                 CapitalActorType.USER,
                 ownerId));
         return history.getId();
+    }
+
+    private void publishAdjustmentOverAllocationIfNeeded(
+            UUID ownerId,
+            UUID cycleId,
+            CapitalKind capitalType,
+            CapitalActionType actionType,
+            AdjustmentOverAllocationResult overAllocation,
+            String reason
+    ) {
+        if (!overAllocation.overAllocated()) {
+            return;
+        }
+        capitalIntegrationPublisher.publishAdjustmentOverAllocationApproved(
+                ownerId,
+                cycleId,
+                capitalType.name(),
+                actionType.name(),
+                overAllocation.requestedAmount(),
+                overAllocation.remainingAfterAdjustment(),
+                reason);
     }
 
     private CapitalAdjustmentResponseDTO toResponse(CapitalAdjustment adjustment) {

@@ -20,6 +20,18 @@ public interface CapitalCycleRepository extends JpaRepository<CapitalCycle, UUID
 
     Optional<CapitalCycle> findByIdAndOwnerId(UUID id, UUID ownerId);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select cycle
+            from CapitalCycle cycle
+            where cycle.id = :id
+              and cycle.ownerId = :ownerId
+            """)
+    Optional<CapitalCycle> findByIdAndOwnerIdForUpdate(
+            @Param("id") UUID id,
+            @Param("ownerId") UUID ownerId
+    );
+
     Page<CapitalCycle> findByOwnerIdAndStatus(UUID ownerId, CapitalCycleStatus status, Pageable pageable);
 
     Optional<CapitalCycle> findFirstByOwnerIdAndStatusOrderByActivatedAtDescCreatedAtDesc(

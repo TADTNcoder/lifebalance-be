@@ -6,6 +6,8 @@ import com.lifebalance.resourcecapital.dto.CapitalCycleResponse;
 import com.lifebalance.resourcecapital.dto.CloseCapitalCycleRequest;
 import com.lifebalance.resourcecapital.dto.CreateCapitalCycleRequest;
 import com.lifebalance.resourcecapital.dto.ReopenCapitalCycleRequest;
+import com.lifebalance.resourcecapital.dto.TransferRemainingCapitalRequest;
+import com.lifebalance.resourcecapital.dto.TransferRemainingCapitalResponse;
 import com.lifebalance.resourcecapital.dto.UpdateCapitalCycleRequest;
 import com.lifebalance.resourcecapital.service.CapitalCycleService;
 import com.lifebalance.security.keycloak.KeycloakUserPrincipal;
@@ -147,6 +149,34 @@ public class CapitalCycleController {
     ) {
         UUID ownerId = resolveOwnerId(currentUser);
         CapitalCycleResponse response = capitalCycleService.reopenCycle(ownerId, id, request);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @Operation(
+            summary = "Transfer remaining capital",
+            description = "Transfer positive remaining capital from a closed source cycle to a valid future target cycle after explicit confirmation."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Remaining capital transferred"),
+            @ApiResponse(responseCode = "400", description = "Request validation failed"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "404", description = "Source or target capital cycle not found"),
+            @ApiResponse(responseCode = "409", description = "Transfer policy or balance validation failed")
+    })
+    @PostMapping("/{id}/transfer-remaining")
+    public ResponseEntity<TransferRemainingCapitalResponse> transferRemaining(
+            @PathVariable UUID id,
+            @Valid @RequestBody TransferRemainingCapitalRequest request,
+            @RequestAttribute(value = CURRENT_USER_ATTRIBUTE, required = false)
+            KeycloakUserPrincipal currentUser
+    ) {
+        UUID ownerId = resolveOwnerId(currentUser);
+        TransferRemainingCapitalResponse response = capitalCycleService.transferRemainingCapital(
+                ownerId,
+                id,
+                request
+        );
 
         return ResponseEntity.ok(response);
     }

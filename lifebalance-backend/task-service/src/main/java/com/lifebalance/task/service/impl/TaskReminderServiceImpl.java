@@ -5,6 +5,8 @@ import com.lifebalance.task.dto.request.TaskLifecycleActionRequest;
 import com.lifebalance.task.dto.response.ReminderResponse;
 import com.lifebalance.task.error.TaskExceptions;
 import com.lifebalance.task.history.TaskChangeHistoryService;
+import com.lifebalance.task.integration.TaskIntegrationAction;
+import com.lifebalance.task.integration.TaskIntegrationPublisher;
 import com.lifebalance.task.model.Task;
 import com.lifebalance.task.model.TaskReminder;
 import com.lifebalance.task.model.enums.OptionalFeaturePolicyStatus;
@@ -32,6 +34,7 @@ public class TaskReminderServiceImpl implements TaskReminderService {
     private final TaskRepository taskRepository;
     private final TaskLifecyclePolicy taskLifecyclePolicy;
     private final TaskChangeHistoryService taskChangeHistoryService;
+    private final TaskIntegrationPublisher taskIntegrationPublisher;
 
     @Override
     @Transactional
@@ -62,6 +65,11 @@ public class TaskReminderServiceImpl implements TaskReminderService {
                 "reminder",
                 null,
                 reminderSnapshot(reminder),
+                request.getReason());
+        taskIntegrationPublisher.publishReminderChanged(
+                reminder,
+                ownerId,
+                TaskIntegrationAction.TASK_REMINDER_CREATED,
                 request.getReason());
 
         return mapToResponse(reminder);
@@ -99,6 +107,11 @@ public class TaskReminderServiceImpl implements TaskReminderService {
                 oldSnapshot,
                 reminderSnapshot(reminder),
                 request.getReason());
+        taskIntegrationPublisher.publishReminderChanged(
+                reminder,
+                ownerId,
+                TaskIntegrationAction.TASK_REMINDER_UPDATED,
+                request.getReason());
 
         return mapToResponse(reminder);
     }
@@ -125,6 +138,11 @@ public class TaskReminderServiceImpl implements TaskReminderService {
                 "reminder",
                 oldSnapshot,
                 reminderSnapshot(reminder),
+                reason);
+        taskIntegrationPublisher.publishReminderChanged(
+                reminder,
+                ownerId,
+                TaskIntegrationAction.TASK_REMINDER_CANCELLED,
                 reason);
     }
 

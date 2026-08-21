@@ -1,11 +1,15 @@
 package com.lifebalance.identity.service.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.lifebalance.identity.error.IdentityErrorCode;
+import com.lifebalance.identity.exception.UserRoleAssignmentException;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -116,6 +120,47 @@ class UserRoleServiceImplTest {
         assertThat(auditCaptor.getValue().action()).isEqualTo(AuditAction.REVOKE_ROLE);
         assertThat(auditCaptor.getValue().actorId()).isEqualTo(actorId);
         assertThat(auditCaptor.getValue().oldValue()).isEqualTo("staff");
+    }
+
+    @Test
+    void shouldRejectAssigningRoleThatIsAlreadyAssignedWithoutAuditOrCacheEviction() {
+        UUID userId = UUID.randomUUID();
+        UUID roleId = UUID.randomUUID();
+        UUID actorId = UUID.randomUUID();
+        AssignRoleRequest request = new AssignRoleRequest();
+        request.setRoleId(roleId);
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user(userId, "kc-user", "alice")));
+        when(roleRepository.findById(roleId)).thenReturn(Optional.of(role(roleId, "staff")));
+        when(userRoleRepository.existsByUserIdAndRoleId(userId, roleId)).thenReturn(true);
+
+        assertThatThrownBy(() -> createService().assignRole(userId, request, actorId))
+                .isInstanceOf(UserRoleAssignmentException.class)
+                .extracting("code")
+                .isEqualTo(IdentityErrorCode.ROLE_ALREADY_ASSIGNED_TO_USER);
+
+        verify(userRoleRepository, never()).save(any());
+        verify(userAuthorizationCacheService, never()).evictUser(any());
+        verify(auditLogService, never()).saveAudit(any());
+    }
+
+    @Test
+    void shouldRejectRevokingRoleThatIsNotAssignedWithoutAuditOrCacheEviction() {
+        UUID userId = UUID.randomUUID();
+        UUID roleId = UUID.randomUUID();
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user(userId, "kc-user", "alice")));
+        when(roleRepository.findById(roleId)).thenReturn(Optional.of(role(roleId, "staff")));
+        when(userRoleRepository.existsByUserIdAndRoleId(userId, roleId)).thenReturn(false);
+
+        assertThatThrownBy(() -> createService().removeRole(userId, roleId))
+                .isInstanceOf(UserRoleAssignmentException.class)
+                .extracting("code")
+                .isEqualTo(IdentityErrorCode.ROLE_NOT_ASSIGNED_TO_USER);
+
+        verify(userRoleRepository, never()).deleteByUserIdAndRoleId(any(), any());
+        verify(userAuthorizationCacheService, never()).evictUser(any());
+        verify(auditLogService, never()).saveAudit(any());
     }
 
     private UserRoleServiceImpl createService() {

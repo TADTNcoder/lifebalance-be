@@ -28,6 +28,7 @@ import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalCycleRe
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalHistoryRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.MoneyCapitalRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.TimeCapitalRepository;
+import com.lifebalance.resourcecapital.integration.CapitalIntegrationPublisher;
 import com.lifebalance.resourcecapital.service.CapitalAllocationReader;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -76,6 +77,9 @@ class CapitalAdjustmentServiceImplTest {
 
     @Mock
     private CapitalAllocationReader capitalAllocationReader;
+
+    @Mock
+    private CapitalIntegrationPublisher capitalIntegrationPublisher;
 
     @Test
     void adjustTimeCapitalIncreasesPlannedMinutesAndRecordsHistory() {
@@ -532,7 +536,8 @@ class CapitalAdjustmentServiceImplTest {
                 moneyCapitalRepository,
                 capitalAdjustmentRepository,
                 capitalHistoryRepository,
-                capitalAllocationReader
+                capitalAllocationReader,
+                capitalIntegrationPublisher
         );
     }
 

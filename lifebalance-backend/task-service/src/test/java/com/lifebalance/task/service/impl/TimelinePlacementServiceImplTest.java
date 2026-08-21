@@ -5,6 +5,7 @@ import com.lifebalance.task.dto.request.RescheduleTimelinePlacementRequest;
 import com.lifebalance.task.dto.request.ScheduleTimelinePlacementRequest;
 import com.lifebalance.task.error.TaskErrorCode;
 import com.lifebalance.task.history.TaskChangeHistoryService;
+import com.lifebalance.task.integration.TaskIntegrationPublisher;
 import com.lifebalance.task.model.Task;
 import com.lifebalance.task.model.TimelinePlacement;
 import com.lifebalance.task.model.enums.TaskStatus;
@@ -45,6 +46,9 @@ class TimelinePlacementServiceImplTest {
 
     @Mock
     private TaskChangeHistoryService taskChangeHistoryService;
+
+    @Mock
+    private TaskIntegrationPublisher taskIntegrationPublisher;
 
     @InjectMocks
     private TimelinePlacementServiceImpl timelinePlacementService;

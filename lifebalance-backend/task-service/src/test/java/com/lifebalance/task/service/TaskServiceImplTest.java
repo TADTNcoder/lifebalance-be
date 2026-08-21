@@ -10,6 +10,7 @@ import com.lifebalance.task.dto.response.TaskResponse;
 import com.lifebalance.task.error.TaskErrorCode;
 import com.lifebalance.task.error.TaskExceptions;
 import com.lifebalance.task.history.TaskChangeHistoryService;
+import com.lifebalance.task.integration.TaskIntegrationPublisher;
 import com.lifebalance.task.model.Category;
 import com.lifebalance.task.model.Task;
 import com.lifebalance.task.model.TimelinePlacement;
@@ -60,6 +61,9 @@ class TaskServiceImplTest {
 
     @Mock
     private TaskChangeHistoryService taskChangeHistoryService;
+
+    @Mock
+    private TaskIntegrationPublisher taskIntegrationPublisher;
 
     @InjectMocks
     private TaskServiceImpl taskService;

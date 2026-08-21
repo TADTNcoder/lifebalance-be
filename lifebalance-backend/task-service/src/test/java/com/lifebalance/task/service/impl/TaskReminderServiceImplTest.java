@@ -5,6 +5,7 @@ import com.lifebalance.task.dto.request.ReminderRequest;
 import com.lifebalance.task.dto.request.TaskLifecycleActionRequest;
 import com.lifebalance.task.error.TaskErrorCode;
 import com.lifebalance.task.history.TaskChangeHistoryService;
+import com.lifebalance.task.integration.TaskIntegrationPublisher;
 import com.lifebalance.task.model.Task;
 import com.lifebalance.task.model.TaskReminder;
 import com.lifebalance.task.model.enums.OptionalFeaturePolicyStatus;
@@ -45,6 +46,9 @@ class TaskReminderServiceImplTest {
     @Mock
     private TaskChangeHistoryService taskChangeHistoryService;
 
+    @Mock
+    private TaskIntegrationPublisher taskIntegrationPublisher;
+
     private TaskReminderServiceImpl taskReminderService;
 
     private final UUID ownerId = UUID.randomUUID();
@@ -59,7 +63,8 @@ class TaskReminderServiceImplTest {
                 taskReminderRepository,
                 taskRepository,
                 new TaskLifecyclePolicy(),
-                taskChangeHistoryService);
+                taskChangeHistoryService,
+                taskIntegrationPublisher);
         task = Task.builder()
                 .id(taskId)
                 .ownerId(ownerId)

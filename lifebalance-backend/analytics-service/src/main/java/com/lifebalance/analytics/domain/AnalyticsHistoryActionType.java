@@ -1,0 +1,13 @@
+package com.lifebalance.analytics.domain;
+
+public enum AnalyticsHistoryActionType {
+    ACTUAL_RECORDED,
+    ACTUAL_UPDATED,
+    ACTUAL_ARCHIVED,
+    EVALUATION_GENERATED,
+    EVALUATION_REGENERATED,
+    EVALUATION_ARCHIVED,
+    REPORT_GENERATED,
+    REPORT_ARCHIVED,
+    REPORT_EXPORTED
+}

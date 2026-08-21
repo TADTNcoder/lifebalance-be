@@ -10,6 +10,9 @@ import com.lifebalance.identity.audit.AuditRequestMetadata;
 import com.lifebalance.identity.audit.CurrentAuditActorResolver;
 import com.lifebalance.identity.audit.CurrentAuditRequestMetadataResolver;
 import com.lifebalance.identity.dto.AssignPermissionRequest;
+import com.lifebalance.identity.exception.PermissionNotFoundException;
+import com.lifebalance.identity.exception.RoleNotFoundException;
+import com.lifebalance.identity.exception.RolePermissionAssignmentException;
 import com.lifebalance.identity.dto.PermissionResponse;
 import com.lifebalance.identity.model.Permission;
 import com.lifebalance.identity.model.Role;
@@ -54,16 +57,16 @@ public class RolePermissionServiceImpl implements RolePermissionService {
             AssignPermissionRequest request) {
 
         Role role = roleRepository.findById(roleId)
-                .orElseThrow(() -> new RuntimeException("Role not found"));
+                .orElseThrow(() -> new RoleNotFoundException(roleId));
 
         Permission permission = permissionRepository.findById(request.getPermissionId())
-                .orElseThrow(() -> new RuntimeException("Permission not found"));
+                .orElseThrow(() -> new PermissionNotFoundException(request.getPermissionId()));
 
         if (rolePermissionRepository.existsByIdRoleIdAndIdPermissionId(
                 roleId,
                 permission.getId())) {
 
-            throw new RuntimeException("Permission already assigned");
+            throw RolePermissionAssignmentException.alreadyAssigned(roleId, permission.getId());
         }
 
         RolePermission rolePermission = RolePermission.builder()
@@ -94,15 +97,15 @@ public class RolePermissionServiceImpl implements RolePermissionService {
             UUID permissionId) {
 
         Role role = roleRepository.findById(roleId)
-                .orElseThrow(() -> new RuntimeException("Role not found"));
+                .orElseThrow(() -> new RoleNotFoundException(roleId));
         Permission permission = permissionRepository.findById(permissionId)
-                .orElseThrow(() -> new RuntimeException("Permission not found"));
+                .orElseThrow(() -> new PermissionNotFoundException(permissionId));
 
         if (!rolePermissionRepository.existsByIdRoleIdAndIdPermissionId(
                 roleId,
                 permissionId)) {
 
-            throw new RuntimeException("Permission not assigned");
+            throw RolePermissionAssignmentException.notAssigned(roleId, permissionId);
         }
 
         rolePermissionRepository.deleteByIdRoleIdAndIdPermissionId(

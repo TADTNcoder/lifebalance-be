@@ -5,6 +5,8 @@ lifebalance:
   integration:
     task-service:
       base-url: ${TASK_SERVICE_BASE_URL:http://localhost:8092}
+    notification-service:
+      base-url: ${NOTIFICATION_SERVICE_BASE_URL:http://localhost:8094}
 
 spring:
   flyway:

@@ -2,6 +2,12 @@ server:
   port: ${AI_SERVICE_PORT:8095}
 
 spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/lifebalance_ai}
+    username: ${SPRING_DATASOURCE_USERNAME:ai_user}
+    password: ${SPRING_DATASOURCE_PASSWORD:change-me}
+    driver-class-name: org.postgresql.Driver
+
   security:
     oauth2:
       resourceserver:
