@@ -1,6 +1,7 @@
 package com.lifebalance.task.dto.request;
 
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.math.BigDecimal;
 import java.util.UUID;
 
@@ -29,6 +30,10 @@ public class UpdateTaskRequest {
     private PriorityLevel priority;
 
     private LocalDate deadline;
+
+    private OffsetDateTime plannedStartAt;
+
+    private OffsetDateTime plannedEndAt;
 
     @Min(0)
     @Max(100)

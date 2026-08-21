@@ -87,15 +87,18 @@ class TaskFlywayMigrationTest {
         assertColumnExists("task_tags", "task_id", "uuid");
         assertColumnExists("task_tags", "tag_id", "uuid");
         assertColumnExists("task_tags", "created_at", "timestamp with time zone");
+        assertColumnExists("task_tags", "assigned_at", "timestamp with time zone");
         assertColumnIsNotNullable("task_tags", "task_id");
         assertColumnIsNotNullable("task_tags", "tag_id");
         assertColumnIsNotNullable("task_tags", "created_at");
+        assertColumnIsNotNullable("task_tags", "assigned_at");
         assertPrimaryKeyColumns("task_tags", List.of("task_id", "tag_id"));
         assertForeignKeyDeleteRule("task_tags", "fk_task_tags_task", "tasks", "CASCADE");
         assertForeignKeyDeleteRule("task_tags", "fk_task_tags_tag", "tags", "CASCADE");
         assertIndexDoesNotExist("idx_task_tags_tag_id");
         assertIndexExists("idx_task_tags_tag_task");
         assertIndexColumns("idx_task_tags_tag_task", List.of("tag_id", "task_id"));
+        assertIndexExists("idx_task_tags_task_assigned");
     }
 
     @Test
@@ -116,6 +119,90 @@ class TaskFlywayMigrationTest {
         assertIndexColumns("idx_task_tags_tag_task", List.of("tag_id", "task_id"));
     }
 
+    // =========================================================================
+    // GIỮ LẠI: Các Test Case về Timeline và History của nhánh feature
+    // =========================================================================
+    @Test
+    void flywayAddsTaskPlanningTraceFieldsAndTimelineIndexes() {
+        assertColumnExists("tasks", "planned_start_at", "timestamp with time zone");
+        assertColumnExists("tasks", "planned_end_at", "timestamp with time zone");
+        assertColumnExists("tasks", "scheduled_start_at", "timestamp with time zone");
+        assertColumnExists("tasks", "scheduled_end_at", "timestamp with time zone");
+        assertColumnExists("tasks", "completed_at", "timestamp with time zone");
+        assertColumnExists("tasks", "cancelled_at", "timestamp with time zone");
+        assertColumnExists("tasks", "archived_at", "timestamp with time zone");
+        assertColumnExists("tasks", "created_by", "uuid");
+        assertColumnExists("tasks", "updated_by", "uuid");
+        assertConstraintExists("tasks", "chk_tasks_planned_window");
+        assertConstraintExists("tasks", "chk_tasks_scheduled_window");
+        assertIndexExists("idx_tasks_owner_status_deadline");
+        assertIndexExists("idx_tasks_owner_scheduled_start");
+        assertIndexExists("idx_tasks_owner_updated");
+    }
+
+    @Test
+    void flywayCreatesTimelinePlacementAndHistoryStorage() {
+        assertTableExists("timeline_placements");
+        assertColumnExists("timeline_placements", "owner_id", "uuid");
+        assertColumnExists("timeline_placements", "task_id", "uuid");
+        assertColumnExists("timeline_placements", "start_at", "timestamp with time zone");
+        assertColumnExists("timeline_placements", "end_at", "timestamp with time zone");
+        assertColumnExists("timeline_placements", "status", "character varying");
+        assertColumnExists("timeline_placements", "created_by", "uuid");
+        assertColumnExists("timeline_placements", "updated_by", "uuid");
+        assertColumnIsNotNullable("timeline_placements", "owner_id");
+        assertColumnIsNotNullable("timeline_placements", "task_id");
+        assertForeignKeyDeleteRule("timeline_placements", "fk_timeline_placements_task", "tasks", "RESTRICT");
+        assertConstraintExists("timeline_placements", "chk_timeline_placements_window");
+        assertIndexExists("idx_timeline_placements_owner_time");
+        assertIndexExists("idx_timeline_placements_owner_status_time");
+
+        assertTableExists("task_change_histories");
+        assertColumnExists("task_change_histories", "owner_id", "uuid");
+        assertColumnExists("task_change_histories", "actor_id", "uuid");
+        assertColumnExists("task_change_histories", "task_id", "uuid");
+        assertColumnExists("task_change_histories", "timeline_placement_id", "uuid");
+        assertColumnExists("task_change_histories", "action_type", "character varying");
+        assertColumnExists("task_change_histories", "occurred_at", "timestamp with time zone");
+        assertColumnExists("task_change_histories", "created_at", "timestamp with time zone");
+        assertForeignKeyDeleteRule("task_change_histories", "fk_task_change_histories_task", "tasks", "RESTRICT");
+        assertForeignKeyDeleteRule(
+                "task_change_histories",
+                "fk_task_change_histories_timeline_placement",
+                "timeline_placements",
+                "SET NULL"
+        );
+        assertConstraintExists("task_change_histories", "chk_task_change_histories_action");
+        assertIndexExists("idx_task_change_histories_owner_time");
+        assertIndexExists("idx_task_change_histories_task_time");
+        assertIndexExists("idx_task_change_histories_action_time");
+        assertIndexExists("idx_task_change_histories_owner_action_time");
+    }
+
+    @Test
+    void flywayAllowsBackendServiceHistoryActions() {
+        UUID userId = UUID.randomUUID();
+        UUID taskId = insertTask(userId, "History action extension");
+
+        jdbcTemplate.update("""
+                INSERT INTO task.task_change_histories (owner_id, actor_id, task_id, action_type, field_name)
+                VALUES (?, ?, ?, 'TASK_REMINDER_CREATED', 'reminder')
+                """, userId, userId, taskId);
+
+        Long count = jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                FROM task.task_change_histories
+                WHERE owner_id = ?
+                  AND task_id = ?
+                  AND action_type = 'TASK_REMINDER_CREATED'
+                """, Long.class, userId, taskId);
+
+        assertThat(count).isEqualTo(1L);
+    }
+
+    // =========================================================================
+    // GIỮ LẠI: Các Test Case chuẩn chỉnh đã được update từ nhánh Main
+    // =========================================================================
     @Test
     void flywayCreatesRecurringRuleAndReminderStorageWithoutEnablingOptionalFeature() {
         assertTableExists("task_feature_policy_approvals");
@@ -217,6 +304,9 @@ class TaskFlywayMigrationTest {
         }
     }
 
+    // =========================================================================
+    // CÁC TEST CŨ CỦA DỰ ÁN GIỮ NGUYÊN (Không bị conflict)
+    // =========================================================================
     @Test
     void flywayExtendsCategoriesTableForDefaultCategoryMetadata() {
         assertTableExists("categories");
@@ -493,6 +583,9 @@ class TaskFlywayMigrationTest {
         assertThat(foreignKeyCount).isZero();
     }
 
+    // =========================================================================
+    // HELPER METHODS (Các hàm hỗ trợ được giữ nguyên)
+    // =========================================================================
     private void insertTag(UUID userId, String name, String slug) {
         jdbcTemplate.update("""
                 INSERT INTO task.tags (user_id, name, slug)
@@ -582,7 +675,6 @@ class TaskFlywayMigrationTest {
                 """, UUID.class, userId, taskId, recurringRuleId, policyApprovalId, userId, userId);
     }
 
-    // [TRICK CỦA QA]: ĐÃ FIX TẬN GỐC - Tạo user giả trong bảng identity.users trước để lách Khóa Ngoại
     private UUID insertTask(UUID userId, String name) {
         jdbcTemplate.update("INSERT INTO identity.users (id) VALUES (?) ON CONFLICT (id) DO NOTHING", userId);
 
@@ -782,6 +874,22 @@ class TaskFlywayMigrationTest {
                 """, String.class, indexName);
 
         assertThat(indexColumns).containsExactlyElementsOf(expectedColumnNames);
+    }
+
+    private void assertConstraintExists(String tableName, String constraintName) {
+        Integer count = jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                FROM pg_constraint constraint_metadata
+                JOIN pg_class table_metadata
+                  ON table_metadata.oid = constraint_metadata.conrelid
+                JOIN pg_namespace namespace
+                  ON namespace.oid = table_metadata.relnamespace
+                WHERE lower(namespace.nspname) = 'task'
+                  AND lower(table_metadata.relname) = lower(?)
+                  AND lower(constraint_metadata.conname) = lower(?)
+                """, Integer.class, tableName, constraintName);
+
+        assertThat(count).isEqualTo(1);
     }
 
     private void assertTaskTagCount(UUID taskId, UUID tagId, long expectedCount) {

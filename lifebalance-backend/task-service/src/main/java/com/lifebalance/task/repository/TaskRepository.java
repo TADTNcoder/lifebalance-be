@@ -1,5 +1,6 @@
 package com.lifebalance.task.repository;
 
+import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -52,5 +53,31 @@ public interface TaskRepository extends JpaRepository<Task, UUID> {
         Page<Task> findByOwnerIdAndPriority(
                         UUID ownerId,
                         PriorityLevel priority,
+                        Pageable pageable);
+
+        @Query("""
+                        SELECT task
+                        FROM Task task
+                        WHERE task.ownerId = :ownerId
+                          AND (
+                                :keyword IS NULL
+                                OR :keyword = ''
+                                OR lower(task.name) LIKE lower(concat('%', :keyword, '%'))
+                                OR lower(coalesce(task.description, '')) LIKE lower(concat('%', :keyword, '%'))
+                          )
+                          AND (:status IS NULL OR task.status = :status)
+                          AND (:priority IS NULL OR task.priority = :priority)
+                          AND (:categoryId IS NULL OR task.category.id = :categoryId)
+                          AND (:deadlineFrom IS NULL OR task.deadline >= :deadlineFrom)
+                          AND (:deadlineTo IS NULL OR task.deadline <= :deadlineTo)
+                        """)
+        Page<Task> searchByOwnerAndFilters(
+                        @Param("ownerId") UUID ownerId,
+                        @Param("keyword") String keyword,
+                        @Param("status") TaskStatus status,
+                        @Param("priority") PriorityLevel priority,
+                        @Param("categoryId") UUID categoryId,
+                        @Param("deadlineFrom") LocalDate deadlineFrom,
+                        @Param("deadlineTo") LocalDate deadlineTo,
                         Pageable pageable);
 }

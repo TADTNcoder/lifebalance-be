@@ -1,5 +1,9 @@
 package com.lifebalance.task.service.impl;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -8,15 +12,25 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.lifebalance.task.dto.request.CreateTaskRequest;
+import com.lifebalance.task.dto.request.TaskLifecycleActionRequest;
+import com.lifebalance.task.dto.request.TaskPlanningRequest;
 import com.lifebalance.task.dto.request.UpdateTaskRequest;
+import com.lifebalance.task.dto.request.UpdateTaskProgressRequest;
 import com.lifebalance.task.dto.response.TaskResponse;
 import com.lifebalance.task.error.TaskExceptions;
+import com.lifebalance.task.history.TaskChangeHistoryService;
 import com.lifebalance.task.model.Category;
 import com.lifebalance.task.model.Task;
+import com.lifebalance.task.model.TimelinePlacement;
+import com.lifebalance.task.model.enums.PriorityLevel;
+import com.lifebalance.task.model.enums.TaskHistoryActionType;
 import com.lifebalance.task.model.enums.TaskStatus;
+import com.lifebalance.task.model.enums.TimelinePlacementStatus;
 import com.lifebalance.task.repository.CategoryRepository;
 import com.lifebalance.task.repository.TaskRepository;
+import com.lifebalance.task.repository.TimelinePlacementRepository;
 import com.lifebalance.task.service.TaskService;
+import com.lifebalance.task.validation.TaskLifecyclePolicy;
 
 import lombok.RequiredArgsConstructor;
 
@@ -26,6 +40,9 @@ public class TaskServiceImpl implements TaskService {
 
     private final TaskRepository taskRepository;
     private final CategoryRepository categoryRepository;
+    private final TimelinePlacementRepository timelinePlacementRepository;
+    private final TaskLifecyclePolicy taskLifecyclePolicy;
+    private final TaskChangeHistoryService taskChangeHistoryService;
 
     @Override
     @Transactional
@@ -41,6 +58,10 @@ public class TaskServiceImpl implements TaskService {
         Category category = resolveCategory(
                 request.getCategoryId());
 
+        validateOptionalPlanningWindow(
+                request.getPlannedStartAt(),
+                request.getPlannedEndAt());
+
         Task task = Task.builder()
                 .ownerId(ownerId)
                 .userId(ownerId)
@@ -48,13 +69,25 @@ public class TaskServiceImpl implements TaskService {
                 .description(request.getDescription())
                 .priority(request.getPriority())
                 .deadline(request.getDeadline())
+                .plannedStartAt(request.getPlannedStartAt())
+                .plannedEndAt(request.getPlannedEndAt())
                 .estimatedMinutes(request.getEstimatedMinutes())
                 .estimatedCost(request.getEstimatedCost())
                 .category(category)
                 .status(TaskStatus.DRAFT)
+                .createdBy(ownerId)
+                .updatedBy(ownerId)
                 .build();
 
         task = taskRepository.save(task);
+        taskChangeHistoryService.recordTaskChange(
+                task,
+                ownerId,
+                TaskHistoryActionType.TASK_CREATED,
+                null,
+                null,
+                taskSnapshot(task),
+                null);
 
         return mapToResponse(task);
     }
@@ -70,6 +103,20 @@ public class TaskServiceImpl implements TaskService {
                 .findByIdAndOwnerId(id, ownerId)
                 .orElseThrow(TaskExceptions::taskNotFound);
 
+        TaskStatus oldStatus = task.getStatus();
+        String oldSnapshot = taskSnapshot(task);
+        if (request.getStatus() != null) {
+            taskLifecyclePolicy.validateTransition(
+                    oldStatus,
+                    request.getStatus());
+        }
+        boolean planningChangeRequested = isPlanningChangeRequested(
+                task,
+                request);
+        if (planningChangeRequested) {
+            taskLifecyclePolicy.validatePlanningEditable(task);
+        }
+
         ensureNameAvailable(
                 request.getName(),
                 ownerId,
@@ -78,16 +125,28 @@ public class TaskServiceImpl implements TaskService {
         Category category = resolveCategory(
                 request.getCategoryId());
 
-        task.updateDetails(
-                request.getName(),
-                request.getDescription(),
-                request.getPriority(),
-                request.getDeadline(),
-                request.getEstimatedMinutes(),
-                request.getEstimatedCost(),
-                category);
+        if (!isPlanningLocked(oldStatus)) {
+            validateOptionalPlanningWindow(
+                    request.getPlannedStartAt(),
+                    request.getPlannedEndAt());
+            task.updateDetails(
+                    request.getName(),
+                    request.getDescription(),
+                    request.getPriority(),
+                    request.getDeadline(),
+                    request.getEstimatedMinutes(),
+                    request.getEstimatedCost(),
+                    category);
+            task.planWindow(
+                    request.getPlannedStartAt(),
+                    request.getPlannedEndAt());
+        }
 
         if (request.getProgress() != null) {
+            TaskStatus progressStatus = request.getStatus() == null
+                    ? oldStatus
+                    : request.getStatus();
+            taskLifecyclePolicy.validateProgressEditable(progressStatus);
             task.updateProgress(
                     request.getProgress());
         }
@@ -97,7 +156,128 @@ public class TaskServiceImpl implements TaskService {
                     request.getStatus());
         }
 
+        task.setUpdatedBy(ownerId);
         task = taskRepository.save(task);
+        String newSnapshot = taskSnapshot(task);
+        if (!Objects.equals(oldSnapshot, newSnapshot)) {
+            taskChangeHistoryService.recordTaskChange(
+                    task,
+                    ownerId,
+                    TaskHistoryActionType.TASK_UPDATED,
+                    null,
+                    oldSnapshot,
+                    newSnapshot,
+                    null);
+        }
+        if (oldStatus != task.getStatus()) {
+            taskChangeHistoryService.recordTaskChange(
+                    task,
+                    ownerId,
+                    TaskHistoryActionType.TASK_STATUS_CHANGED,
+                    "status",
+                    String.valueOf(oldStatus),
+                    String.valueOf(task.getStatus()),
+                    null);
+        }
+
+        return mapToResponse(task);
+    }
+
+    @Override
+    @Transactional
+    public TaskResponse plan(
+            UUID id,
+            UUID ownerId,
+            TaskPlanningRequest request) {
+
+        Task task = findTask(id, ownerId);
+        TaskStatus oldStatus = task.getStatus();
+        String oldSnapshot = taskSnapshot(task);
+
+        taskLifecyclePolicy.validatePlanningEditable(task);
+        taskLifecyclePolicy.validateTransition(
+                oldStatus,
+                TaskStatus.PLANNED);
+
+        validateOptionalPlanningWindow(
+                request.getPlannedStartAt(),
+                request.getPlannedEndAt());
+
+        PriorityLevel priority = request.getPriority() == null
+                ? task.getPriority()
+                : request.getPriority();
+        LocalDate deadline = request.getDeadline() == null
+                ? task.getDeadline()
+                : request.getDeadline();
+        Integer estimatedMinutes = request.getEstimatedMinutes() == null
+                ? task.getEstimatedMinutes()
+                : request.getEstimatedMinutes();
+        BigDecimal estimatedCost = request.getEstimatedCost() == null
+                ? task.getEstimatedCost()
+                : request.getEstimatedCost();
+        Category category = request.getCategoryId() == null
+                ? task.getCategory()
+                : resolveCategory(request.getCategoryId());
+
+        task.updateDetails(
+                task.getName(),
+                task.getDescription(),
+                priority,
+                deadline,
+                estimatedMinutes,
+                estimatedCost,
+                category);
+        task.planWindow(
+                request.getPlannedStartAt(),
+                request.getPlannedEndAt());
+        taskLifecyclePolicy.validatePlanReady(task);
+        task.transitionTo(TaskStatus.PLANNED);
+        task.setUpdatedBy(ownerId);
+
+        task = taskRepository.save(task);
+        String newSnapshot = taskSnapshot(task);
+        taskChangeHistoryService.recordTaskChange(
+                task,
+                ownerId,
+                TaskHistoryActionType.TASK_PLANNED,
+                null,
+                oldSnapshot,
+                newSnapshot,
+                request.getReason());
+        recordStatusChangeIfNeeded(
+                task,
+                ownerId,
+                oldStatus,
+                request.getReason());
+
+        return mapToResponse(task);
+    }
+
+    @Override
+    @Transactional
+    public TaskResponse updateProgress(
+            UUID id,
+            UUID ownerId,
+            UpdateTaskProgressRequest request) {
+
+        Task task = findTask(id, ownerId);
+        taskLifecyclePolicy.validateProgressEditable(task);
+
+        Integer oldProgress = task.getProgress();
+        task.updateProgress(request.getProgress());
+        task.setUpdatedBy(ownerId);
+        task = taskRepository.save(task);
+
+        if (!Objects.equals(oldProgress, task.getProgress())) {
+            taskChangeHistoryService.recordTaskChange(
+                    task,
+                    ownerId,
+                    TaskHistoryActionType.TASK_PROGRESS_UPDATED,
+                    "progress",
+                    String.valueOf(oldProgress),
+                    String.valueOf(task.getProgress()),
+                    request.getReason());
+        }
 
         return mapToResponse(task);
     }
@@ -118,18 +298,59 @@ public class TaskServiceImpl implements TaskService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public Page<TaskResponse> search(
+            UUID ownerId,
+            String keyword,
+            TaskStatus status,
+            PriorityLevel priority,
+            UUID categoryId,
+            LocalDate deadlineFrom,
+            LocalDate deadlineTo,
+            Pageable pageable) {
+
+        return taskRepository
+                .searchByOwnerAndFilters(
+                        ownerId,
+                        keyword,
+                        status,
+                        priority,
+                        categoryId,
+                        deadlineFrom,
+                        deadlineTo,
+                        pageable)
+                .map(this::mapToResponse);
+    }
+
+    @Override
     @Transactional
     public void archive(
             UUID id,
             UUID ownerId) {
 
-        Task task = taskRepository
-                .findByIdAndOwnerId(id, ownerId)
-                .orElseThrow(TaskExceptions::taskNotFound);
+        Task task = findTask(id, ownerId);
 
+        TaskStatus oldStatus = task.getStatus();
+        taskLifecyclePolicy.validateTransition(
+                oldStatus,
+                TaskStatus.ARCHIVED);
+        cancelActiveTimelinePlacements(
+                task,
+                ownerId,
+                "Task archived");
         task.archive();
+        task.setScheduledWindow(null, null);
+        task.setUpdatedBy(ownerId);
 
         taskRepository.save(task);
+        taskChangeHistoryService.recordTaskChange(
+                task,
+                ownerId,
+                TaskHistoryActionType.TASK_ARCHIVED,
+                "status",
+                String.valueOf(oldStatus),
+                String.valueOf(task.getStatus()),
+                null);
     }
 
     @Override
@@ -138,13 +359,137 @@ public class TaskServiceImpl implements TaskService {
             UUID id,
             UUID ownerId) {
 
-        Task task = taskRepository
-                .findByIdAndOwnerId(id, ownerId)
-                .orElseThrow(TaskExceptions::taskNotFound);
+        Task task = findTask(id, ownerId);
 
+        TaskStatus oldStatus = task.getStatus();
+        taskLifecyclePolicy.validateTransition(
+                oldStatus,
+                TaskStatus.PLANNED);
         task.restore();
+        task.setUpdatedBy(ownerId);
 
         taskRepository.save(task);
+        taskChangeHistoryService.recordTaskChange(
+                task,
+                ownerId,
+                TaskHistoryActionType.TASK_RESTORED,
+                "status",
+                String.valueOf(oldStatus),
+                String.valueOf(task.getStatus()),
+                null);
+    }
+
+    @Override
+    @Transactional
+    public TaskResponse pause(
+            UUID id,
+            UUID ownerId,
+            TaskLifecycleActionRequest request) {
+
+        return transitionLifecycle(
+                id,
+                ownerId,
+                TaskStatus.ON_HOLD,
+                reasonOf(request));
+    }
+
+    @Override
+    @Transactional
+    public TaskResponse resume(
+            UUID id,
+            UUID ownerId,
+            TaskLifecycleActionRequest request) {
+
+        return transitionLifecycle(
+                id,
+                ownerId,
+                TaskStatus.IN_PROGRESS,
+                reasonOf(request));
+    }
+
+    @Override
+    @Transactional
+    public TaskResponse complete(
+            UUID id,
+            UUID ownerId,
+            TaskLifecycleActionRequest request) {
+
+        Task task = findTask(id, ownerId);
+        TaskStatus oldStatus = task.getStatus();
+        String reason = reasonOf(request);
+        Integer oldProgress = task.getProgress();
+
+        taskLifecyclePolicy.validateTransition(
+                oldStatus,
+                TaskStatus.COMPLETED);
+        task.updateProgress(100);
+        task.markAsCompleted();
+        task.setUpdatedBy(ownerId);
+
+        task = taskRepository.save(task);
+        if (!Objects.equals(oldProgress, task.getProgress())) {
+            taskChangeHistoryService.recordTaskChange(
+                    task,
+                    ownerId,
+                    TaskHistoryActionType.TASK_PROGRESS_UPDATED,
+                    "progress",
+                    String.valueOf(oldProgress),
+                    String.valueOf(task.getProgress()),
+                    reason);
+        }
+        recordStatusChangeIfNeeded(
+                task,
+                ownerId,
+                oldStatus,
+                reason);
+
+        return mapToResponse(task);
+    }
+
+    @Override
+    @Transactional
+    public TaskResponse cancel(
+            UUID id,
+            UUID ownerId,
+            TaskLifecycleActionRequest request) {
+
+        Task task = findTask(id, ownerId);
+        TaskStatus oldStatus = task.getStatus();
+        String reason = reasonOf(request);
+
+        taskLifecyclePolicy.validateTransition(
+                oldStatus,
+                TaskStatus.CANCELLED);
+        cancelActiveTimelinePlacements(
+                task,
+                ownerId,
+                reason);
+        task.cancel();
+        task.setScheduledWindow(null, null);
+        task.setUpdatedBy(ownerId);
+
+        task = taskRepository.save(task);
+        recordStatusChangeIfNeeded(
+                task,
+                ownerId,
+                oldStatus,
+                reason);
+
+        return mapToResponse(task);
+    }
+
+    @Override
+    @Transactional
+    public TaskResponse reopen(
+            UUID id,
+            UUID ownerId,
+            TaskLifecycleActionRequest request) {
+
+        return transitionLifecycle(
+                id,
+                ownerId,
+                TaskStatus.PLANNED,
+                reasonOf(request));
     }
 
     @Override
@@ -157,6 +502,15 @@ public class TaskServiceImpl implements TaskService {
                 .findByIdAndOwnerId(id, ownerId)
                 .orElseThrow(TaskExceptions::taskNotFound);
 
+        taskLifecyclePolicy.validateDeleteAllowed(task);
+        taskChangeHistoryService.recordTaskChange(
+                task,
+                ownerId,
+                TaskHistoryActionType.TASK_DELETED,
+                null,
+                taskSnapshot(task),
+                null,
+                null);
         taskRepository.delete(task);
     }
 
@@ -188,9 +542,19 @@ public class TaskServiceImpl implements TaskService {
                 .estimatedCost(source.getEstimatedCost())
                 .category(source.getCategory())
                 .status(TaskStatus.DRAFT)
+                .createdBy(ownerId)
+                .updatedBy(ownerId)
                 .build();
 
         copy = taskRepository.save(copy);
+        taskChangeHistoryService.recordTaskChange(
+                copy,
+                ownerId,
+                TaskHistoryActionType.TASK_CREATED,
+                null,
+                null,
+                taskSnapshot(copy),
+                "Duplicated from task " + source.getId());
 
         return mapToResponse(copy);
     }
@@ -201,11 +565,98 @@ public class TaskServiceImpl implements TaskService {
             UUID id,
             UUID ownerId) {
 
-        Task task = taskRepository
-                .findByIdAndOwnerId(id, ownerId)
-                .orElseThrow(TaskExceptions::taskNotFound);
+        Task task = findTask(id, ownerId);
 
         return mapToResponse(task);
+    }
+
+    private TaskResponse transitionLifecycle(
+            UUID id,
+            UUID ownerId,
+            TaskStatus targetStatus,
+            String reason) {
+
+        Task task = findTask(id, ownerId);
+        TaskStatus oldStatus = task.getStatus();
+
+        taskLifecyclePolicy.validateTransition(
+                oldStatus,
+                targetStatus);
+        task.transitionTo(targetStatus);
+        task.setUpdatedBy(ownerId);
+
+        task = taskRepository.save(task);
+        recordStatusChangeIfNeeded(
+                task,
+                ownerId,
+                oldStatus,
+                reason);
+
+        return mapToResponse(task);
+    }
+
+    private Task findTask(
+            UUID id,
+            UUID ownerId) {
+
+        return taskRepository
+                .findByIdAndOwnerId(id, ownerId)
+                .orElseThrow(TaskExceptions::taskNotFound);
+    }
+
+    private void cancelActiveTimelinePlacements(
+            Task task,
+            UUID ownerId,
+            String reason) {
+
+        List<TimelinePlacement> activePlacements = timelinePlacementRepository
+                .findByOwnerIdAndTaskIdAndStatus(
+                        ownerId,
+                        task.getId(),
+                        TimelinePlacementStatus.ACTIVE);
+        if (activePlacements == null || activePlacements.isEmpty()) {
+            return;
+        }
+
+        for (TimelinePlacement placement : activePlacements) {
+            String oldSnapshot = timelineSnapshot(placement);
+            placement.cancel(reason, ownerId);
+            timelinePlacementRepository.save(placement);
+            taskChangeHistoryService.recordTimelineChange(
+                    task,
+                    placement,
+                    ownerId,
+                    TaskHistoryActionType.TIMELINE_CANCELLED,
+                    oldSnapshot,
+                    timelineSnapshot(placement),
+                    reason);
+        }
+    }
+
+    private void recordStatusChangeIfNeeded(
+            Task task,
+            UUID ownerId,
+            TaskStatus oldStatus,
+            String reason) {
+
+        if (oldStatus == task.getStatus()) {
+            return;
+        }
+
+        taskChangeHistoryService.recordTaskChange(
+                task,
+                ownerId,
+                TaskHistoryActionType.TASK_STATUS_CHANGED,
+                "status",
+                String.valueOf(oldStatus),
+                String.valueOf(task.getStatus()),
+                reason);
+    }
+
+    private String reasonOf(TaskLifecycleActionRequest request) {
+        return request == null
+                ? null
+                : request.getReason();
     }
 
     private void ensureNameAvailable(
@@ -238,6 +689,68 @@ public class TaskServiceImpl implements TaskService {
                 .orElseThrow(TaskExceptions::categoryNotFound);
     }
 
+    private boolean isPlanningChangeRequested(
+            Task task,
+            UpdateTaskRequest request) {
+
+        UUID currentCategoryId = task.getCategory() == null
+                ? null
+                : task.getCategory().getId();
+        return !Objects.equals(task.getName(), request.getName())
+                || !Objects.equals(task.getDescription(), request.getDescription())
+                || !Objects.equals(task.getPriority(), request.getPriority())
+                || !Objects.equals(task.getDeadline(), request.getDeadline())
+                || !Objects.equals(task.getEstimatedMinutes(), request.getEstimatedMinutes())
+                || !Objects.equals(task.getEstimatedCost(), request.getEstimatedCost())
+                || !Objects.equals(currentCategoryId, request.getCategoryId())
+                || !Objects.equals(task.getPlannedStartAt(), request.getPlannedStartAt())
+                || !Objects.equals(task.getPlannedEndAt(), request.getPlannedEndAt());
+    }
+
+    private void validateOptionalPlanningWindow(
+            java.time.OffsetDateTime plannedStartAt,
+            java.time.OffsetDateTime plannedEndAt) {
+
+        if (plannedStartAt != null || plannedEndAt != null) {
+            taskLifecyclePolicy.validateTimelineWindow(
+                    plannedStartAt,
+                    plannedEndAt);
+        }
+    }
+
+    private boolean isPlanningLocked(TaskStatus status) {
+        return status == TaskStatus.COMPLETED
+                || status == TaskStatus.CANCELLED
+                || status == TaskStatus.ARCHIVED;
+    }
+
+    private String taskSnapshot(Task task) {
+        UUID categoryId = task.getCategory() == null
+                ? null
+                : task.getCategory().getId();
+        return "name=" + task.getName()
+                + ";status=" + task.getStatus()
+                + ";priority=" + task.getPriority()
+                + ";deadline=" + task.getDeadline()
+                + ";plannedStartAt=" + task.getPlannedStartAt()
+                + ";plannedEndAt=" + task.getPlannedEndAt()
+                + ";scheduledStartAt=" + task.getScheduledStartAt()
+                + ";scheduledEndAt=" + task.getScheduledEndAt()
+                + ";progress=" + task.getProgress()
+                + ";estimatedMinutes=" + task.getEstimatedMinutes()
+                + ";estimatedCost=" + task.getEstimatedCost()
+                + ";categoryId=" + categoryId;
+    }
+
+    private String timelineSnapshot(TimelinePlacement placement) {
+        return "placementId=" + placement.getId()
+                + ";status=" + placement.getStatus()
+                + ";startAt=" + placement.getStartAt()
+                + ";endAt=" + placement.getEndAt()
+                + ";timezone=" + placement.getTimezone()
+                + ";source=" + placement.getSource();
+    }
+
     private TaskResponse mapToResponse(
             Task task) {
 
@@ -254,6 +767,20 @@ public class TaskServiceImpl implements TaskService {
                 task.getPriority());
         response.setDeadline(
                 task.getDeadline());
+        response.setPlannedStartAt(
+                task.getPlannedStartAt());
+        response.setPlannedEndAt(
+                task.getPlannedEndAt());
+        response.setScheduledStartAt(
+                task.getScheduledStartAt());
+        response.setScheduledEndAt(
+                task.getScheduledEndAt());
+        response.setCompletedAt(
+                task.getCompletedAt());
+        response.setCancelledAt(
+                task.getCancelledAt());
+        response.setArchivedAt(
+                task.getArchivedAt());
         response.setProgress(
                 task.getProgress());
         response.setEstimatedMinutes(
@@ -270,6 +797,10 @@ public class TaskServiceImpl implements TaskService {
                     task.getCategory().getName());
         }
 
+        response.setCreatedBy(
+                task.getCreatedBy());
+        response.setUpdatedBy(
+                task.getUpdatedBy());
         response.setCreatedAt(
                 task.getCreatedAt());
 

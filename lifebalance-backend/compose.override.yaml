@@ -1,32 +1,40 @@
 services:
   identity-service:
+    init: true
     ports:
       - "${IDENTITY_DEBUG_HOST_PORT:-8091}:8080"
 
   task-service:
+    init: true
     ports:
       - "${TASK_DEBUG_HOST_PORT:-8092}:8080"
 
   timeline-service:
+    init: true
     ports:
       - "${TIMELINE_DEBUG_HOST_PORT:-8096}:8080"
 
   resource-capital-service:
+    init: true
     ports:
       - "${RESOURCE_CAPITAL_DEBUG_HOST_PORT:-8099}:8080"
 
   finance-service:
+    init: true
     ports:
       - "${FINANCE_DEBUG_HOST_PORT:-8093}:8080"
 
   notification-service:
+    init: true
     ports:
       - "${NOTIFICATION_DEBUG_HOST_PORT:-8094}:8080"
 
   analytics-service:
+    init: true
     ports:
       - "${ANALYTICS_DEBUG_HOST_PORT:-8097}:8080"
 
   ai-service:
+    init: true
     ports:
       - "${AI_DEBUG_HOST_PORT:-8095}:8080"
