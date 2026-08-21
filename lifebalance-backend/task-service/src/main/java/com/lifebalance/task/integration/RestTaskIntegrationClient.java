@@ -11,6 +11,7 @@ import org.springframework.web.client.RestClientException;
 class RestTaskIntegrationClient implements TaskIntegrationClient {
 
     private static final Logger log = LoggerFactory.getLogger(RestTaskIntegrationClient.class);
+    private static final String INTERNAL_SECRET_HEADER = "X-Lifebalance-Internal-Secret";
 
     private final RestClient.Builder restClientBuilder;
     private final TaskIntegrationProperties properties;
@@ -27,6 +28,11 @@ class RestTaskIntegrationClient implements TaskIntegrationClient {
     public void syncTimelineTask(TaskIntegrationEvent event) {
         if (!hasBearer(event.authorizationHeader())) {
             log.warn("Skipping timeline task sync because bearer token is missing. taskId={} action={}",
+                    event.taskId(), event.action());
+            return;
+        }
+        if (!properties.hasInternalSecret()) {
+            log.warn("Skipping timeline task sync because internal service secret is not configured. taskId={} action={}",
                     event.taskId(), event.action());
             return;
         }
@@ -49,6 +55,7 @@ class RestTaskIntegrationClient implements TaskIntegrationClient {
                 "/api/timeline/tasks",
                 request,
                 event.authorizationHeader(),
+                true,
                 "timeline-service",
                 event
         );
@@ -67,6 +74,7 @@ class RestTaskIntegrationClient implements TaskIntegrationClient {
                 "/api/notifications",
                 request,
                 authorizationHeader,
+                true,
                 "notification-service",
                 null
         );
@@ -84,6 +92,7 @@ class RestTaskIntegrationClient implements TaskIntegrationClient {
                 "/api/analytics/actual-records",
                 request,
                 authorizationHeader,
+                true,
                 "analytics-service",
                 null
         );
@@ -94,6 +103,7 @@ class RestTaskIntegrationClient implements TaskIntegrationClient {
             String uri,
             Object request,
             String authorizationHeader,
+            boolean includeInternalCredential,
             String serviceName,
             TaskIntegrationEvent event
     ) {
@@ -104,7 +114,12 @@ class RestTaskIntegrationClient implements TaskIntegrationClient {
                     .build()
                     .post()
                     .uri(uri)
-                    .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
+                    .headers(headers -> {
+                        headers.set(HttpHeaders.AUTHORIZATION, authorizationHeader);
+                        if (includeInternalCredential && properties.hasInternalSecret()) {
+                            headers.set(INTERNAL_SECRET_HEADER, properties.getInternalSecret().trim());
+                        }
+                    })
                     .body(request)
                     .retrieve()
                     .toBodilessEntity();
