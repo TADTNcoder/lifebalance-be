@@ -5,9 +5,11 @@ import static com.lifebalance.security.keycloak.KeycloakUserMappingFilter.CURREN
 import com.lifebalance.common.api.ApiResponse;
 import com.lifebalance.common.web.PageableLimits;
 import com.lifebalance.resourcecapital.domain.capital.CapitalKind;
+import com.lifebalance.resourcecapital.dto.AdjustMoneyCapitalRequest;
 import com.lifebalance.resourcecapital.dto.AdjustTimeCapitalRequest;
 import com.lifebalance.resourcecapital.dto.CapitalAdjustmentRequest;
 import com.lifebalance.resourcecapital.dto.CapitalAdjustmentResponse;
+import com.lifebalance.resourcecapital.dto.MoneyCapitalAdjustmentResponse;
 import com.lifebalance.resourcecapital.dto.PageResponseDTO;
 import com.lifebalance.resourcecapital.dto.TimeCapitalAdjustmentResponse;
 import com.lifebalance.resourcecapital.service.CapitalAdjustmentService;
@@ -62,6 +64,22 @@ public class CapitalAdjustmentController {
         UUID ownerId = resolveOwnerId(currentUser);
 
         TimeCapitalAdjustmentResponse response = capitalAdjustmentService.adjustTimeCapital(
+                ownerId,
+                cycleId,
+                request);
+
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "Adjust money capital", description = "Increase or decrease money capital of a capital cycle using the cycle currency.")
+    @PostMapping("/money")
+    public ResponseEntity<ApiResponse<MoneyCapitalAdjustmentResponse>> adjustMoneyCapital(
+            @RequestParam UUID cycleId,
+            @Valid @RequestBody AdjustMoneyCapitalRequest request,
+            @RequestAttribute(value = CURRENT_USER_ATTRIBUTE, required = false) KeycloakUserPrincipal currentUser) {
+        UUID ownerId = resolveOwnerId(currentUser);
+
+        MoneyCapitalAdjustmentResponse response = capitalAdjustmentService.adjustMoneyCapital(
                 ownerId,
                 cycleId,
                 request);

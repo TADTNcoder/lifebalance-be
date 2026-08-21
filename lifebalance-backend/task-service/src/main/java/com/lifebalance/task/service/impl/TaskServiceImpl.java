@@ -19,6 +19,8 @@ import com.lifebalance.task.dto.request.UpdateTaskProgressRequest;
 import com.lifebalance.task.dto.response.TaskResponse;
 import com.lifebalance.task.error.TaskExceptions;
 import com.lifebalance.task.history.TaskChangeHistoryService;
+import com.lifebalance.task.integration.TaskIntegrationAction;
+import com.lifebalance.task.integration.TaskIntegrationPublisher;
 import com.lifebalance.task.model.Category;
 import com.lifebalance.task.model.Task;
 import com.lifebalance.task.model.TimelinePlacement;
@@ -43,6 +45,7 @@ public class TaskServiceImpl implements TaskService {
     private final TimelinePlacementRepository timelinePlacementRepository;
     private final TaskLifecyclePolicy taskLifecyclePolicy;
     private final TaskChangeHistoryService taskChangeHistoryService;
+    private final TaskIntegrationPublisher taskIntegrationPublisher;
 
     @Override
     @Transactional
@@ -87,6 +90,11 @@ public class TaskServiceImpl implements TaskService {
                 null,
                 null,
                 taskSnapshot(task),
+                null);
+        taskIntegrationPublisher.publishTaskChanged(
+                task,
+                ownerId,
+                TaskIntegrationAction.TASK_CREATED,
                 null);
 
         return mapToResponse(task);
@@ -179,6 +187,13 @@ public class TaskServiceImpl implements TaskService {
                     String.valueOf(task.getStatus()),
                     null);
         }
+        if (!Objects.equals(oldSnapshot, newSnapshot) || oldStatus != task.getStatus()) {
+            taskIntegrationPublisher.publishTaskChanged(
+                    task,
+                    ownerId,
+                    integrationActionForStatusChange(oldStatus, task.getStatus()),
+                    null);
+        }
 
         return mapToResponse(task);
     }
@@ -249,6 +264,11 @@ public class TaskServiceImpl implements TaskService {
                 ownerId,
                 oldStatus,
                 request.getReason());
+        taskIntegrationPublisher.publishTaskChanged(
+                task,
+                ownerId,
+                TaskIntegrationAction.TASK_PLANNED,
+                request.getReason());
 
         return mapToResponse(task);
     }
@@ -276,6 +296,11 @@ public class TaskServiceImpl implements TaskService {
                     "progress",
                     String.valueOf(oldProgress),
                     String.valueOf(task.getProgress()),
+                    request.getReason());
+            taskIntegrationPublisher.publishTaskChanged(
+                    task,
+                    ownerId,
+                    TaskIntegrationAction.TASK_PROGRESS_UPDATED,
                     request.getReason());
         }
 
@@ -351,6 +376,11 @@ public class TaskServiceImpl implements TaskService {
                 String.valueOf(oldStatus),
                 String.valueOf(task.getStatus()),
                 null);
+        taskIntegrationPublisher.publishTaskChanged(
+                task,
+                ownerId,
+                TaskIntegrationAction.TASK_ARCHIVED,
+                null);
     }
 
     @Override
@@ -377,6 +407,11 @@ public class TaskServiceImpl implements TaskService {
                 String.valueOf(oldStatus),
                 String.valueOf(task.getStatus()),
                 null);
+        taskIntegrationPublisher.publishTaskChanged(
+                task,
+                ownerId,
+                TaskIntegrationAction.TASK_RESTORED,
+                null);
     }
 
     @Override
@@ -390,7 +425,8 @@ public class TaskServiceImpl implements TaskService {
                 id,
                 ownerId,
                 TaskStatus.ON_HOLD,
-                reasonOf(request));
+                reasonOf(request),
+                TaskIntegrationAction.TASK_PAUSED);
     }
 
     @Override
@@ -404,7 +440,8 @@ public class TaskServiceImpl implements TaskService {
                 id,
                 ownerId,
                 TaskStatus.IN_PROGRESS,
-                reasonOf(request));
+                reasonOf(request),
+                TaskIntegrationAction.TASK_RESUMED);
     }
 
     @Override
@@ -442,6 +479,11 @@ public class TaskServiceImpl implements TaskService {
                 ownerId,
                 oldStatus,
                 reason);
+        taskIntegrationPublisher.publishTaskChanged(
+                task,
+                ownerId,
+                TaskIntegrationAction.TASK_COMPLETED,
+                reason);
 
         return mapToResponse(task);
     }
@@ -474,6 +516,11 @@ public class TaskServiceImpl implements TaskService {
                 ownerId,
                 oldStatus,
                 reason);
+        taskIntegrationPublisher.publishTaskChanged(
+                task,
+                ownerId,
+                TaskIntegrationAction.TASK_CANCELLED,
+                reason);
 
         return mapToResponse(task);
     }
@@ -489,7 +536,8 @@ public class TaskServiceImpl implements TaskService {
                 id,
                 ownerId,
                 TaskStatus.PLANNED,
-                reasonOf(request));
+                reasonOf(request),
+                TaskIntegrationAction.TASK_REOPENED);
     }
 
     @Override
@@ -510,6 +558,11 @@ public class TaskServiceImpl implements TaskService {
                 null,
                 taskSnapshot(task),
                 null,
+                null);
+        taskIntegrationPublisher.publishTaskChanged(
+                task,
+                ownerId,
+                TaskIntegrationAction.TASK_DELETED,
                 null);
         taskRepository.delete(task);
     }
@@ -555,6 +608,11 @@ public class TaskServiceImpl implements TaskService {
                 null,
                 taskSnapshot(copy),
                 "Duplicated from task " + source.getId());
+        taskIntegrationPublisher.publishTaskChanged(
+                copy,
+                ownerId,
+                TaskIntegrationAction.TASK_DUPLICATED,
+                "Duplicated from task " + source.getId());
 
         return mapToResponse(copy);
     }
@@ -574,7 +632,8 @@ public class TaskServiceImpl implements TaskService {
             UUID id,
             UUID ownerId,
             TaskStatus targetStatus,
-            String reason) {
+            String reason,
+            TaskIntegrationAction integrationAction) {
 
         Task task = findTask(id, ownerId);
         TaskStatus oldStatus = task.getStatus();
@@ -591,8 +650,35 @@ public class TaskServiceImpl implements TaskService {
                 ownerId,
                 oldStatus,
                 reason);
+        taskIntegrationPublisher.publishTaskChanged(
+                task,
+                ownerId,
+                integrationAction,
+                reason);
 
         return mapToResponse(task);
+    }
+
+    private TaskIntegrationAction integrationActionForStatusChange(
+            TaskStatus oldStatus,
+            TaskStatus newStatus) {
+
+        if (oldStatus == newStatus) {
+            return TaskIntegrationAction.TASK_UPDATED;
+        }
+        return switch (newStatus) {
+            case COMPLETED -> TaskIntegrationAction.TASK_COMPLETED;
+            case CANCELLED -> TaskIntegrationAction.TASK_CANCELLED;
+            case ARCHIVED -> TaskIntegrationAction.TASK_ARCHIVED;
+            case ON_HOLD -> TaskIntegrationAction.TASK_PAUSED;
+            case IN_PROGRESS -> TaskIntegrationAction.TASK_RESUMED;
+            case PLANNED -> oldStatus == TaskStatus.COMPLETED
+                    || oldStatus == TaskStatus.CANCELLED
+                    || oldStatus == TaskStatus.ARCHIVED
+                    ? TaskIntegrationAction.TASK_REOPENED
+                    : TaskIntegrationAction.TASK_UPDATED;
+            default -> TaskIntegrationAction.TASK_UPDATED;
+        };
     }
 
     private Task findTask(

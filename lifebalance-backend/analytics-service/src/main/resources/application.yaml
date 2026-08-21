@@ -9,6 +9,19 @@ spring:
   application:
     name: analytics-service
 
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: analytics
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    locations: classpath:db/migration/postgresql
+
 management:
   endpoints:
     web:

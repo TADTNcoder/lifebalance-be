@@ -66,11 +66,16 @@ public class TaskController {
             @RequestParam(required = false) LocalDate deadlineTo,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "DESC") String sortDirection,
             HttpServletRequest httpRequest) {
 
         UUID ownerId = getCurrentUserId(httpRequest);
 
-        Pageable pageable = PageableLimits.of(page, size);
+        Pageable pageable = PageableLimits.of(
+                page,
+                size,
+                TaskSortCriteria.toSort(sortBy, sortDirection));
 
         return taskService.search(
                 ownerId,

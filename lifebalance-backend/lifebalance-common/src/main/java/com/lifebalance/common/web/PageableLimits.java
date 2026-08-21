@@ -2,6 +2,7 @@ package com.lifebalance.common.web;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 public final class PageableLimits {
 
@@ -14,6 +15,14 @@ public final class PageableLimits {
 
     public static Pageable of(int page, int size) {
         return PageRequest.of(normalizePage(page), normalizeSize(size));
+    }
+
+    public static Pageable of(int page, int size, Sort sort) {
+        if (sort == null || sort.isUnsorted()) {
+            return of(page, size);
+        }
+
+        return PageRequest.of(normalizePage(page), normalizeSize(size), sort);
     }
 
     public static Pageable normalize(Pageable pageable) {

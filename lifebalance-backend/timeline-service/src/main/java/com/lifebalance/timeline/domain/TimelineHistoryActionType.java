@@ -1,0 +1,12 @@
+package com.lifebalance.timeline.domain;
+
+public enum TimelineHistoryActionType {
+    TASK_SNAPSHOT_REGISTERED,
+    TASK_SNAPSHOT_UPDATED,
+    TIMELINE_SCHEDULED,
+    TIMELINE_RESCHEDULED,
+    TIMELINE_MOVED,
+    TIMELINE_CANCELLED,
+    TIMELINE_ARCHIVED,
+    TIMELINE_CONFLICT_CONFIRMED
+}

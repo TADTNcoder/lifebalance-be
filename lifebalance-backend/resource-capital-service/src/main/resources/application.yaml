@@ -36,8 +36,13 @@ management:
 
 lifebalance:
   integration:
+    enabled: ${LIFEBALANCE_INTEGRATION_ENABLED:true}
     task-service:
       base-url: ${TASK_SERVICE_BASE_URL:http://task-service:8080}
+    notification-service:
+      base-url: ${NOTIFICATION_SERVICE_BASE_URL:http://notification-service:8080}
+      enabled: ${NOTIFICATION_SERVICE_INTEGRATION_ENABLED:true}
+      policy-approved: ${NOTIFICATION_SERVICE_POLICY_APPROVED:false}
 
   security:
     keycloak:

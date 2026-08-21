@@ -6,6 +6,8 @@ import com.lifebalance.task.dto.request.ScheduleTimelinePlacementRequest;
 import com.lifebalance.task.dto.response.TimelinePlacementResponse;
 import com.lifebalance.task.error.TaskExceptions;
 import com.lifebalance.task.history.TaskChangeHistoryService;
+import com.lifebalance.task.integration.TaskIntegrationAction;
+import com.lifebalance.task.integration.TaskIntegrationPublisher;
 import com.lifebalance.task.model.Task;
 import com.lifebalance.task.model.TimelinePlacement;
 import com.lifebalance.task.model.enums.TaskHistoryActionType;
@@ -32,6 +34,7 @@ public class TimelinePlacementServiceImpl implements TimelinePlacementService {
     private final TimelinePlacementRepository timelinePlacementRepository;
     private final TaskLifecyclePolicy taskLifecyclePolicy;
     private final TaskChangeHistoryService taskChangeHistoryService;
+    private final TaskIntegrationPublisher taskIntegrationPublisher;
 
     @Override
     @Transactional
@@ -78,6 +81,11 @@ public class TimelinePlacementServiceImpl implements TimelinePlacementService {
                 TaskHistoryActionType.TIMELINE_SCHEDULED,
                 null,
                 timelineSnapshot(placement),
+                request.getReason());
+        taskIntegrationPublisher.publishTaskChanged(
+                task,
+                ownerId,
+                TaskIntegrationAction.TASK_SCHEDULED,
                 request.getReason());
 
         return mapToResponse(placement);
@@ -147,6 +155,11 @@ public class TimelinePlacementServiceImpl implements TimelinePlacementService {
                 TaskHistoryActionType.TIMELINE_CANCELLED,
                 oldSnapshot,
                 timelineSnapshot(placement),
+                request == null ? null : request.getReason());
+        taskIntegrationPublisher.publishTaskChanged(
+                task,
+                ownerId,
+                TaskIntegrationAction.TASK_TIMELINE_CANCELLED,
                 request == null ? null : request.getReason());
     }
 
@@ -218,6 +231,13 @@ public class TimelinePlacementServiceImpl implements TimelinePlacementService {
                 actionType,
                 oldSnapshot,
                 timelineSnapshot(placement),
+                request.getReason());
+        taskIntegrationPublisher.publishTaskChanged(
+                task,
+                ownerId,
+                actionType == TaskHistoryActionType.TIMELINE_MOVED
+                        ? TaskIntegrationAction.TASK_MOVED
+                        : TaskIntegrationAction.TASK_RESCHEDULED,
                 request.getReason());
 
         return mapToResponse(placement);

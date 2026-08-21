@@ -20,8 +20,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.lifebalance.identity.dto.UpdateUserRequest;
 import com.lifebalance.identity.exception.UserEmailAlreadyExistsException;
 import com.lifebalance.identity.exception.UserInactiveException;
+import com.lifebalance.identity.exception.UserNotFoundException;
 import com.lifebalance.identity.exception.UserUsernameAlreadyExistsException;
 import com.lifebalance.identity.exception.UserValidationException;
 import com.lifebalance.identity.model.Role;
@@ -184,6 +186,36 @@ class InternalUserServiceImplTest {
         assertThatThrownBy(() -> service.findOrCreate(currentUser))
                 .isInstanceOf(UserInactiveException.class)
                 .hasMessage("User account is not active: DELETED");
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void getCurrentUserShouldThrowDomainExceptionWhenKeycloakUserIsMissing() {
+        CurrentUser currentUser = createCurrentUser();
+
+        when(userRepository.findByKeycloakId("kc-user-1")).thenReturn(Optional.empty());
+
+        InternalUserServiceImpl service = createService();
+
+        assertThatThrownBy(() -> service.getCurrentUser(currentUser))
+                .isInstanceOf(UserNotFoundException.class)
+                .hasMessage("User not found for Keycloak subject: kc-user-1");
+    }
+
+    @Test
+    void updateCurrentUserShouldThrowDomainExceptionWhenKeycloakUserIsMissing() {
+        CurrentUser currentUser = createCurrentUser();
+        UpdateUserRequest request = new UpdateUserRequest();
+        request.setDisplayName("Alice Nguyen");
+        request.setEmail("alice.nguyen@example.com");
+
+        when(userRepository.findByKeycloakId("kc-user-1")).thenReturn(Optional.empty());
+
+        InternalUserServiceImpl service = createService();
+
+        assertThatThrownBy(() -> service.updateCurrentUser(currentUser, request))
+                .isInstanceOf(UserNotFoundException.class)
+                .hasMessage("User not found for Keycloak subject: kc-user-1");
         verify(userRepository, never()).save(any());
     }
 

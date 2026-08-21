@@ -46,6 +46,7 @@ import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalRealloc
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalReleaseRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.MoneyCapitalRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.TimeCapitalRepository;
+import com.lifebalance.resourcecapital.integration.CapitalIntegrationPublisher;
 import com.lifebalance.resourcecapital.service.AllocationService;
 import com.lifebalance.resourcecapital.service.CapitalAllocationService;
 import com.lifebalance.resourcecapital.service.DefaultAllocationValidator;
@@ -83,6 +84,7 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
     private final MoneyCapitalRepository moneyCapitalRepository;
     private final CapitalHistoryRepository capitalHistoryRepository;
     private final DefaultAllocationValidator defaultAllocationValidator;
+    private final CapitalIntegrationPublisher capitalIntegrationPublisher;
 
     public CapitalAllocationServiceImpl(
             AllocationService allocationService,
@@ -93,7 +95,8 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
             TimeCapitalRepository timeCapitalRepository,
             MoneyCapitalRepository moneyCapitalRepository,
             CapitalHistoryRepository capitalHistoryRepository,
-            DefaultAllocationValidator defaultAllocationValidator
+            DefaultAllocationValidator defaultAllocationValidator,
+            CapitalIntegrationPublisher capitalIntegrationPublisher
     ) {
         this.allocationService = allocationService;
         this.capitalCycleRepository = capitalCycleRepository;
@@ -104,6 +107,7 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
         this.moneyCapitalRepository = moneyCapitalRepository;
         this.capitalHistoryRepository = capitalHistoryRepository;
         this.defaultAllocationValidator = defaultAllocationValidator;
+        this.capitalIntegrationPublisher = capitalIntegrationPublisher;
     }
 
     @Transactional
@@ -119,7 +123,7 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
                 request.projectId()
         );
 
-        return allocationService.allocateCapital(
+        AllocationResponse response = allocationService.allocateCapital(
                 ownerId,
                 cycle.getId(),
                 new AllocateCapitalRequest(
@@ -132,6 +136,8 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
                         request.reason()
                 )
         );
+        publishOverAllocationIfNeeded(ownerId, response, "ALLOCATE", request.reason());
+        return response;
     }
 
     @Transactional
@@ -160,6 +166,7 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
                         request.reason()
                 )
         );
+        publishOverAllocationIfNeeded(ownerId, response, "ALLOCATE", request.reason());
         return AllocationResponseDTO.from(response);
     }
 
@@ -227,6 +234,7 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
                 request.amount(),
                 request.reason()
         ));
+        publishOverAllocationIfNeeded(ownerId, response, "REALLOCATE", request.reason());
         return response;
     }
 
@@ -294,6 +302,7 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
                 request.amount(),
                 request.reason()
         ));
+        publishOverAllocationIfNeeded(ownerId, response, "REALLOCATE", request.reason());
         return AllocationResponseDTO.from(response);
     }
 
@@ -306,22 +315,7 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
     ) {
         Objects.requireNonNull(request, "Capital allocation change request is required.");
         CapitalAllocation allocation = findOwnedAllocationForUpdate(ownerId, allocationId);
-
-        return changeAllocationAmount(
-                ownerId,
-                allocation,
-                request.newAmount(),
-                request.overAllocationConfirmed(),
-                request.overAllocationConfirmationKey(),
-                request.reason()
-        );
-    }
-
-    @Transactional
-    @Override
-    public AllocationResponseDTO changeAllocation(UUID ownerId, ChangeCapitalAllocationRequestDTO request) {
-        Objects.requireNonNull(request, "Change capital allocation request is required.");
-        CapitalAllocation allocation = findOwnedAllocationForUpdate(ownerId, request.allocationId());
+        boolean amountChanged = isDifferentRequestedAmount(allocation, request.newAmount());
 
         AllocationResponse response = changeAllocationAmount(
                 ownerId,
@@ -331,6 +325,30 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
                 request.overAllocationConfirmationKey(),
                 request.reason()
         );
+        if (amountChanged) {
+            publishOverAllocationIfNeeded(ownerId, response, "CHANGE_ALLOCATION", request.reason());
+        }
+        return response;
+    }
+
+    @Transactional
+    @Override
+    public AllocationResponseDTO changeAllocation(UUID ownerId, ChangeCapitalAllocationRequestDTO request) {
+        Objects.requireNonNull(request, "Change capital allocation request is required.");
+        CapitalAllocation allocation = findOwnedAllocationForUpdate(ownerId, request.allocationId());
+        boolean amountChanged = isDifferentRequestedAmount(allocation, request.newAmount());
+
+        AllocationResponse response = changeAllocationAmount(
+                ownerId,
+                allocation,
+                request.newAmount(),
+                request.overAllocationConfirmed(),
+                request.overAllocationConfirmationKey(),
+                request.reason()
+        );
+        if (amountChanged) {
+            publishOverAllocationIfNeeded(ownerId, response, "CHANGE_ALLOCATION", request.reason());
+        }
         return AllocationResponseDTO.from(response);
     }
 
@@ -436,6 +454,22 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
             );
         }
         return cycle;
+    }
+
+    private void publishOverAllocationIfNeeded(
+            UUID ownerId,
+            AllocationResponse response,
+            String action,
+            String reason
+    ) {
+        capitalIntegrationPublisher.publishOverAllocationApproved(ownerId, response, action, reason);
+    }
+
+    private static boolean isDifferentRequestedAmount(CapitalAllocation allocation, BigDecimal requestedNewAmount) {
+        return requestedNewAmount != null
+                && allocation != null
+                && allocation.getAllocatedAmount() != null
+                && allocation.getAllocatedAmount().compareTo(requestedNewAmount) != 0;
     }
 
     private CapitalCycle findOwnedCycle(UUID ownerId, UUID cycleId) {

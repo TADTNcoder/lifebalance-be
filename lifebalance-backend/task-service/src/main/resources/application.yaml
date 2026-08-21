@@ -25,6 +25,21 @@ management:
         enabled: true
 
 lifebalance:
+  integration:
+    enabled: ${LIFEBALANCE_INTEGRATION_ENABLED:true}
+    timeline-service:
+      enabled: ${TIMELINE_SERVICE_INTEGRATION_ENABLED:true}
+      base-url: ${TIMELINE_SERVICE_BASE_URL:http://timeline-service:8080}
+    notification-service:
+      enabled: ${NOTIFICATION_SERVICE_INTEGRATION_ENABLED:true}
+      base-url: ${NOTIFICATION_SERVICE_BASE_URL:http://notification-service:8080}
+      policy-approved: ${NOTIFICATION_POLICY_APPROVED:false}
+    analytics-service:
+      enabled: ${ANALYTICS_SERVICE_INTEGRATION_ENABLED:true}
+      base-url: ${ANALYTICS_SERVICE_BASE_URL:http://analytics-service:8080}
+      actual-seed-enabled: ${ANALYTICS_ACTUAL_SEED_ENABLED:false}
+      default-currency-code: ${ANALYTICS_DEFAULT_CURRENCY_CODE:VND}
+
   security:
     keycloak:
       client-id: ${KEYCLOAK_CLIENT_ID:lifebalance-api}

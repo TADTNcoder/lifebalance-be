@@ -92,6 +92,16 @@ public final class TaskExceptions {
                 "Timeline placement not found");
     }
 
+    public static AppException invalidSortCriteria(String sortBy, String sortDirection) {
+        return badRequest(
+                TaskErrorCode.TASK_INVALID_SORT_CRITERIA,
+                "Task sort criteria is invalid",
+                Map.of(
+                        "sortBy", String.valueOf(sortBy),
+                        "sortDirection", String.valueOf(sortDirection)
+                ));
+    }
+
     public static AppException deleteNotAllowed(TaskStatus status) {
         return conflict(
                 TaskErrorCode.TASK_DELETE_NOT_ALLOWED,

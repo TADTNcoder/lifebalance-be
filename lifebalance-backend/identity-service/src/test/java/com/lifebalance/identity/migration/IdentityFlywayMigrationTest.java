@@ -18,8 +18,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class IdentityFlywayMigrationTest {
 
     private static final List<String> DEFAULT_PERMISSION_CODES = List.of(
+            "activity-log:read",
+            "administration-dashboard:read",
+            "announcement:create",
+            "announcement:read",
             "audit:export",
             "audit:read",
+            "configuration:read",
+            "configuration:update",
+            "maintenance:read",
             "permission:create",
             "permission:delete",
             "permission:read",
@@ -31,6 +38,11 @@ class IdentityFlywayMigrationTest {
             "role:delete",
             "role:read",
             "role:update",
+            "support-ticket:assign",
+            "support-ticket:create",
+            "support-ticket:read",
+            "support-ticket:resolve",
+            "support-ticket:update",
             "user:create",
             "user:delete",
             "user:lock",
@@ -94,8 +106,63 @@ class IdentityFlywayMigrationTest {
         assertThat(adminPermissionCodes).containsExactlyElementsOf(DEFAULT_PERMISSION_CODES);
 
         List<String> userPermissionCodes = findPermissionCodesByRoleCode("user");
-        assertThat(userPermissionCodes).containsExactly("profile:read", "profile:update");
+        assertThat(userPermissionCodes).containsExactly(
+                "announcement:read",
+                "maintenance:read",
+                "profile:read",
+                "profile:update",
+                "support-ticket:create",
+                "support-ticket:read"
+        );
         assertThat(userPermissionCodes).doesNotContain("user:update", "user:delete");
+
+        List<String> managerPermissionCodes = findPermissionCodesByRoleCode("manager");
+        assertThat(managerPermissionCodes).contains(
+                "support-ticket:create",
+                "support-ticket:read",
+                "support-ticket:update",
+                "support-ticket:assign",
+                "support-ticket:resolve",
+                "activity-log:read",
+                "administration-dashboard:read",
+                "announcement:read",
+                "maintenance:read"
+        );
+        assertThat(managerPermissionCodes).doesNotContain("configuration:update", "permission:update");
+    }
+
+    @Test
+    void flywayCreatesAdministrationSupportSchema() {
+        assertTableExists("support_tickets");
+        assertTableExists("support_ticket_history");
+        assertTableExists("activity_logs");
+        assertTableExists("system_configurations");
+        assertTableExists("system_announcements");
+
+        assertColumnExists("support_tickets", "requester_id");
+        assertColumnExists("support_tickets", "assignee_id");
+        assertColumnExists("support_ticket_history", "action");
+        assertColumnExists("activity_logs", "category");
+        assertColumnExists("system_configurations", "requires_confirmation");
+        assertColumnExists("system_announcements", "audience");
+
+        assertIndexExists("idx_identity_support_tickets_status");
+        assertIndexExists("idx_identity_ticket_history_ticket");
+        assertIndexExists("idx_identity_activity_logs_category");
+        assertIndexExists("idx_identity_system_configurations_key");
+        assertIndexExists("idx_identity_announcements_status");
+
+        Integer configurationCount = jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                FROM identity.system_configurations
+                WHERE config_key IN (
+                    'announcement.policy.enabled',
+                    'maintenance.policy.enabled',
+                    'maintenance.mode.enabled',
+                    'maintenance.message'
+                )
+                """, Integer.class);
+        assertThat(configurationCount).isEqualTo(4);
     }
 
     private void assertTableExists(String tableName) {

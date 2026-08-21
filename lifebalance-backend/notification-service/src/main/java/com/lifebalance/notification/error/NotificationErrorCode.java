@@ -1,0 +1,19 @@
+package com.lifebalance.notification.error;
+
+public final class NotificationErrorCode {
+
+    public static final String NOTIFICATION_NOT_FOUND = "NOTIFICATION_NOT_FOUND";
+    public static final String NOTIFICATION_POLICY_NOT_APPROVED = "NOTIFICATION_POLICY_NOT_APPROVED";
+    public static final String NOTIFICATION_INVALID_REQUEST = "NOTIFICATION_INVALID_REQUEST";
+    public static final String NOTIFICATION_INVALID_REFERENCE = "NOTIFICATION_INVALID_REFERENCE";
+    public static final String NOTIFICATION_INVALID_STATE = "NOTIFICATION_INVALID_STATE";
+    public static final String NOTIFICATION_DELIVERY_INVALID_STATE = "NOTIFICATION_DELIVERY_INVALID_STATE";
+    public static final String NOTIFICATION_PREFERENCE_NOT_FOUND = "NOTIFICATION_PREFERENCE_NOT_FOUND";
+    public static final String NOTIFICATION_TEMPLATE_NOT_FOUND = "NOTIFICATION_TEMPLATE_NOT_FOUND";
+    public static final String NOTIFICATION_TEMPLATE_ALREADY_EXISTS = "NOTIFICATION_TEMPLATE_ALREADY_EXISTS";
+    public static final String NOTIFICATION_TEXT_TOO_LONG = "NOTIFICATION_TEXT_TOO_LONG";
+    public static final String NOTIFICATION_INVALID_TIMEZONE = "NOTIFICATION_INVALID_TIMEZONE";
+
+    private NotificationErrorCode() {
+    }
+}

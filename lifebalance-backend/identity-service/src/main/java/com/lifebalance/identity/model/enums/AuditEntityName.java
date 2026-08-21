@@ -12,6 +12,14 @@ public enum AuditEntityName {
 
     USER_ROLE,
 
-    ROLE_PERMISSION
+    ROLE_PERMISSION,
+
+    SUPPORT_TICKET,
+
+    SYSTEM_CONFIGURATION,
+
+    ANNOUNCEMENT,
+
+    MAINTENANCE
 
 }

@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.lifebalance.identity.model.User;
+import com.lifebalance.identity.model.enums.AccountStatus;
 
 import jakarta.persistence.LockModeType;
 
@@ -144,4 +145,29 @@ public interface UserRepository extends JpaRepository<User, UUID> {
       String username,
       String email,
       Pageable pageable);
+
+  @Query("""
+      SELECT DISTINCT user
+      FROM User user
+      LEFT JOIN UserRole userRole ON userRole.user.id = user.id
+      LEFT JOIN userRole.role role
+      WHERE (:status IS NULL OR user.status = :status)
+        AND (:roleCode IS NULL OR lower(role.code) = lower(:roleCode))
+        AND (:keyword IS NULL
+             OR lower(user.email) LIKE :keyword
+             OR lower(user.username) LIKE :keyword
+             OR lower(user.displayName) LIKE :keyword)
+      """)
+  Page<User> searchForAdministration(
+      @Param("keyword") String keyword,
+      @Param("status") AccountStatus status,
+      @Param("roleCode") String roleCode,
+      Pageable pageable);
+
+  @Query("""
+      SELECT user.status, count(user)
+      FROM User user
+      GROUP BY user.status
+      """)
+  List<Object[]> countByStatus();
 }

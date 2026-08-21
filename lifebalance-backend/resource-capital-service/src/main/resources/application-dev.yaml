@@ -1,6 +1,11 @@
 server:
   port: ${RESOURCE_CAPITAL_SERVICE_PORT:8098}
 
+lifebalance:
+  integration:
+    notification-service:
+      base-url: ${NOTIFICATION_SERVICE_BASE_URL:http://notification-service:8080}
+
 spring:
   flyway:
     locations:

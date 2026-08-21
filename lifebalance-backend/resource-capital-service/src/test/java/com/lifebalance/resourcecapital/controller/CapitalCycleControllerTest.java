@@ -18,6 +18,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lifebalance.common.LifebalanceCommonAutoConfiguration;
 import com.lifebalance.common.error.AuthErrorCode;
 import com.lifebalance.common.error.CommonErrorCode;
+import com.lifebalance.resourcecapital.domain.capital.CapitalKind;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleStatus;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleType;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.ActiveCapitalCycleAlreadyExistsException;
@@ -29,6 +30,8 @@ import com.lifebalance.resourcecapital.dto.CapitalCycleResponse;
 import com.lifebalance.resourcecapital.dto.CloseCapitalCycleRequest;
 import com.lifebalance.resourcecapital.dto.CreateCapitalCycleRequest;
 import com.lifebalance.resourcecapital.dto.ReopenCapitalCycleRequest;
+import com.lifebalance.resourcecapital.dto.TransferRemainingCapitalRequest;
+import com.lifebalance.resourcecapital.dto.TransferRemainingCapitalResponse;
 import com.lifebalance.resourcecapital.dto.UpdateCapitalCycleRequest;
 import com.lifebalance.resourcecapital.service.CapitalCycleService;
 import com.lifebalance.security.keycloak.LifebalanceSecurityAutoConfiguration;
@@ -48,6 +51,7 @@ import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
+import java.math.BigDecimal;
 
 @WebMvcTest(CapitalCycleController.class)
 @Import({
@@ -59,6 +63,9 @@ class CapitalCycleControllerTest {
 
     private static final UUID OWNER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private static final UUID CYCLE_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
+    private static final UUID TARGET_CYCLE_ID = UUID.fromString("33333333-3333-3333-3333-333333333333");
+    private static final UUID SOURCE_HISTORY_ID = UUID.fromString("44444444-4444-4444-4444-444444444444");
+    private static final UUID TARGET_HISTORY_ID = UUID.fromString("55555555-5555-5555-5555-555555555555");
     private static final String ENDPOINT = "/api/v1/capital-cycles";
 
     @Autowired
@@ -644,6 +651,64 @@ class CapitalCycleControllerTest {
         verify(capitalCycleService, never()).reopenCycle(any(), any(), any());
     }
 
+    @Test
+    void transferRemainingReturnsOkWhenRequestIsConfirmedAndUserOwnsCycles() throws Exception {
+        TransferRemainingCapitalRequest request = transferRequest();
+        TransferRemainingCapitalResponse response = transferResponse();
+
+        when(capitalCycleService.transferRemainingCapital(
+                eq(OWNER_ID),
+                eq(CYCLE_ID),
+                any(TransferRemainingCapitalRequest.class)
+        )).thenReturn(response);
+
+        mockMvc.perform(post(ENDPOINT + "/{id}/transfer-remaining", CYCLE_ID)
+                        .with(authenticatedUser())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sourceCycleId").value(CYCLE_ID.toString()))
+                .andExpect(jsonPath("$.targetCycleId").value(TARGET_CYCLE_ID.toString()))
+                .andExpect(jsonPath("$.capitalType").value("MONEY"))
+                .andExpect(jsonPath("$.amount").value(125.0000))
+                .andExpect(jsonPath("$.sourceBeforeAmount").value(500.0000))
+                .andExpect(jsonPath("$.sourceAfterAmount").value(375.0000))
+                .andExpect(jsonPath("$.targetBeforeAmount").value(100.0000))
+                .andExpect(jsonPath("$.targetAfterAmount").value(225.0000))
+                .andExpect(jsonPath("$.sourceHistoryId").value(SOURCE_HISTORY_ID.toString()))
+                .andExpect(jsonPath("$.targetHistoryId").value(TARGET_HISTORY_ID.toString()))
+                .andExpect(jsonPath("$.transferredAt").value("2026-08-09T06:00:00Z"));
+
+        ArgumentCaptor<TransferRemainingCapitalRequest> requestCaptor =
+                ArgumentCaptor.forClass(TransferRemainingCapitalRequest.class);
+        verify(capitalCycleService).transferRemainingCapital(eq(OWNER_ID), eq(CYCLE_ID), requestCaptor.capture());
+        assertThat(requestCaptor.getValue().targetCycleId()).isEqualTo(TARGET_CYCLE_ID);
+        assertThat(requestCaptor.getValue().capitalType()).isEqualTo(CapitalKind.MONEY);
+        assertThat(requestCaptor.getValue().amount()).isEqualByComparingTo("125.0000");
+        assertThat(requestCaptor.getValue().transferConfirmed()).isTrue();
+    }
+
+    @Test
+    void transferRemainingReturnsBadRequestWhenAmountIsMissing() throws Exception {
+        mockMvc.perform(post(ENDPOINT + "/{id}/transfer-remaining", CYCLE_ID)
+                        .with(authenticatedUser())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "targetCycleId": "33333333-3333-3333-3333-333333333333",
+                                  "capitalType": "MONEY",
+                                  "reason": "Carry remaining budget",
+                                  "transferConfirmed": true
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value(CommonErrorCode.VALIDATION_FAILED))
+                .andExpect(jsonPath("$.error.details.amount").exists());
+
+        verify(capitalCycleService, never()).transferRemainingCapital(any(), any(), any());
+    }
+
     private static CreateCapitalCycleRequest monthlyRequest() {
         CreateCapitalCycleRequest request = new CreateCapitalCycleRequest();
         request.setName("Chu ky Thang 8/2026");
@@ -717,6 +782,33 @@ class CapitalCycleControllerTest {
         response.setReopenedAt(Instant.parse("2026-08-09T05:10:00Z"));
         response.setReopenReason("Need correction");
         return response;
+    }
+
+    private static TransferRemainingCapitalRequest transferRequest() {
+        return new TransferRemainingCapitalRequest(
+                TARGET_CYCLE_ID,
+                CapitalKind.MONEY,
+                new BigDecimal("125.0000"),
+                "Carry remaining budget",
+                true
+        );
+    }
+
+    private static TransferRemainingCapitalResponse transferResponse() {
+        return new TransferRemainingCapitalResponse(
+                CYCLE_ID,
+                TARGET_CYCLE_ID,
+                CapitalKind.MONEY,
+                new BigDecimal("125.0000"),
+                new BigDecimal("500.0000"),
+                new BigDecimal("375.0000"),
+                new BigDecimal("100.0000"),
+                new BigDecimal("225.0000"),
+                "Carry remaining budget",
+                SOURCE_HISTORY_ID,
+                TARGET_HISTORY_ID,
+                Instant.parse("2026-08-09T06:00:00Z")
+        );
     }
 
     private static RequestPostProcessor authenticatedUser() {

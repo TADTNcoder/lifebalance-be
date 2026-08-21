@@ -9,6 +9,19 @@ spring:
   application:
     name: notification-service
 
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: notification
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    locations: classpath:db/migration/postgresql
+
 management:
   endpoints:
     web:
@@ -24,6 +37,8 @@ lifebalance:
   security:
     keycloak:
       client-id: ${KEYCLOAK_CLIENT_ID:lifebalance-api}
+  notification:
+    default-channel: ${NOTIFICATION_DEFAULT_CHANNEL:IN_APP}
 
 info:
   app:

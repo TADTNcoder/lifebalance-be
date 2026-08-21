@@ -16,4 +16,12 @@ public class UserNotFoundException extends AppException {
                 HttpStatus.NOT_FOUND
         );
     }
+
+    public UserNotFoundException(String keycloakId) {
+        super(
+                IdentityErrorCode.USER_NOT_FOUND,
+                "User not found for Keycloak subject: " + keycloakId,
+                HttpStatus.NOT_FOUND
+        );
+    }
 }

@@ -1,6 +1,17 @@
 server:
   port: ${TASK_SERVICE_PORT:8092}
 
+lifebalance:
+  integration:
+    timeline-service:
+      base-url: ${TIMELINE_SERVICE_BASE_URL:http://localhost:8096}
+    notification-service:
+      base-url: ${NOTIFICATION_SERVICE_BASE_URL:http://localhost:8094}
+      policy-approved: ${NOTIFICATION_POLICY_APPROVED:false}
+    analytics-service:
+      base-url: ${ANALYTICS_SERVICE_BASE_URL:http://localhost:8097}
+      actual-seed-enabled: ${ANALYTICS_ACTUAL_SEED_ENABLED:false}
+
 spring:
   security:
     oauth2:
