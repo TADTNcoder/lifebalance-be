@@ -73,6 +73,17 @@ class KeycloakUserMapperTest {
     }
 
     @Test
+    void shouldFallbackToUuidSubjectWhenInternalUserIdClaimIsMissing() {
+        KeycloakUserMapper mapper = mapper("lifebalance-api");
+        UUID subject = UUID.fromString("33333333-3333-3333-3333-333333333333");
+        Jwt jwt = jwt(Map.of("sub", subject.toString()));
+
+        KeycloakUserPrincipal user = mapper.map(jwt);
+
+        assertThat(user.userId()).isEqualTo(subject);
+    }
+
+    @Test
     void shouldIgnoreMalformedRoleClaims() {
         KeycloakUserMapper mapper = mapper("lifebalance-api");
         Jwt jwt = jwt(Map.of(
