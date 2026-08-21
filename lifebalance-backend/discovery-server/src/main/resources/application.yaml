@@ -14,10 +14,15 @@ eureka:
     fetch-registry: false
 
 management:
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,prometheus
 
   endpoint:
     health:
