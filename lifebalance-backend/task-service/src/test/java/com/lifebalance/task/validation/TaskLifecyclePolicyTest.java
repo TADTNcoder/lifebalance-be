@@ -3,6 +3,7 @@ package com.lifebalance.task.validation;
 import com.lifebalance.common.error.AppException;
 import com.lifebalance.task.error.TaskErrorCode;
 import com.lifebalance.task.model.Task;
+import com.lifebalance.task.model.enums.OptionalFeaturePolicyStatus;
 import com.lifebalance.task.model.enums.TaskStatus;
 import org.junit.jupiter.api.Test;
 
@@ -77,5 +78,31 @@ class TaskLifecyclePolicyTest {
                 .isInstanceOf(AppException.class)
                 .extracting("code")
                 .isEqualTo(TaskErrorCode.TASK_TIMELINE_INVALID_WINDOW);
+    }
+
+    @Test
+    void rejectsProgressUpdateForDraftTask() {
+        Task task = Task.builder()
+                .ownerId(UUID.randomUUID())
+                .userId(UUID.randomUUID())
+                .name("Draft")
+                .status(TaskStatus.DRAFT)
+                .build();
+
+        assertThatThrownBy(() -> policy.validateProgressEditable(task))
+                .isInstanceOf(AppException.class)
+                .extracting("code")
+                .isEqualTo(TaskErrorCode.TASK_PROGRESS_NOT_ALLOWED);
+    }
+
+    @Test
+    void rejectsEnabledOptionalFeatureWithoutApprovedPolicy() {
+        assertThatThrownBy(() -> policy.validateOptionalFeatureApproved(
+                "reminder",
+                OptionalFeaturePolicyStatus.PENDING_APPROVAL,
+                true))
+                .isInstanceOf(AppException.class)
+                .extracting("code")
+                .isEqualTo(TaskErrorCode.TASK_OPTIONAL_FEATURE_NOT_APPROVED);
     }
 }

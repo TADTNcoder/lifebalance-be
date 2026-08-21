@@ -19,6 +19,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.lifebalance.task.dto.response.TagResponse;
+import com.lifebalance.task.history.TaskChangeHistoryService;
 import com.lifebalance.task.model.Tag;
 import com.lifebalance.task.model.Task;
 import com.lifebalance.task.model.TaskTag;
@@ -41,6 +42,9 @@ class TaskTagServiceImplTest {
 
     @Mock
     private TaskTagRepository taskTagRepository;
+
+    @Mock
+    private TaskChangeHistoryService taskChangeHistoryService;
 
     @InjectMocks
     private TaskTagServiceImpl taskTagService;
@@ -110,8 +114,8 @@ class TaskTagServiceImplTest {
     void removeTagRequiresTaskAndTagInOwnerScope() {
         when(taskRepository.findByIdAndOwnerId(TASK_ID, OWNER_ID))
                 .thenReturn(Optional.of(task()));
-        when(tagRepository.existsByIdAndUserId(TAG_ID, OWNER_ID))
-                .thenReturn(false);
+        when(tagRepository.findByIdAndUserId(TAG_ID, OWNER_ID))
+                .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> taskTagService.removeTag(OWNER_ID, TASK_ID, TAG_ID))
                 .hasMessage("Tag not found");

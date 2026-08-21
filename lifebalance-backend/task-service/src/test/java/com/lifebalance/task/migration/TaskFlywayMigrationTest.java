@@ -173,6 +173,28 @@ class TaskFlywayMigrationTest {
         assertIndexExists("idx_task_change_histories_owner_time");
         assertIndexExists("idx_task_change_histories_task_time");
         assertIndexExists("idx_task_change_histories_action_time");
+        assertIndexExists("idx_task_change_histories_owner_action_time");
+    }
+
+    @Test
+    void flywayAllowsBackendServiceHistoryActions() {
+        UUID userId = UUID.randomUUID();
+        UUID taskId = insertTask(userId, "History action extension");
+
+        jdbcTemplate.update("""
+                INSERT INTO task.task_change_histories (owner_id, actor_id, task_id, action_type, field_name)
+                VALUES (?, ?, ?, 'TASK_REMINDER_CREATED', 'reminder')
+                """, userId, userId, taskId);
+
+        Long count = jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                FROM task.task_change_histories
+                WHERE owner_id = ?
+                  AND task_id = ?
+                  AND action_type = 'TASK_REMINDER_CREATED'
+                """, Long.class, userId, taskId);
+
+        assertThat(count).isEqualTo(1L);
     }
 
     @Test
