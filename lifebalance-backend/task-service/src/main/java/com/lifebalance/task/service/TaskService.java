@@ -7,7 +7,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import com.lifebalance.task.dto.request.CreateTaskRequest;
+import com.lifebalance.task.dto.request.TaskLifecycleActionRequest;
+import com.lifebalance.task.dto.request.TaskPlanningRequest;
 import com.lifebalance.task.dto.request.UpdateTaskRequest;
+import com.lifebalance.task.dto.request.UpdateTaskProgressRequest;
 import com.lifebalance.task.dto.response.TaskResponse;
 import com.lifebalance.task.model.enums.PriorityLevel;
 import com.lifebalance.task.model.enums.TaskStatus;
@@ -22,6 +25,16 @@ public interface TaskService {
                         UUID id,
                         UUID ownerId,
                         UpdateTaskRequest request);
+
+        TaskResponse plan(
+                        UUID id,
+                        UUID ownerId,
+                        TaskPlanningRequest request);
+
+        TaskResponse updateProgress(
+                        UUID id,
+                        UUID ownerId,
+                        UpdateTaskProgressRequest request);
 
         Page<TaskResponse> search(
                         UUID ownerId,
@@ -45,6 +58,31 @@ public interface TaskService {
         void restore(
                         UUID id,
                         UUID ownerId);
+
+        TaskResponse pause(
+                        UUID id,
+                        UUID ownerId,
+                        TaskLifecycleActionRequest request);
+
+        TaskResponse resume(
+                        UUID id,
+                        UUID ownerId,
+                        TaskLifecycleActionRequest request);
+
+        TaskResponse complete(
+                        UUID id,
+                        UUID ownerId,
+                        TaskLifecycleActionRequest request);
+
+        TaskResponse cancel(
+                        UUID id,
+                        UUID ownerId,
+                        TaskLifecycleActionRequest request);
+
+        TaskResponse reopen(
+                        UUID id,
+                        UUID ownerId,
+                        TaskLifecycleActionRequest request);
 
         void delete(
                         UUID id,

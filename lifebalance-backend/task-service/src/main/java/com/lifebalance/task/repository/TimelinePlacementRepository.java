@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -21,6 +22,8 @@ public interface TimelinePlacementRepository extends JpaRepository<TimelinePlace
             FROM TimelinePlacement placement
             WHERE placement.ownerId = :ownerId
               AND placement.status = :status
+              AND placement.task.status <> com.lifebalance.task.model.enums.TaskStatus.ARCHIVED
+              AND placement.task.status <> com.lifebalance.task.model.enums.TaskStatus.CANCELLED
               AND placement.startAt < :to
               AND placement.endAt > :from
             ORDER BY placement.startAt ASC, placement.id ASC
@@ -47,4 +50,17 @@ public interface TimelinePlacementRepository extends JpaRepository<TimelinePlace
             @Param("excludedPlacementId") UUID excludedPlacementId,
             @Param("startAt") OffsetDateTime startAt,
             @Param("endAt") OffsetDateTime endAt);
+
+    @Query("""
+            SELECT placement
+            FROM TimelinePlacement placement
+            WHERE placement.ownerId = :ownerId
+              AND placement.task.id = :taskId
+              AND placement.status = :status
+            ORDER BY placement.startAt ASC, placement.id ASC
+            """)
+    List<TimelinePlacement> findByOwnerIdAndTaskIdAndStatus(
+            @Param("ownerId") UUID ownerId,
+            @Param("taskId") UUID taskId,
+            @Param("status") TimelinePlacementStatus status);
 }

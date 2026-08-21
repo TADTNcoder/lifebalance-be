@@ -92,6 +92,49 @@ public final class TaskExceptions {
                 "Timeline placement not found");
     }
 
+    public static AppException deleteNotAllowed(TaskStatus status) {
+        return conflict(
+                TaskErrorCode.TASK_DELETE_NOT_ALLOWED,
+                "Task cannot be deleted in its current status",
+                Map.of("status", String.valueOf(status)));
+    }
+
+    public static AppException progressNotAllowed(TaskStatus status) {
+        return conflict(
+                TaskErrorCode.TASK_PROGRESS_NOT_ALLOWED,
+                "Task progress cannot be updated in its current status",
+                Map.of("status", String.valueOf(status)));
+    }
+
+    public static AppException optionalFeatureNotApproved(String featureName) {
+        return conflict(
+                TaskErrorCode.TASK_OPTIONAL_FEATURE_NOT_APPROVED,
+                "Optional task feature is not approved by policy",
+                Map.of("feature", featureName));
+    }
+
+    public static AppException recurringRuleNotFound() {
+        return notFound(TaskErrorCode.TASK_RECURRING_RULE_NOT_FOUND, "Task recurring rule not found");
+    }
+
+    public static AppException recurringRuleInvalid(String reason) {
+        return badRequest(
+                TaskErrorCode.TASK_RECURRING_RULE_INVALID,
+                "Task recurring rule is invalid",
+                Map.of("reason", reason));
+    }
+
+    public static AppException reminderNotFound() {
+        return notFound(TaskErrorCode.TASK_REMINDER_NOT_FOUND, "Task reminder not found");
+    }
+
+    public static AppException reminderInvalid(String reason) {
+        return badRequest(
+                TaskErrorCode.TASK_REMINDER_INVALID,
+                "Task reminder is invalid",
+                Map.of("reason", reason));
+    }
+
     private static AppException notFound(String code, String message) {
         return new AppException(code, message, HttpStatus.NOT_FOUND);
     }
@@ -106,5 +149,9 @@ public final class TaskExceptions {
 
     private static AppException badRequest(String code, String message) {
         return new AppException(code, message, HttpStatus.BAD_REQUEST);
+    }
+
+    private static AppException badRequest(String code, String message, Map<String, String> details) {
+        return new AppException(code, message, HttpStatus.BAD_REQUEST, details);
     }
 }

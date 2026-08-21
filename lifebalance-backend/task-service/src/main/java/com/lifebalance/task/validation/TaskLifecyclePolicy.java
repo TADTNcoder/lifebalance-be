@@ -2,6 +2,7 @@ package com.lifebalance.task.validation;
 
 import com.lifebalance.task.error.TaskExceptions;
 import com.lifebalance.task.model.Task;
+import com.lifebalance.task.model.enums.OptionalFeaturePolicyStatus;
 import com.lifebalance.task.model.enums.TaskStatus;
 import org.springframework.stereotype.Component;
 
@@ -76,6 +77,19 @@ public class TaskLifecyclePolicy {
             TaskStatus.SCHEDULED
     );
 
+    private static final Set<TaskStatus> DELETE_ALLOWED_STATUSES = EnumSet.of(
+            TaskStatus.DRAFT,
+            TaskStatus.PLANNED,
+            TaskStatus.CANCELLED
+    );
+
+    private static final Set<TaskStatus> PROGRESS_ALLOWED_STATUSES = EnumSet.of(
+            TaskStatus.PLANNED,
+            TaskStatus.SCHEDULED,
+            TaskStatus.IN_PROGRESS,
+            TaskStatus.ON_HOLD
+    );
+
     public void validateTransition(
             TaskStatus sourceStatus,
             TaskStatus targetStatus) {
@@ -111,6 +125,45 @@ public class TaskLifecyclePolicy {
         }
         if (task.getEstimatedMinutes() == null || task.getEstimatedMinutes() <= 0) {
             throw TaskExceptions.timelineNotEligible("Task estimatedMinutes must be greater than 0.");
+        }
+    }
+
+    public void validatePlanReady(Task task) {
+        validatePlanningEditable(task);
+        if (task.getEstimatedMinutes() == null || task.getEstimatedMinutes() <= 0) {
+            throw TaskExceptions.timelineNotEligible("Task estimatedMinutes must be greater than 0 before planning.");
+        }
+    }
+
+    public void validateDeleteAllowed(Task task) {
+        if (task == null) {
+            throw TaskExceptions.taskNotFound();
+        }
+        if (!DELETE_ALLOWED_STATUSES.contains(task.getStatus())) {
+            throw TaskExceptions.deleteNotAllowed(task.getStatus());
+        }
+    }
+
+    public void validateProgressEditable(Task task) {
+        if (task == null) {
+            throw TaskExceptions.taskNotFound();
+        }
+        validateProgressEditable(task.getStatus());
+    }
+
+    public void validateProgressEditable(TaskStatus status) {
+        if (!PROGRESS_ALLOWED_STATUSES.contains(status)) {
+            throw TaskExceptions.progressNotAllowed(status);
+        }
+    }
+
+    public void validateOptionalFeatureApproved(
+            String featureName,
+            OptionalFeaturePolicyStatus policyStatus,
+            Boolean featureEnabled) {
+
+        if (Boolean.TRUE.equals(featureEnabled) && policyStatus != OptionalFeaturePolicyStatus.APPROVED) {
+            throw TaskExceptions.optionalFeatureNotApproved(featureName);
         }
     }
 

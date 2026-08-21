@@ -9,10 +9,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.lifebalance.task.dto.response.TagResponse;
 import com.lifebalance.task.error.TaskExceptions;
+import com.lifebalance.task.history.TaskChangeHistoryService;
 import com.lifebalance.task.model.Tag;
 import com.lifebalance.task.model.Task;
 import com.lifebalance.task.model.TaskTag;
 import com.lifebalance.task.model.TaskTagId;
+import com.lifebalance.task.model.enums.TaskHistoryActionType;
 import com.lifebalance.task.repository.TagRepository;
 import com.lifebalance.task.repository.TaskRepository;
 import com.lifebalance.task.repository.TaskTagRepository;
@@ -27,6 +29,7 @@ public class TaskTagServiceImpl implements TaskTagService {
     private final TaskRepository taskRepository;
     private final TagRepository tagRepository;
     private final TaskTagRepository taskTagRepository;
+    private final TaskChangeHistoryService taskChangeHistoryService;
 
     @Override
     @Transactional
@@ -60,6 +63,14 @@ public class TaskTagServiceImpl implements TaskTagService {
                 .build();
 
         taskTagRepository.save(taskTag);
+        taskChangeHistoryService.recordTaskChange(
+                task,
+                ownerId,
+                TaskHistoryActionType.TASK_TAG_ASSIGNED,
+                "tag",
+                null,
+                String.valueOf(tagId),
+                null);
     }
 
     @Override
@@ -69,17 +80,15 @@ public class TaskTagServiceImpl implements TaskTagService {
             UUID taskId,
             UUID tagId) {
 
-        if (taskRepository.findByIdAndOwnerId(
+        Task task = taskRepository.findByIdAndOwnerId(
                 taskId,
-                ownerId).isEmpty()) {
-            throw TaskExceptions.taskNotFound();
-        }
+                ownerId)
+                .orElseThrow(TaskExceptions::taskNotFound);
 
-        if (!tagRepository.existsByIdAndUserId(
+        Tag tag = tagRepository.findByIdAndUserId(
                 tagId,
-                ownerId)) {
-            throw TaskExceptions.tagNotFound();
-        }
+                ownerId)
+                .orElseThrow(TaskExceptions::tagNotFound);
 
         if (!taskTagRepository.existsByTaskIdAndTagId(
                 taskId,
@@ -91,6 +100,14 @@ public class TaskTagServiceImpl implements TaskTagService {
         taskTagRepository.deleteByTaskIdAndTagId(
                 taskId,
                 tagId);
+        taskChangeHistoryService.recordTaskChange(
+                task,
+                ownerId,
+                TaskHistoryActionType.TASK_TAG_REMOVED,
+                "tag",
+                String.valueOf(tag.getId()),
+                null,
+                null);
     }
 
     @Override

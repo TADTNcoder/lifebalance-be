@@ -18,6 +18,13 @@ public final class TaskErrorCode {
     public static final String TASK_TIMELINE_INVALID_WINDOW = "TASK_TIMELINE_INVALID_WINDOW";
     public static final String TASK_TIMELINE_CONFLICT = "TASK_TIMELINE_CONFLICT";
     public static final String TASK_TIMELINE_PLACEMENT_NOT_FOUND = "TASK_TIMELINE_PLACEMENT_NOT_FOUND";
+    public static final String TASK_DELETE_NOT_ALLOWED = "TASK_DELETE_NOT_ALLOWED";
+    public static final String TASK_PROGRESS_NOT_ALLOWED = "TASK_PROGRESS_NOT_ALLOWED";
+    public static final String TASK_OPTIONAL_FEATURE_NOT_APPROVED = "TASK_OPTIONAL_FEATURE_NOT_APPROVED";
+    public static final String TASK_RECURRING_RULE_NOT_FOUND = "TASK_RECURRING_RULE_NOT_FOUND";
+    public static final String TASK_RECURRING_RULE_INVALID = "TASK_RECURRING_RULE_INVALID";
+    public static final String TASK_REMINDER_NOT_FOUND = "TASK_REMINDER_NOT_FOUND";
+    public static final String TASK_REMINDER_INVALID = "TASK_REMINDER_INVALID";
 
     private TaskErrorCode() {
     }

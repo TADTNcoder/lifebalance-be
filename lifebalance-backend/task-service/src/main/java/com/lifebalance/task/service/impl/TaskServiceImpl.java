@@ -1,6 +1,8 @@
 package com.lifebalance.task.service.impl;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -10,17 +12,23 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.lifebalance.task.dto.request.CreateTaskRequest;
+import com.lifebalance.task.dto.request.TaskLifecycleActionRequest;
+import com.lifebalance.task.dto.request.TaskPlanningRequest;
 import com.lifebalance.task.dto.request.UpdateTaskRequest;
+import com.lifebalance.task.dto.request.UpdateTaskProgressRequest;
 import com.lifebalance.task.dto.response.TaskResponse;
 import com.lifebalance.task.error.TaskExceptions;
 import com.lifebalance.task.history.TaskChangeHistoryService;
 import com.lifebalance.task.model.Category;
 import com.lifebalance.task.model.Task;
+import com.lifebalance.task.model.TimelinePlacement;
 import com.lifebalance.task.model.enums.PriorityLevel;
 import com.lifebalance.task.model.enums.TaskHistoryActionType;
 import com.lifebalance.task.model.enums.TaskStatus;
+import com.lifebalance.task.model.enums.TimelinePlacementStatus;
 import com.lifebalance.task.repository.CategoryRepository;
 import com.lifebalance.task.repository.TaskRepository;
+import com.lifebalance.task.repository.TimelinePlacementRepository;
 import com.lifebalance.task.service.TaskService;
 import com.lifebalance.task.validation.TaskLifecyclePolicy;
 
@@ -32,6 +40,7 @@ public class TaskServiceImpl implements TaskService {
 
     private final TaskRepository taskRepository;
     private final CategoryRepository categoryRepository;
+    private final TimelinePlacementRepository timelinePlacementRepository;
     private final TaskLifecyclePolicy taskLifecyclePolicy;
     private final TaskChangeHistoryService taskChangeHistoryService;
 
@@ -134,9 +143,10 @@ public class TaskServiceImpl implements TaskService {
         }
 
         if (request.getProgress() != null) {
-            if (isPlanningLocked(oldStatus)) {
-                taskLifecyclePolicy.validatePlanningEditable(task);
-            }
+            TaskStatus progressStatus = request.getStatus() == null
+                    ? oldStatus
+                    : request.getStatus();
+            taskLifecyclePolicy.validateProgressEditable(progressStatus);
             task.updateProgress(
                     request.getProgress());
         }
@@ -168,6 +178,105 @@ public class TaskServiceImpl implements TaskService {
                     String.valueOf(oldStatus),
                     String.valueOf(task.getStatus()),
                     null);
+        }
+
+        return mapToResponse(task);
+    }
+
+    @Override
+    @Transactional
+    public TaskResponse plan(
+            UUID id,
+            UUID ownerId,
+            TaskPlanningRequest request) {
+
+        Task task = findTask(id, ownerId);
+        TaskStatus oldStatus = task.getStatus();
+        String oldSnapshot = taskSnapshot(task);
+
+        taskLifecyclePolicy.validatePlanningEditable(task);
+        taskLifecyclePolicy.validateTransition(
+                oldStatus,
+                TaskStatus.PLANNED);
+
+        validateOptionalPlanningWindow(
+                request.getPlannedStartAt(),
+                request.getPlannedEndAt());
+
+        PriorityLevel priority = request.getPriority() == null
+                ? task.getPriority()
+                : request.getPriority();
+        LocalDate deadline = request.getDeadline() == null
+                ? task.getDeadline()
+                : request.getDeadline();
+        Integer estimatedMinutes = request.getEstimatedMinutes() == null
+                ? task.getEstimatedMinutes()
+                : request.getEstimatedMinutes();
+        BigDecimal estimatedCost = request.getEstimatedCost() == null
+                ? task.getEstimatedCost()
+                : request.getEstimatedCost();
+        Category category = request.getCategoryId() == null
+                ? task.getCategory()
+                : resolveCategory(request.getCategoryId());
+
+        task.updateDetails(
+                task.getName(),
+                task.getDescription(),
+                priority,
+                deadline,
+                estimatedMinutes,
+                estimatedCost,
+                category);
+        task.planWindow(
+                request.getPlannedStartAt(),
+                request.getPlannedEndAt());
+        taskLifecyclePolicy.validatePlanReady(task);
+        task.transitionTo(TaskStatus.PLANNED);
+        task.setUpdatedBy(ownerId);
+
+        task = taskRepository.save(task);
+        String newSnapshot = taskSnapshot(task);
+        taskChangeHistoryService.recordTaskChange(
+                task,
+                ownerId,
+                TaskHistoryActionType.TASK_PLANNED,
+                null,
+                oldSnapshot,
+                newSnapshot,
+                request.getReason());
+        recordStatusChangeIfNeeded(
+                task,
+                ownerId,
+                oldStatus,
+                request.getReason());
+
+        return mapToResponse(task);
+    }
+
+    @Override
+    @Transactional
+    public TaskResponse updateProgress(
+            UUID id,
+            UUID ownerId,
+            UpdateTaskProgressRequest request) {
+
+        Task task = findTask(id, ownerId);
+        taskLifecyclePolicy.validateProgressEditable(task);
+
+        Integer oldProgress = task.getProgress();
+        task.updateProgress(request.getProgress());
+        task.setUpdatedBy(ownerId);
+        task = taskRepository.save(task);
+
+        if (!Objects.equals(oldProgress, task.getProgress())) {
+            taskChangeHistoryService.recordTaskChange(
+                    task,
+                    ownerId,
+                    TaskHistoryActionType.TASK_PROGRESS_UPDATED,
+                    "progress",
+                    String.valueOf(oldProgress),
+                    String.valueOf(task.getProgress()),
+                    request.getReason());
         }
 
         return mapToResponse(task);
@@ -219,15 +328,18 @@ public class TaskServiceImpl implements TaskService {
             UUID id,
             UUID ownerId) {
 
-        Task task = taskRepository
-                .findByIdAndOwnerId(id, ownerId)
-                .orElseThrow(TaskExceptions::taskNotFound);
+        Task task = findTask(id, ownerId);
 
         TaskStatus oldStatus = task.getStatus();
         taskLifecyclePolicy.validateTransition(
                 oldStatus,
                 TaskStatus.ARCHIVED);
+        cancelActiveTimelinePlacements(
+                task,
+                ownerId,
+                "Task archived");
         task.archive();
+        task.setScheduledWindow(null, null);
         task.setUpdatedBy(ownerId);
 
         taskRepository.save(task);
@@ -247,9 +359,7 @@ public class TaskServiceImpl implements TaskService {
             UUID id,
             UUID ownerId) {
 
-        Task task = taskRepository
-                .findByIdAndOwnerId(id, ownerId)
-                .orElseThrow(TaskExceptions::taskNotFound);
+        Task task = findTask(id, ownerId);
 
         TaskStatus oldStatus = task.getStatus();
         taskLifecyclePolicy.validateTransition(
@@ -271,6 +381,119 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     @Transactional
+    public TaskResponse pause(
+            UUID id,
+            UUID ownerId,
+            TaskLifecycleActionRequest request) {
+
+        return transitionLifecycle(
+                id,
+                ownerId,
+                TaskStatus.ON_HOLD,
+                reasonOf(request));
+    }
+
+    @Override
+    @Transactional
+    public TaskResponse resume(
+            UUID id,
+            UUID ownerId,
+            TaskLifecycleActionRequest request) {
+
+        return transitionLifecycle(
+                id,
+                ownerId,
+                TaskStatus.IN_PROGRESS,
+                reasonOf(request));
+    }
+
+    @Override
+    @Transactional
+    public TaskResponse complete(
+            UUID id,
+            UUID ownerId,
+            TaskLifecycleActionRequest request) {
+
+        Task task = findTask(id, ownerId);
+        TaskStatus oldStatus = task.getStatus();
+        String reason = reasonOf(request);
+        Integer oldProgress = task.getProgress();
+
+        taskLifecyclePolicy.validateTransition(
+                oldStatus,
+                TaskStatus.COMPLETED);
+        task.updateProgress(100);
+        task.markAsCompleted();
+        task.setUpdatedBy(ownerId);
+
+        task = taskRepository.save(task);
+        if (!Objects.equals(oldProgress, task.getProgress())) {
+            taskChangeHistoryService.recordTaskChange(
+                    task,
+                    ownerId,
+                    TaskHistoryActionType.TASK_PROGRESS_UPDATED,
+                    "progress",
+                    String.valueOf(oldProgress),
+                    String.valueOf(task.getProgress()),
+                    reason);
+        }
+        recordStatusChangeIfNeeded(
+                task,
+                ownerId,
+                oldStatus,
+                reason);
+
+        return mapToResponse(task);
+    }
+
+    @Override
+    @Transactional
+    public TaskResponse cancel(
+            UUID id,
+            UUID ownerId,
+            TaskLifecycleActionRequest request) {
+
+        Task task = findTask(id, ownerId);
+        TaskStatus oldStatus = task.getStatus();
+        String reason = reasonOf(request);
+
+        taskLifecyclePolicy.validateTransition(
+                oldStatus,
+                TaskStatus.CANCELLED);
+        cancelActiveTimelinePlacements(
+                task,
+                ownerId,
+                reason);
+        task.cancel();
+        task.setScheduledWindow(null, null);
+        task.setUpdatedBy(ownerId);
+
+        task = taskRepository.save(task);
+        recordStatusChangeIfNeeded(
+                task,
+                ownerId,
+                oldStatus,
+                reason);
+
+        return mapToResponse(task);
+    }
+
+    @Override
+    @Transactional
+    public TaskResponse reopen(
+            UUID id,
+            UUID ownerId,
+            TaskLifecycleActionRequest request) {
+
+        return transitionLifecycle(
+                id,
+                ownerId,
+                TaskStatus.PLANNED,
+                reasonOf(request));
+    }
+
+    @Override
+    @Transactional
     public void delete(
             UUID id,
             UUID ownerId) {
@@ -279,6 +502,7 @@ public class TaskServiceImpl implements TaskService {
                 .findByIdAndOwnerId(id, ownerId)
                 .orElseThrow(TaskExceptions::taskNotFound);
 
+        taskLifecyclePolicy.validateDeleteAllowed(task);
         taskChangeHistoryService.recordTaskChange(
                 task,
                 ownerId,
@@ -341,11 +565,98 @@ public class TaskServiceImpl implements TaskService {
             UUID id,
             UUID ownerId) {
 
-        Task task = taskRepository
-                .findByIdAndOwnerId(id, ownerId)
-                .orElseThrow(TaskExceptions::taskNotFound);
+        Task task = findTask(id, ownerId);
 
         return mapToResponse(task);
+    }
+
+    private TaskResponse transitionLifecycle(
+            UUID id,
+            UUID ownerId,
+            TaskStatus targetStatus,
+            String reason) {
+
+        Task task = findTask(id, ownerId);
+        TaskStatus oldStatus = task.getStatus();
+
+        taskLifecyclePolicy.validateTransition(
+                oldStatus,
+                targetStatus);
+        task.transitionTo(targetStatus);
+        task.setUpdatedBy(ownerId);
+
+        task = taskRepository.save(task);
+        recordStatusChangeIfNeeded(
+                task,
+                ownerId,
+                oldStatus,
+                reason);
+
+        return mapToResponse(task);
+    }
+
+    private Task findTask(
+            UUID id,
+            UUID ownerId) {
+
+        return taskRepository
+                .findByIdAndOwnerId(id, ownerId)
+                .orElseThrow(TaskExceptions::taskNotFound);
+    }
+
+    private void cancelActiveTimelinePlacements(
+            Task task,
+            UUID ownerId,
+            String reason) {
+
+        List<TimelinePlacement> activePlacements = timelinePlacementRepository
+                .findByOwnerIdAndTaskIdAndStatus(
+                        ownerId,
+                        task.getId(),
+                        TimelinePlacementStatus.ACTIVE);
+        if (activePlacements == null || activePlacements.isEmpty()) {
+            return;
+        }
+
+        for (TimelinePlacement placement : activePlacements) {
+            String oldSnapshot = timelineSnapshot(placement);
+            placement.cancel(reason, ownerId);
+            timelinePlacementRepository.save(placement);
+            taskChangeHistoryService.recordTimelineChange(
+                    task,
+                    placement,
+                    ownerId,
+                    TaskHistoryActionType.TIMELINE_CANCELLED,
+                    oldSnapshot,
+                    timelineSnapshot(placement),
+                    reason);
+        }
+    }
+
+    private void recordStatusChangeIfNeeded(
+            Task task,
+            UUID ownerId,
+            TaskStatus oldStatus,
+            String reason) {
+
+        if (oldStatus == task.getStatus()) {
+            return;
+        }
+
+        taskChangeHistoryService.recordTaskChange(
+                task,
+                ownerId,
+                TaskHistoryActionType.TASK_STATUS_CHANGED,
+                "status",
+                String.valueOf(oldStatus),
+                String.valueOf(task.getStatus()),
+                reason);
+    }
+
+    private String reasonOf(TaskLifecycleActionRequest request) {
+        return request == null
+                ? null
+                : request.getReason();
     }
 
     private void ensureNameAvailable(
@@ -429,6 +740,15 @@ public class TaskServiceImpl implements TaskService {
                 + ";estimatedMinutes=" + task.getEstimatedMinutes()
                 + ";estimatedCost=" + task.getEstimatedCost()
                 + ";categoryId=" + categoryId;
+    }
+
+    private String timelineSnapshot(TimelinePlacement placement) {
+        return "placementId=" + placement.getId()
+                + ";status=" + placement.getStatus()
+                + ";startAt=" + placement.getStartAt()
+                + ";endAt=" + placement.getEndAt()
+                + ";timezone=" + placement.getTimezone()
+                + ";source=" + placement.getSource();
     }
 
     private TaskResponse mapToResponse(
