@@ -1,15 +1,27 @@
 package com.lifebalance.task.service;
 
+import com.lifebalance.common.error.AppException;
 import com.lifebalance.task.dto.request.CreateTaskRequest;
+import com.lifebalance.task.dto.request.TaskLifecycleActionRequest;
+import com.lifebalance.task.dto.request.TaskPlanningRequest;
 import com.lifebalance.task.dto.request.UpdateTaskRequest;
+import com.lifebalance.task.dto.request.UpdateTaskProgressRequest;
 import com.lifebalance.task.dto.response.TaskResponse;
+import com.lifebalance.task.error.TaskErrorCode;
+import com.lifebalance.task.error.TaskExceptions;
+import com.lifebalance.task.history.TaskChangeHistoryService;
 import com.lifebalance.task.model.Category;
 import com.lifebalance.task.model.Task;
+import com.lifebalance.task.model.TimelinePlacement;
 import com.lifebalance.task.model.enums.PriorityLevel;
+import com.lifebalance.task.model.enums.TaskHistoryActionType;
 import com.lifebalance.task.model.enums.TaskStatus;
+import com.lifebalance.task.model.enums.TimelinePlacementStatus;
 import com.lifebalance.task.repository.CategoryRepository;
 import com.lifebalance.task.repository.TaskRepository;
+import com.lifebalance.task.repository.TimelinePlacementRepository;
 import com.lifebalance.task.service.impl.TaskServiceImpl;
+import com.lifebalance.task.validation.TaskLifecyclePolicy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,6 +35,7 @@ import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -38,6 +51,15 @@ class TaskServiceImplTest {
 
     @Mock
     private CategoryRepository categoryRepository;
+
+    @Mock
+    private TimelinePlacementRepository timelinePlacementRepository;
+
+    @Mock
+    private TaskLifecyclePolicy taskLifecyclePolicy;
+
+    @Mock
+    private TaskChangeHistoryService taskChangeHistoryService;
 
     @InjectMocks
     private TaskServiceImpl taskService;
@@ -180,6 +202,133 @@ class TaskServiceImplTest {
         taskService.delete(TASK_ID, USER_ID);
 
         verify(taskRepository).delete(mockTask);
+    }
+
+    @Test
+    void planUpdatesPlanningFieldsAndWritesHistory() {
+        TaskPlanningRequest request = new TaskPlanningRequest();
+        request.setPriority(PriorityLevel.CRITICAL);
+        request.setDeadline(LocalDate.now().plusDays(7));
+        request.setEstimatedMinutes(180);
+        request.setEstimatedCost(new BigDecimal("800000"));
+        request.setReason("Sprint planning");
+
+        when(taskRepository.findByIdAndOwnerId(TASK_ID, USER_ID)).thenReturn(Optional.of(mockTask));
+        when(taskRepository.save(mockTask)).thenReturn(mockTask);
+
+        TaskResponse response = taskService.plan(TASK_ID, USER_ID, request);
+
+        assertEquals(TaskStatus.PLANNED, response.getStatus());
+        assertEquals(PriorityLevel.CRITICAL, response.getPriority());
+        assertEquals(180, response.getEstimatedMinutes());
+        verify(taskChangeHistoryService).recordTaskChange(
+                eq(mockTask),
+                eq(USER_ID),
+                eq(TaskHistoryActionType.TASK_PLANNED),
+                isNull(),
+                any(),
+                any(),
+                eq("Sprint planning"));
+    }
+
+    @Test
+    void updateProgressRejectsDraftTaskBeforeMutation() {
+        UpdateTaskProgressRequest request = new UpdateTaskProgressRequest();
+        request.setProgress(40);
+
+        when(taskRepository.findByIdAndOwnerId(TASK_ID, USER_ID)).thenReturn(Optional.of(mockTask));
+        doThrow(TaskExceptions.progressNotAllowed(TaskStatus.DRAFT))
+                .when(taskLifecyclePolicy)
+                .validateProgressEditable(mockTask);
+
+        AppException exception = assertThrows(AppException.class, () -> taskService.updateProgress(TASK_ID, USER_ID, request));
+
+        assertEquals(TaskErrorCode.TASK_PROGRESS_NOT_ALLOWED, exception.getCode());
+        assertEquals(0, mockTask.getProgress());
+        verify(taskRepository, never()).save(any(Task.class));
+        verify(taskChangeHistoryService, never()).recordTaskChange(any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void completeSetsProgressToHundredAndWritesHistory() {
+        mockTask.setStatus(TaskStatus.IN_PROGRESS);
+        mockTask.setProgress(35);
+        TaskLifecycleActionRequest request = new TaskLifecycleActionRequest();
+        request.setReason("Done");
+
+        when(taskRepository.findByIdAndOwnerId(TASK_ID, USER_ID)).thenReturn(Optional.of(mockTask));
+        when(taskRepository.save(mockTask)).thenReturn(mockTask);
+
+        TaskResponse response = taskService.complete(TASK_ID, USER_ID, request);
+
+        assertEquals(TaskStatus.COMPLETED, response.getStatus());
+        assertEquals(100, response.getProgress());
+        assertNotNull(mockTask.getCompletedAt());
+        verify(taskChangeHistoryService).recordTaskChange(
+                eq(mockTask),
+                eq(USER_ID),
+                eq(TaskHistoryActionType.TASK_STATUS_CHANGED),
+                eq("status"),
+                eq(String.valueOf(TaskStatus.IN_PROGRESS)),
+                eq(String.valueOf(TaskStatus.COMPLETED)),
+                eq("Done"));
+    }
+
+    @Test
+    void cancelCancelsActiveTimelinePlacementsAndClearsScheduledWindow() {
+        mockTask.setStatus(TaskStatus.SCHEDULED);
+        OffsetDateTime startAt = OffsetDateTime.parse("2026-08-21T09:00:00+07:00");
+        OffsetDateTime endAt = OffsetDateTime.parse("2026-08-21T10:00:00+07:00");
+        mockTask.setScheduledWindow(startAt, endAt);
+        TimelinePlacement placement = TimelinePlacement.builder()
+                .id(UUID.randomUUID())
+                .ownerId(USER_ID)
+                .userId(USER_ID)
+                .task(mockTask)
+                .startAt(startAt)
+                .endAt(endAt)
+                .status(TimelinePlacementStatus.ACTIVE)
+                .source("MANUAL")
+                .build();
+        TaskLifecycleActionRequest request = new TaskLifecycleActionRequest();
+        request.setReason("Not needed");
+
+        when(taskRepository.findByIdAndOwnerId(TASK_ID, USER_ID)).thenReturn(Optional.of(mockTask));
+        when(timelinePlacementRepository.findByOwnerIdAndTaskIdAndStatus(
+                USER_ID,
+                TASK_ID,
+                TimelinePlacementStatus.ACTIVE)).thenReturn(List.of(placement));
+        when(taskRepository.save(mockTask)).thenReturn(mockTask);
+
+        TaskResponse response = taskService.cancel(TASK_ID, USER_ID, request);
+
+        assertEquals(TaskStatus.CANCELLED, response.getStatus());
+        assertNull(response.getScheduledStartAt());
+        assertEquals(TimelinePlacementStatus.CANCELLED, placement.getStatus());
+        verify(timelinePlacementRepository).save(placement);
+        verify(taskChangeHistoryService).recordTimelineChange(
+                eq(mockTask),
+                eq(placement),
+                eq(USER_ID),
+                eq(TaskHistoryActionType.TIMELINE_CANCELLED),
+                any(),
+                any(),
+                eq("Not needed"));
+    }
+
+    @Test
+    void deleteRejectsActiveTaskBeforeHistoryOrDelete() {
+        mockTask.setStatus(TaskStatus.IN_PROGRESS);
+        when(taskRepository.findByIdAndOwnerId(TASK_ID, USER_ID)).thenReturn(Optional.of(mockTask));
+        doThrow(TaskExceptions.deleteNotAllowed(TaskStatus.IN_PROGRESS))
+                .when(taskLifecyclePolicy)
+                .validateDeleteAllowed(mockTask);
+
+        AppException exception = assertThrows(AppException.class, () -> taskService.delete(TASK_ID, USER_ID));
+
+        assertEquals(TaskErrorCode.TASK_DELETE_NOT_ALLOWED, exception.getCode());
+        verify(taskChangeHistoryService, never()).recordTaskChange(any(), any(), any(), any(), any(), any(), any());
+        verify(taskRepository, never()).delete(any(Task.class));
     }
 
     // 1. KỊCH BẢN: TEST DUPLICATE TASK (NHÂN BẢN)

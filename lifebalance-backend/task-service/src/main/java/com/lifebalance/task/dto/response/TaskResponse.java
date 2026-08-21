@@ -30,6 +30,20 @@ public class TaskResponse {
 
     private LocalDate deadline;
 
+    private OffsetDateTime plannedStartAt;
+
+    private OffsetDateTime plannedEndAt;
+
+    private OffsetDateTime scheduledStartAt;
+
+    private OffsetDateTime scheduledEndAt;
+
+    private OffsetDateTime completedAt;
+
+    private OffsetDateTime cancelledAt;
+
+    private OffsetDateTime archivedAt;
+
     private Integer progress;
 
     private Integer estimatedMinutes;
@@ -39,6 +53,10 @@ public class TaskResponse {
     private UUID categoryId;
 
     private String categoryName;
+
+    private UUID createdBy;
+
+    private UUID updatedBy;
 
     private OffsetDateTime createdAt;
 
