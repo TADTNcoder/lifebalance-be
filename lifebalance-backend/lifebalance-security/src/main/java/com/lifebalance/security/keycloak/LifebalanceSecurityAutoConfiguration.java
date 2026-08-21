@@ -14,6 +14,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -87,6 +88,12 @@ public class LifebalanceSecurityAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnMissingBean(BearerTokenResolver.class)
+    public BearerTokenResolver lifebalanceBearerTokenResolver() {
+        return new PublicReadinessBearerTokenResolver();
+    }
+
+    @Bean
     @ConditionalOnMissingBean
     public LifebalanceAuthenticationEntryPoint lifebalanceAuthenticationEntryPoint(
             ObjectMapper objectMapper,
@@ -111,6 +118,7 @@ public class LifebalanceSecurityAutoConfiguration {
             KeycloakUserMapper keycloakUserMapper,
             LifebalanceAuthenticationEntryPoint authenticationEntryPoint,
             LifebalanceAccessDeniedHandler accessDeniedHandler,
+            BearerTokenResolver bearerTokenResolver,
             Map<String, JwtDecoder> jwtDecoders
     ) throws Exception {
         KeycloakUserMappingFilter keycloakUserMappingFilter =
@@ -137,7 +145,11 @@ public class LifebalanceSecurityAutoConfiguration {
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/*/status",
-                                "/api/*/health"
+                                "/api/*/*/status",
+                                "/api/*/*/*/status",
+                                "/api/*/health",
+                                "/api/*/*/health",
+                                "/api/*/*/*/health"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
@@ -148,6 +160,7 @@ public class LifebalanceSecurityAutoConfiguration {
                 .oauth2ResourceServer(oauth2 ->
                         oauth2
                                 .authenticationEntryPoint(authenticationEntryPoint)
+                                .bearerTokenResolver(bearerTokenResolver)
                                 .jwt(jwt -> {
                                     JwtDecoder jwtDecoder = preferredJwtDecoder(jwtDecoders);
                                     if (jwtDecoder != null) {

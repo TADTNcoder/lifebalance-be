@@ -18,7 +18,7 @@ spring:
             - id: identity-service
               uri: lb://IDENTITY-SERVICE
               predicates:
-                - Path=/api/identity/**,/api/auth/**,/auth/**,/api/users/**,/api/roles/**,/api/permissions/**
+                - Path=/api/identity/**,/api/v1/identity/**,/api/auth/**,/auth/**,/api/users/**,/api/roles/**,/api/permissions/**
 
             - id: task-service
               uri: lb://TASK-SERVICE
