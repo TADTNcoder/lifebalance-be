@@ -25,6 +25,7 @@ import com.lifebalance.identity.config.OpenApiConfig;
 import com.lifebalance.identity.dto.ActivityLogResponse;
 import com.lifebalance.identity.dto.AdministrationAuditLogResponse;
 import com.lifebalance.identity.dto.AdministrationDashboardResponse;
+import com.lifebalance.identity.dto.AdministrationReportResponse;
 import com.lifebalance.identity.dto.AssignSupportTicketRequest;
 import com.lifebalance.identity.dto.CreateAnnouncementRequest;
 import com.lifebalance.identity.dto.CreateSupportTicketRequest;
@@ -36,10 +37,12 @@ import com.lifebalance.identity.dto.SystemAnnouncementResponse;
 import com.lifebalance.identity.dto.SystemConfigurationResponse;
 import com.lifebalance.identity.dto.TicketCommentRequest;
 import com.lifebalance.identity.dto.TicketReasonRequest;
+import com.lifebalance.identity.dto.UpdateMaintenanceStatusRequest;
 import com.lifebalance.identity.dto.UpdateSupportTicketRequest;
 import com.lifebalance.identity.dto.UpdateSystemConfigurationRequest;
 import com.lifebalance.identity.dto.UserResponse;
 import com.lifebalance.identity.model.enums.AccountStatus;
+import com.lifebalance.identity.model.enums.AdministrationReportType;
 import com.lifebalance.identity.model.enums.ActivityCategory;
 import com.lifebalance.identity.model.enums.AnnouncementAudience;
 import com.lifebalance.identity.model.enums.AnnouncementStatus;
@@ -338,10 +341,51 @@ public class AdministrationSupportController {
         );
     }
 
+    @GetMapping("/announcements/{announcementId}")
+    @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'announcement:read')")
+    public SystemAnnouncementResponse getAnnouncement(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID announcementId
+    ) {
+        return administrationSupportService.getAnnouncement(currentUser(jwt), announcementId);
+    }
+
+    @GetMapping("/announcements/{announcementId}/history")
+    @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'announcement:read')")
+    public Page<AdministrationAuditLogResponse> getAnnouncementHistory(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID announcementId,
+            Pageable pageable
+    ) {
+        return administrationSupportService.getAnnouncementHistory(
+                currentUser(jwt),
+                announcementId,
+                PageableLimits.normalize(pageable)
+        );
+    }
+
     @GetMapping("/maintenance-status")
     @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'maintenance:read')")
     public MaintenanceStatusResponse maintenanceStatus() {
         return administrationSupportService.maintenanceStatus();
+    }
+
+    @PutMapping("/maintenance-status")
+    @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'maintenance:update')")
+    public MaintenanceStatusResponse updateMaintenanceStatus(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody UpdateMaintenanceStatusRequest request
+    ) {
+        return administrationSupportService.updateMaintenanceStatus(currentUser(jwt), request);
+    }
+
+    @PatchMapping("/maintenance-status")
+    @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'maintenance:update')")
+    public MaintenanceStatusResponse patchMaintenanceStatus(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody UpdateMaintenanceStatusRequest request
+    ) {
+        return administrationSupportService.updateMaintenanceStatus(currentUser(jwt), request);
     }
 
     @GetMapping("/dashboard")
@@ -351,6 +395,86 @@ public class AdministrationSupportController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime periodEnd
     ) {
         return administrationSupportService.dashboard(periodStart, periodEnd);
+    }
+
+    @GetMapping("/reports/tickets")
+    @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'administration-dashboard:read')")
+    public AdministrationReportResponse ticketReport(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime periodStart,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime periodEnd
+    ) {
+        return report(AdministrationReportType.TICKETS, periodStart, periodEnd);
+    }
+
+    @GetMapping("/reports/support-performance")
+    @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'administration-dashboard:read')")
+    public AdministrationReportResponse supportPerformanceReport(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime periodStart,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime periodEnd
+    ) {
+        return report(AdministrationReportType.SUPPORT_PERFORMANCE, periodStart, periodEnd);
+    }
+
+    @GetMapping("/reports/user-activity")
+    @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'administration-dashboard:read')")
+    public AdministrationReportResponse userActivityReport(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime periodStart,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime periodEnd
+    ) {
+        return report(AdministrationReportType.USER_ACTIVITY, periodStart, periodEnd);
+    }
+
+    @GetMapping("/reports/role-assignments")
+    @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'administration-dashboard:read')")
+    public AdministrationReportResponse roleAssignmentReport(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime periodStart,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime periodEnd
+    ) {
+        return report(AdministrationReportType.ROLE_ASSIGNMENTS, periodStart, periodEnd);
+    }
+
+    @GetMapping("/reports/permission-changes")
+    @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'administration-dashboard:read')")
+    public AdministrationReportResponse permissionChangeReport(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime periodStart,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime periodEnd
+    ) {
+        return report(AdministrationReportType.PERMISSION_CHANGES, periodStart, periodEnd);
+    }
+
+    @GetMapping("/reports/configuration-changes")
+    @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'administration-dashboard:read')")
+    public AdministrationReportResponse configurationChangeReport(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime periodStart,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime periodEnd
+    ) {
+        return report(AdministrationReportType.CONFIGURATION_CHANGES, periodStart, periodEnd);
+    }
+
+    @GetMapping("/reports/announcements")
+    @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'administration-dashboard:read')")
+    public AdministrationReportResponse announcementReport(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime periodStart,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime periodEnd
+    ) {
+        return report(AdministrationReportType.ANNOUNCEMENTS, periodStart, periodEnd);
+    }
+
+    @GetMapping("/reports/maintenance")
+    @PreAuthorize("@permissionEvaluationService.hasPermission(authentication, 'administration-dashboard:read')")
+    public AdministrationReportResponse maintenanceReport(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime periodStart,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime periodEnd
+    ) {
+        return report(AdministrationReportType.MAINTENANCE, periodStart, periodEnd);
+    }
+
+    private AdministrationReportResponse report(
+            AdministrationReportType reportType,
+            OffsetDateTime periodStart,
+            OffsetDateTime periodEnd
+    ) {
+        return administrationSupportService.report(reportType, periodStart, periodEnd);
     }
 
     private CurrentUser currentUser(Jwt jwt) {

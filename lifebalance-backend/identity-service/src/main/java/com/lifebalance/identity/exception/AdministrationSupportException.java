@@ -40,6 +40,15 @@ public class AdministrationSupportException extends AppException {
         );
     }
 
+    public static AdministrationSupportException announcementNotFound(UUID announcementId) {
+        return new AdministrationSupportException(
+                IdentityErrorCode.ANNOUNCEMENT_NOT_FOUND,
+                "System announcement not found: " + announcementId,
+                HttpStatus.NOT_FOUND,
+                Map.of("announcementId", String.valueOf(announcementId))
+        );
+    }
+
     public static AdministrationSupportException invalidTicketState(
             UUID ticketId,
             SupportTicketStatus currentStatus,
