@@ -26,6 +26,7 @@ import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAl
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleStatus;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleType;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.ActiveCapitalCycleAlreadyExistsException;
+import com.lifebalance.resourcecapital.domain.capitalcycle.exception.CapitalCycleDeletionNotAllowedException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.CapitalCycleNotFoundException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.CapitalCycleOwnershipException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.InvalidCapitalCycleStateException;
@@ -121,7 +122,18 @@ class CapitalExceptionHandlingTest {
                 .andExpect(jsonPath("$.error.details.projectedRemainingAmount").value("-25.0000"))
                 .andExpect(jsonPath("$.error.details.remainingState").value("OVER_ALLOCATED"))
                 .andExpect(jsonPath("$.error.details.remainingExplanation")
-                        .value("Negative remaining is an over-allocation state, not additional available capital."));
+                .value("Negative remaining is an over-allocation state, not additional available capital."));
+    }
+
+    @Test
+    void capitalCycleDeletionNotAllowedIncludesReasonDetails() throws Exception {
+        mockMvc.perform(get(BASE_PATH + "/delete-not-allowed"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code")
+                        .value(CapitalCycleDeletionNotAllowedException.ERROR_CODE))
+                .andExpect(jsonPath("$.error.details.cycleId").value(CYCLE_ID.toString()))
+                .andExpect(jsonPath("$.error.details.reason").value("capital allocations already exist"));
     }
 
     @Test
@@ -200,6 +212,11 @@ class CapitalExceptionHandlingTest {
                                 CapitalCycleStatus.CLOSED,
                                 "update",
                                 "closed cycles cannot be edited"
+                        );
+                case "delete-not-allowed" ->
+                        throw new CapitalCycleDeletionNotAllowedException(
+                                CYCLE_ID,
+                                "capital allocations already exist"
                         );
                 case "capital-not-setup" -> throw new CapitalNotSetupException(CYCLE_ID, CapitalKind.TIME);
                 case "invalid-adjustment-amount" ->

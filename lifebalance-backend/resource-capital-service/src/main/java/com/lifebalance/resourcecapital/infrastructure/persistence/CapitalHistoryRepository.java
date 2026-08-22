@@ -29,6 +29,8 @@ public interface CapitalHistoryRepository extends
             Pageable pageable
     );
 
+    boolean existsByCapitalCycleId(UUID capitalCycleId);
+
     @Query("""
             select history
             from CapitalHistory history
