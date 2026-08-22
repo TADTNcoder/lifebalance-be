@@ -24,6 +24,7 @@ import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAl
 import com.lifebalance.resourcecapital.dto.AllocationResponse;
 import com.lifebalance.resourcecapital.dto.CapitalAllocationReleaseRequest;
 import com.lifebalance.resourcecapital.dto.CreateCapitalAllocationRequest;
+import com.lifebalance.resourcecapital.dto.OverAllocationConfirmationResponse;
 import com.lifebalance.resourcecapital.service.CapitalAllocationService;
 import com.lifebalance.security.keycloak.LifebalanceSecurityAutoConfiguration;
 import java.math.BigDecimal;
@@ -165,6 +166,55 @@ class CapitalAllocationControllerTest {
         assertThat(requestCaptor.getValue().capitalType()).isEqualTo(CapitalKind.MONEY);
         assertThat(requestCaptor.getValue().projectId()).isEqualTo(PROJECT_ID);
         assertThat(requestCaptor.getValue().allowOverAllocation()).isTrue();
+    }
+
+    @Test
+    void prepareOverAllocationConfirmationReturnsConfirmationKey() throws Exception {
+        when(capitalAllocationService.prepareOverAllocationConfirmation(
+                eq(OWNER_ID),
+                any(CreateCapitalAllocationRequest.class)
+        )).thenReturn(new OverAllocationConfirmationResponse(
+                true,
+                "overAllocationConfirmationKey",
+                "oac_123456",
+                "ALLOCATE",
+                "ALLOCATION_TARGET:PROJECT:" + PROJECT_ID,
+                CYCLE_ID,
+                CapitalKind.MONEY,
+                new BigDecimal("500000.0000"),
+                new BigDecimal("750000.0000"),
+                new BigDecimal("250000.0000"),
+                new BigDecimal("-250000.0000"),
+                "OVER_ALLOCATED",
+                "Negative remaining is an over-allocation state, not additional available capital."
+        ));
+
+        mockMvc.perform(post(ALLOCATE_ENDPOINT + "/over-allocation-confirmation")
+                        .with(authenticatedUser())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "capitalCycleId": "%s",
+                                  "capitalType": "MONEY",
+                                  "targetType": "PROJECT",
+                                  "projectId": "%s",
+                                  "amount": 750000.0000,
+                                  "reason": "Approved project spend"
+                                }
+                                """.formatted(CYCLE_ID, PROJECT_ID)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.confirmationRequired").value(true))
+                .andExpect(jsonPath("$.data.confirmationField").value("overAllocationConfirmationKey"))
+                .andExpect(jsonPath("$.data.confirmationKey").value("oac_123456"))
+                .andExpect(jsonPath("$.data.remainingState").value("OVER_ALLOCATED"));
+
+        ArgumentCaptor<CreateCapitalAllocationRequest> requestCaptor =
+                ArgumentCaptor.forClass(CreateCapitalAllocationRequest.class);
+        verify(capitalAllocationService).prepareOverAllocationConfirmation(eq(OWNER_ID), requestCaptor.capture());
+        assertThat(requestCaptor.getValue().capitalCycleId()).isEqualTo(CYCLE_ID);
+        assertThat(requestCaptor.getValue().capitalType()).isEqualTo(CapitalKind.MONEY);
+        assertThat(requestCaptor.getValue().projectId()).isEqualTo(PROJECT_ID);
     }
 
     @Test

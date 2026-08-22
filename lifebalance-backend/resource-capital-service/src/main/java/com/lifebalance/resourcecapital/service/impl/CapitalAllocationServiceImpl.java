@@ -12,6 +12,7 @@ import com.lifebalance.resourcecapital.domain.capitalallocation.exception.Insuff
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InvalidAllocationAmountException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InvalidAllocationStateException;
 import com.lifebalance.resourcecapital.domain.capitalallocation.exception.InvalidAllocationTargetException;
+import com.lifebalance.resourcecapital.domain.capitalallocation.exception.OverAllocationNotAllowedException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleStatus;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.CapitalCycleNotFoundException;
@@ -34,6 +35,7 @@ import com.lifebalance.resourcecapital.dto.CapitalAllocationResponse;
 import com.lifebalance.resourcecapital.dto.CapitalReallocationRequest;
 import com.lifebalance.resourcecapital.dto.ChangeCapitalAllocationRequestDTO;
 import com.lifebalance.resourcecapital.dto.CreateCapitalAllocationRequest;
+import com.lifebalance.resourcecapital.dto.OverAllocationConfirmationResponse;
 import com.lifebalance.resourcecapital.dto.ReallocateCapitalRequest;
 import com.lifebalance.resourcecapital.dto.ReallocateCapitalRequestDTO;
 import com.lifebalance.resourcecapital.dto.ReleaseCapitalRequest;
@@ -51,6 +53,7 @@ import com.lifebalance.resourcecapital.service.AllocationService;
 import com.lifebalance.resourcecapital.service.CapitalAllocationService;
 import com.lifebalance.resourcecapital.service.DefaultAllocationValidator;
 import com.lifebalance.resourcecapital.service.DefaultAllocationValidator.AllocationValidationResult;
+import com.lifebalance.resourcecapital.service.DefaultAllocationValidator.AllocationValidationSnapshot;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -138,6 +141,80 @@ public class CapitalAllocationServiceImpl implements CapitalAllocationService {
         );
         publishOverAllocationIfNeeded(ownerId, response, "ALLOCATE", request.reason());
         return response;
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public OverAllocationConfirmationResponse prepareOverAllocationConfirmation(
+            UUID ownerId,
+            CreateCapitalAllocationRequest request
+    ) {
+        Objects.requireNonNull(request, "Create capital allocation request is required.");
+        CapitalCycle cycle = findActiveOwnedCycle(ownerId, request.capitalCycleId(), "prepare over-allocation confirmation");
+        AllocationTarget target = resolveTarget(
+                request.targetType(),
+                request.targetId(),
+                request.taskId(),
+                request.taskCatalogId(),
+                request.projectId()
+        );
+
+        CapitalKind capitalType = requireCapitalType(request.capitalType());
+        BigDecimal amount = normalizeNewAllocationAmount(capitalType, request.amount());
+        BigDecimal plannedAmount = plannedAmount(cycle.getId(), capitalType);
+        BigDecimal activeAllocated = sumActiveAllocated(ownerId, cycle.getId(), capitalType);
+        BigDecimal activeSpent = sumActiveSpent(ownerId, cycle.getId(), capitalType);
+        String operationType = CapitalActionType.ALLOCATE.name();
+        String operationReference = OverAllocationConfirmation.allocationReference(
+                target.targetType(),
+                target.targetId()
+        );
+
+        AllocationValidationSnapshot snapshot = defaultAllocationValidator.inspectNewAllocation(
+                cycle,
+                capitalType,
+                plannedAmount,
+                activeAllocated,
+                activeSpent,
+                amount
+        );
+        if (snapshot.overAllocated() && !snapshot.overAllocationAllowed()) {
+            throw new OverAllocationNotAllowedException(
+                    cycle.getId(),
+                    capitalType,
+                    snapshot.availableCapital(),
+                    snapshot.requestedAmount(),
+                    snapshot.remainingAfterAllocation()
+            );
+        }
+
+        String confirmationKey = snapshot.overAllocated()
+                ? OverAllocationConfirmation.confirmationKey(
+                        operationType,
+                        cycle.getId(),
+                        capitalType,
+                        operationReference,
+                        snapshot.requestedAmount(),
+                        snapshot.availableCapital(),
+                        snapshot.remainingAfterAllocation()
+                )
+                : null;
+
+        return new OverAllocationConfirmationResponse(
+                snapshot.overAllocated(),
+                snapshot.overAllocated() ? OverAllocationConfirmation.CONFIRMATION_FIELD : null,
+                confirmationKey,
+                operationType,
+                operationReference,
+                cycle.getId(),
+                capitalType,
+                snapshot.availableCapital(),
+                snapshot.requestedAmount(),
+                snapshot.remainingAfterAllocation().abs(),
+                snapshot.remainingAfterAllocation(),
+                snapshot.overAllocated() ? "OVER_ALLOCATED" : "WITHIN_BALANCE",
+                OverAllocationConfirmation.REMAINING_EXPLANATION
+        );
     }
 
     @Transactional

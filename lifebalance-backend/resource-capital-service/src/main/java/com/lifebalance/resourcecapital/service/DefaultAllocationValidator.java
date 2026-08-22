@@ -54,6 +54,70 @@ public class DefaultAllocationValidator {
         Objects.requireNonNull(cycle, "Capital cycle is required.");
         Objects.requireNonNull(capitalType, "Capital type is required.");
 
+        AllocationValidationSnapshot snapshot = inspectNewAllocation(
+                cycle,
+                capitalType,
+                totalCapital,
+                currentActiveAllocations,
+                spentCapital,
+                requestedAmount
+        );
+
+        if (!snapshot.overAllocated()) {
+            return new AllocationValidationResult(
+                    snapshot.availableCapital(),
+                    snapshot.remainingAfterAllocation(),
+                    false
+            );
+        }
+
+        if (!cycle.isOverAllocationAllowed()) {
+            throw new OverAllocationNotAllowedException(
+                    cycle.getId(),
+                    capitalType,
+                    snapshot.availableCapital(),
+                    snapshot.requestedAmount(),
+                    snapshot.remainingAfterAllocation()
+            );
+        }
+        String expectedConfirmationKey = OverAllocationConfirmation.confirmationKey(
+                operationType,
+                cycle.getId(),
+                capitalType,
+                operationReference,
+                snapshot.requestedAmount(),
+                snapshot.availableCapital(),
+                snapshot.remainingAfterAllocation()
+        );
+        if (!allowOverAllocation || !OverAllocationConfirmation.matches(
+                overAllocationConfirmationKey,
+                expectedConfirmationKey
+        )) {
+            throw new OverAllocationConfirmationRequiredException(
+                    cycle.getId(),
+                    capitalType,
+                    snapshot.availableCapital(),
+                    snapshot.requestedAmount(),
+                    snapshot.remainingAfterAllocation(),
+                    operationType,
+                    operationReference
+            );
+        }
+
+        return new AllocationValidationResult(snapshot.availableCapital(), snapshot.remainingAfterAllocation(), true);
+    }
+
+    public AllocationValidationSnapshot inspectNewAllocation(
+            CapitalCycle cycle,
+            CapitalKind capitalType,
+            BigDecimal totalCapital,
+            BigDecimal currentActiveAllocations,
+            BigDecimal spentCapital,
+            BigDecimal requestedAmount
+    ) {
+        Objects.requireNonNull(cycle, "Capital cycle is required.");
+        Objects.requireNonNull(capitalType, "Capital type is required.");
+
         BigDecimal normalizedTotalCapital = normalize(totalCapital);
         BigDecimal normalizedActiveAllocations = normalize(currentActiveAllocations);
         BigDecimal normalizedSpentCapital = normalize(spentCapital);
@@ -65,44 +129,13 @@ public class DefaultAllocationValidator {
         BigDecimal remainingAfterAllocation = availableCapital.subtract(normalizedRequestedAmount)
                 .setScale(MONEY_SCALE, RoundingMode.UNNECESSARY);
 
-        if (normalizedRequestedAmount.compareTo(availableCapital) <= 0) {
-            return new AllocationValidationResult(availableCapital, remainingAfterAllocation, false);
-        }
-
-        if (!cycle.isOverAllocationAllowed()) {
-            throw new OverAllocationNotAllowedException(
-                    cycle.getId(),
-                    capitalType,
-                    availableCapital,
-                    normalizedRequestedAmount,
-                    remainingAfterAllocation
-            );
-        }
-        String expectedConfirmationKey = OverAllocationConfirmation.confirmationKey(
-                operationType,
-                cycle.getId(),
-                capitalType,
-                operationReference,
-                normalizedRequestedAmount,
+        return new AllocationValidationSnapshot(
                 availableCapital,
-                remainingAfterAllocation
+                remainingAfterAllocation,
+                normalizedRequestedAmount,
+                remainingAfterAllocation.compareTo(BigDecimal.ZERO) < 0,
+                cycle.isOverAllocationAllowed()
         );
-        if (!allowOverAllocation || !OverAllocationConfirmation.matches(
-                overAllocationConfirmationKey,
-                expectedConfirmationKey
-        )) {
-            throw new OverAllocationConfirmationRequiredException(
-                    cycle.getId(),
-                    capitalType,
-                    availableCapital,
-                    normalizedRequestedAmount,
-                    remainingAfterAllocation,
-                    operationType,
-                    operationReference
-            );
-        }
-
-        return new AllocationValidationResult(availableCapital, remainingAfterAllocation, true);
     }
 
     private BigDecimal normalize(BigDecimal amount) {
@@ -116,6 +149,15 @@ public class DefaultAllocationValidator {
             BigDecimal availableCapital,
             BigDecimal remainingAfterAllocation,
             boolean overAllocated
+    ) {
+    }
+
+    public record AllocationValidationSnapshot(
+            BigDecimal availableCapital,
+            BigDecimal remainingAfterAllocation,
+            BigDecimal requestedAmount,
+            boolean overAllocated,
+            boolean overAllocationAllowed
     ) {
     }
 }

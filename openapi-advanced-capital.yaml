@@ -133,6 +133,45 @@ paths:
           $ref: '#/components/responses/Conflict'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /api/v1/capital-allocations/over-allocation-confirmation:
+    post:
+      tags:
+        - Advanced Capital Allocations
+      summary: Prepare over-allocation confirmation
+      description: Calculate whether a proposed allocation would over-allocate capital and return the confirmation key required for a confirmed allocation retry.
+      operationId: prepareOverAllocationConfirmation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCapitalAllocationRequest'
+            example:
+              capitalCycleId: 22222222-2222-2222-2222-222222222222
+              capitalType: MONEY
+              targetType: PROJECT
+              projectId: 77777777-7777-7777-7777-777777777777
+              amount: 750000.0000
+              reason: Approved project spend.
+      responses:
+        '200':
+          description: Over-allocation confirmation preview returned successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseOverAllocationConfirmation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /api/v1/capital-cycles/{cycleId}/allocations:
     post:
       tags:
@@ -769,6 +808,22 @@ components:
           nullable: true
           allOf:
             - $ref: '#/components/schemas/ApiError'
+    ApiResponseOverAllocationConfirmation:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - $ref: '#/components/schemas/ApiResponseOverAllocationConfirmationData'
+    ApiResponseOverAllocationConfirmationData:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/OverAllocationConfirmationResponse'
+        error:
+          type: object
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/ApiError'
     ApiResponseResourceBreakdownList:
       allOf:
         - $ref: '#/components/schemas/ApiResponseBase'
@@ -1030,11 +1085,73 @@ components:
           type: boolean
           default: false
           example: false
+        overAllocationConfirmationKey:
+          type: string
+          nullable: true
+          maxLength: 128
+          example: oac_123456
         reason:
           type: string
           nullable: true
           maxLength: 1000
           example: Reserve focus time for sprint planning task.
+    CreateCapitalAllocationRequest:
+      type: object
+      required:
+        - capitalCycleId
+        - capitalType
+        - amount
+      properties:
+        capitalCycleId:
+          type: string
+          format: uuid
+          example: 22222222-2222-2222-2222-222222222222
+        capitalType:
+          $ref: '#/components/schemas/CapitalKind'
+        targetType:
+          $ref: '#/components/schemas/AllocationTargetType'
+        targetId:
+          type: string
+          format: uuid
+          nullable: true
+          example: 77777777-7777-7777-7777-777777777777
+        taskId:
+          type: string
+          format: uuid
+          nullable: true
+          example: 77777777-7777-7777-7777-777777777777
+        taskCatalogId:
+          type: string
+          format: uuid
+          nullable: true
+          example: 88888888-8888-8888-8888-888888888888
+        projectId:
+          type: string
+          format: uuid
+          nullable: true
+          example: 99999999-9999-9999-9999-999999999999
+        amount:
+          type: number
+          format: decimal
+          minimum: 0
+          exclusiveMinimum: true
+          multipleOf: 0.0001
+          description: For TIME, amount must be whole minutes.
+          example: 750000.0000
+        allowOverAllocation:
+          type: boolean
+          default: false
+          example: false
+        overAllocationConfirmationKey:
+          type: string
+          nullable: true
+          maxLength: 128
+          example: oac_123456
+        reason:
+          type: string
+          nullable: true
+          maxLength: 1000
+          example: Approved project spend.
     ReallocateCapitalRequest:
       type: object
       required:
@@ -1153,6 +1270,66 @@ components:
             format: uuid
           example:
             - 99999999-9999-9999-9999-999999999999
+    OverAllocationConfirmationResponse:
+      type: object
+      required:
+        - confirmationRequired
+        - operationType
+        - operationReference
+        - capitalCycleId
+        - capitalType
+        - availableAmount
+        - requestedAmount
+        - shortageAmount
+        - projectedRemainingAmount
+        - remainingState
+        - remainingExplanation
+      properties:
+        confirmationRequired:
+          type: boolean
+          example: true
+        confirmationField:
+          type: string
+          nullable: true
+          example: overAllocationConfirmationKey
+        confirmationKey:
+          type: string
+          nullable: true
+          example: oac_123456
+        operationType:
+          type: string
+          example: ALLOCATE
+        operationReference:
+          type: string
+          example: ALLOCATION_TARGET:PROJECT:77777777-7777-7777-7777-777777777777
+        capitalCycleId:
+          type: string
+          format: uuid
+          example: 22222222-2222-2222-2222-222222222222
+        capitalType:
+          $ref: '#/components/schemas/CapitalKind'
+        availableAmount:
+          type: number
+          format: decimal
+          example: 500000.0000
+        requestedAmount:
+          type: number
+          format: decimal
+          example: 750000.0000
+        shortageAmount:
+          type: number
+          format: decimal
+          example: 250000.0000
+        projectedRemainingAmount:
+          type: number
+          format: decimal
+          example: -250000.0000
+        remainingState:
+          type: string
+          example: OVER_ALLOCATED
+        remainingExplanation:
+          type: string
+          example: Negative remaining is an over-allocation state, not additional available capital.
     ResourceBreakdown:
       type: object
       required:
