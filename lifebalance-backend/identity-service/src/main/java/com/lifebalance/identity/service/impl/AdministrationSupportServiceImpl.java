@@ -945,8 +945,8 @@ public class AdministrationSupportServiceImpl implements AdministrationSupportSe
                     periodStart,
                     periodEnd
             );
-            case ANNOUNCEMENTS -> announcementReportMetrics(periodStart, periodEnd);
-            case MAINTENANCE -> maintenanceReportMetrics(periodStart, periodEnd);
+            case AUDIT -> auditReportMetrics(periodStart, periodEnd);
+            case SYSTEM_OPERATION -> systemOperationReportMetrics(periodStart, periodEnd);
         };
     }
 
@@ -991,30 +991,42 @@ public class AdministrationSupportServiceImpl implements AdministrationSupportSe
         return metrics;
     }
 
-    private Map<String, Long> announcementReportMetrics(OffsetDateTime periodStart, OffsetDateTime periodEnd) {
-        Map<String, Long> metrics = auditActionReportMetrics(
-                List.of(AuditEntityName.ANNOUNCEMENT),
-                List.of(AuditAction.BROADCAST_ANNOUNCEMENT),
-                periodStart,
-                periodEnd
-        );
-        metrics.put("audit.total", metrics.remove("total"));
-        List<Object[]> statusRows = systemAnnouncementRepository.countByStatus(periodStart, periodEnd);
-        putEnumCounts(metrics, "status", AnnouncementStatus.class, statusRows);
-        putEnumCounts(metrics, "audience", AnnouncementAudience.class, systemAnnouncementRepository.countByAudience(periodStart, periodEnd));
-        metrics.put("total", sumRows(statusRows));
+    private Map<String, Long> auditReportMetrics(OffsetDateTime periodStart, OffsetDateTime periodEnd) {
+        Map<String, Long> metrics = new LinkedHashMap<>();
+        List<Object[]> actionRows = auditLogRepository.countByAction(periodStart, periodEnd);
+        List<Object[]> entityRows = auditLogRepository.countByEntityName(periodStart, periodEnd);
+        putEnumCounts(metrics, "action", AuditAction.class, actionRows);
+        putEnumCounts(metrics, "entity", AuditEntityName.class, entityRows);
+        metrics.put("total", sumRows(actionRows));
         return metrics;
     }
 
-    private Map<String, Long> maintenanceReportMetrics(OffsetDateTime periodStart, OffsetDateTime periodEnd) {
-        Map<String, Long> metrics = auditActionReportMetrics(
-                List.of(AuditEntityName.MAINTENANCE),
-                List.of(AuditAction.UPDATE_MAINTENANCE_STATUS),
+    private Map<String, Long> systemOperationReportMetrics(OffsetDateTime periodStart, OffsetDateTime periodEnd) {
+        Map<String, Long> metrics = new LinkedHashMap<>();
+        List<ActivityCategory> activityCategories = List.of(
+                ActivityCategory.CONFIGURATION,
+                ActivityCategory.MAINTENANCE,
+                ActivityCategory.SYSTEM
+        );
+        List<AuditAction> auditActions = List.of(
+                AuditAction.UPDATE_CONFIGURATION,
+                AuditAction.UPDATE_MAINTENANCE_STATUS
+        );
+        List<Object[]> activityRows = activityLogRepository.countByCategory(periodStart, periodEnd);
+        List<Object[]> auditRows = auditLogRepository.countByActionForEntities(
+                List.of(AuditEntityName.SYSTEM_CONFIGURATION, AuditEntityName.MAINTENANCE),
+                auditActions,
                 periodStart,
                 periodEnd
         );
+
+        putEnumCounts(metrics, "activity.category", activityCategories, activityRows);
+        putEnumCounts(metrics, "audit.action", auditActions, auditRows);
+        metrics.put("activity.total", sumRowsForValues(activityRows, activityCategories));
+        metrics.put("audit.total", sumRows(auditRows));
         metrics.put("policy.enabled", policyEnabled(MAINTENANCE_POLICY_KEY) ? 1L : 0L);
         metrics.put("mode.enabled", policyEnabled(MAINTENANCE_MODE_KEY) ? 1L : 0L);
+        metrics.put("total", metrics.get("activity.total") + metrics.get("audit.total"));
         return metrics;
     }
 
@@ -1063,6 +1075,13 @@ public class AdministrationSupportServiceImpl implements AdministrationSupportSe
     private long sumRows(List<Object[]> rows) {
         return rows.stream()
                 .filter(row -> row.length >= 2 && row[1] instanceof Number)
+                .mapToLong(row -> ((Number) row[1]).longValue())
+                .sum();
+    }
+
+    private long sumRowsForValues(List<Object[]> rows, Collection<?> expectedValues) {
+        return rows.stream()
+                .filter(row -> row.length >= 2 && expectedValues.contains(row[0]) && row[1] instanceof Number)
                 .mapToLong(row -> ((Number) row[1]).longValue())
                 .sum();
     }

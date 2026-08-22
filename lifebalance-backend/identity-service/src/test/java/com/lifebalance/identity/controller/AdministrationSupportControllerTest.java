@@ -281,6 +281,63 @@ class AdministrationSupportControllerTest {
         verify(administrationSupportService).report(AdministrationReportType.TICKETS, periodStart, periodEnd);
     }
 
+    @Test
+    void auditReportMapsPeriodToReportService() throws Exception {
+        OffsetDateTime periodStart = OffsetDateTime.parse("2026-08-01T00:00:00Z");
+        OffsetDateTime periodEnd = OffsetDateTime.parse("2026-08-22T00:00:00Z");
+        AdministrationReportResponse response = AdministrationReportResponse.builder()
+                .reportType(AdministrationReportType.AUDIT.name())
+                .periodStart(periodStart)
+                .periodEnd(periodEnd)
+                .generatedAt(OffsetDateTime.parse("2026-08-22T01:00:00Z"))
+                .metrics(Map.of("total", 3L))
+                .build();
+
+        when(administrationSupportService.report(AdministrationReportType.AUDIT, periodStart, periodEnd))
+                .thenReturn(response);
+
+        mockMvc.perform(get("/api/administration-support/reports/audit")
+                        .param("periodStart", "2026-08-01T00:00:00Z")
+                        .param("periodEnd", "2026-08-22T00:00:00Z"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reportType").value("AUDIT"))
+                .andExpect(jsonPath("$.metrics.total").value(3));
+
+        verify(administrationSupportService).report(AdministrationReportType.AUDIT, periodStart, periodEnd);
+    }
+
+    @Test
+    void systemOperationReportMapsPeriodToReportService() throws Exception {
+        OffsetDateTime periodStart = OffsetDateTime.parse("2026-08-01T00:00:00Z");
+        OffsetDateTime periodEnd = OffsetDateTime.parse("2026-08-22T00:00:00Z");
+        AdministrationReportResponse response = AdministrationReportResponse.builder()
+                .reportType(AdministrationReportType.SYSTEM_OPERATION.name())
+                .periodStart(periodStart)
+                .periodEnd(periodEnd)
+                .generatedAt(OffsetDateTime.parse("2026-08-22T01:00:00Z"))
+                .metrics(Map.of("total", 4L))
+                .build();
+
+        when(administrationSupportService.report(
+                AdministrationReportType.SYSTEM_OPERATION,
+                periodStart,
+                periodEnd
+        )).thenReturn(response);
+
+        mockMvc.perform(get("/api/administration-support/reports/system-operation")
+                        .param("periodStart", "2026-08-01T00:00:00Z")
+                        .param("periodEnd", "2026-08-22T00:00:00Z"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reportType").value("SYSTEM_OPERATION"))
+                .andExpect(jsonPath("$.metrics.total").value(4));
+
+        verify(administrationSupportService).report(
+                AdministrationReportType.SYSTEM_OPERATION,
+                periodStart,
+                periodEnd
+        );
+    }
+
     private static final class JwtArgumentResolver implements HandlerMethodArgumentResolver {
 
         @Override

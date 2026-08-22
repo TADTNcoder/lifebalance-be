@@ -14,7 +14,7 @@ public enum AdministrationReportType {
 
     CONFIGURATION_CHANGES,
 
-    ANNOUNCEMENTS,
+    AUDIT,
 
-    MAINTENANCE
+    SYSTEM_OPERATION
 }

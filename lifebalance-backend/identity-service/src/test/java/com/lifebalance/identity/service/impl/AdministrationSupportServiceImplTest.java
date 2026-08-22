@@ -482,6 +482,78 @@ class AdministrationSupportServiceImplTest {
         assertThat(response.metrics()).containsEntry("total", 3L);
     }
 
+    @Test
+    void auditReportIncludesActionAndEntityMetrics() {
+        OffsetDateTime periodStart = OffsetDateTime.parse("2026-08-01T00:00:00Z");
+        OffsetDateTime periodEnd = OffsetDateTime.parse("2026-08-22T00:00:00Z");
+
+        when(auditLogRepository.countByAction(periodStart, periodEnd))
+                .thenReturn(List.<Object[]>of(new Object[] { AuditAction.UPDATE_USER, 2L }));
+        when(auditLogRepository.countByEntityName(periodStart, periodEnd))
+                .thenReturn(List.<Object[]>of(new Object[] { AuditEntityName.USER, 2L }));
+
+        AdministrationReportResponse response = service.report(
+                AdministrationReportType.AUDIT,
+                periodStart,
+                periodEnd
+        );
+
+        assertThat(response.reportType()).isEqualTo("AUDIT");
+        assertThat(response.metrics()).containsEntry("action.UPDATE_USER", 2L);
+        assertThat(response.metrics()).containsEntry("entity.USER", 2L);
+        assertThat(response.metrics()).containsEntry("total", 2L);
+    }
+
+    @Test
+    void systemOperationReportIncludesOperationalActivityAndAuditMetrics() {
+        OffsetDateTime periodStart = OffsetDateTime.parse("2026-08-01T00:00:00Z");
+        OffsetDateTime periodEnd = OffsetDateTime.parse("2026-08-22T00:00:00Z");
+
+        when(activityLogRepository.countByCategory(periodStart, periodEnd))
+                .thenReturn(List.<Object[]>of(
+                        new Object[] { ActivityCategory.CONFIGURATION, 1L },
+                        new Object[] { ActivityCategory.MAINTENANCE, 2L },
+                        new Object[] { ActivityCategory.SUPPORT_TICKET, 9L }
+                ));
+        when(auditLogRepository.countByActionForEntities(
+                eq(List.of(AuditEntityName.SYSTEM_CONFIGURATION, AuditEntityName.MAINTENANCE)),
+                eq(List.of(AuditAction.UPDATE_CONFIGURATION, AuditAction.UPDATE_MAINTENANCE_STATUS)),
+                eq(periodStart),
+                eq(periodEnd)
+        )).thenReturn(List.<Object[]>of(new Object[] { AuditAction.UPDATE_MAINTENANCE_STATUS, 4L }));
+        when(systemConfigurationRepository.findByConfigKey("maintenance.policy.enabled"))
+                .thenReturn(Optional.of(configuration(
+                        "maintenance.policy.enabled",
+                        "true",
+                        SystemConfigurationValueType.BOOLEAN,
+                        false
+                )));
+        when(systemConfigurationRepository.findByConfigKey("maintenance.mode.enabled"))
+                .thenReturn(Optional.of(configuration(
+                        "maintenance.mode.enabled",
+                        "false",
+                        SystemConfigurationValueType.BOOLEAN,
+                        false
+                )));
+
+        AdministrationReportResponse response = service.report(
+                AdministrationReportType.SYSTEM_OPERATION,
+                periodStart,
+                periodEnd
+        );
+
+        assertThat(response.reportType()).isEqualTo("SYSTEM_OPERATION");
+        assertThat(response.metrics()).containsEntry("activity.category.CONFIGURATION", 1L);
+        assertThat(response.metrics()).containsEntry("activity.category.MAINTENANCE", 2L);
+        assertThat(response.metrics()).containsEntry("activity.category.SYSTEM", 0L);
+        assertThat(response.metrics()).containsEntry("activity.total", 3L);
+        assertThat(response.metrics()).containsEntry("audit.action.UPDATE_MAINTENANCE_STATUS", 4L);
+        assertThat(response.metrics()).containsEntry("audit.total", 4L);
+        assertThat(response.metrics()).containsEntry("policy.enabled", 1L);
+        assertThat(response.metrics()).containsEntry("mode.enabled", 0L);
+        assertThat(response.metrics()).containsEntry("total", 7L);
+    }
+
     private static SupportTicket ticket(User requester) {
         return SupportTicket.builder()
                 .id(UUID.randomUUID())
