@@ -78,4 +78,6 @@ public interface CapitalAdjustmentRepository extends
             @Param("endDate") LocalDateTime endDate,
             Pageable pageable
     );
+
+    boolean existsByUserIdAndCapitalCycleId(UUID userId, UUID capitalCycleId);
 }

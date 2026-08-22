@@ -57,7 +57,7 @@ public class UserRoleServiceImpl implements UserRoleService {
     public void assignRole(
             UUID userId,
             AssignRoleRequest request,
-            UUID assignedBy) {
+            String assignedByKeycloakId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
 
@@ -67,8 +67,8 @@ public class UserRoleServiceImpl implements UserRoleService {
         if (userRoleRepository.existsByUserIdAndRoleId(userId, request.getRoleId())) {
             throw UserRoleAssignmentException.alreadyAssigned(userId, request.getRoleId());
         }
-        User assigner = userRepository.findById(assignedBy)
-                .orElseThrow(() -> new UserNotFoundException(assignedBy));
+        User assigner = userRepository.findByKeycloakId(assignedByKeycloakId)
+                .orElseThrow(() -> new UserNotFoundException(assignedByKeycloakId));
         UserRole userRole = new UserRole();
 
         userRole.setId(new UserRoleId(

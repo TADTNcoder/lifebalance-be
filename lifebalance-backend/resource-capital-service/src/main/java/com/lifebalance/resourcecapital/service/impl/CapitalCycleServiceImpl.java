@@ -7,6 +7,7 @@ import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleStatus;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleType;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.ActiveCapitalCycleAlreadyExistsException;
+import com.lifebalance.resourcecapital.domain.capitalcycle.exception.CapitalCycleDeletionNotAllowedException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.CapitalCycleNotFoundException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.CapitalCycleOverlapException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.InvalidCapitalCycleStateException;
@@ -23,6 +24,8 @@ import com.lifebalance.resourcecapital.dto.ReopenCapitalCycleRequest;
 import com.lifebalance.resourcecapital.dto.TransferRemainingCapitalRequest;
 import com.lifebalance.resourcecapital.dto.TransferRemainingCapitalResponse;
 import com.lifebalance.resourcecapital.dto.UpdateCapitalCycleRequest;
+import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalAdjustmentRepository;
+import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalAllocationRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalCycleRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalHistoryRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.MoneyCapitalRepository;
@@ -33,6 +36,8 @@ import com.lifebalance.resourcecapital.service.CapitalCycleService;
 import com.lifebalance.resourcecapital.service.mapper.CapitalCycleMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,6 +46,7 @@ import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -55,6 +61,8 @@ public class CapitalCycleServiceImpl implements CapitalCycleService {
     private final CapitalCycleBusinessValidator capitalCycleBusinessValidator;
     private final TimeCapitalRepository timeCapitalRepository;
     private final MoneyCapitalRepository moneyCapitalRepository;
+    private final CapitalAdjustmentRepository capitalAdjustmentRepository;
+    private final CapitalAllocationRepository capitalAllocationRepository;
     private final CapitalAllocationReader capitalAllocationReader;
     private final CapitalHistoryRepository capitalHistoryRepository;
     private final Clock clock;
@@ -66,6 +74,8 @@ public class CapitalCycleServiceImpl implements CapitalCycleService {
             CapitalCycleBusinessValidator capitalCycleBusinessValidator,
             TimeCapitalRepository timeCapitalRepository,
             MoneyCapitalRepository moneyCapitalRepository,
+            CapitalAdjustmentRepository capitalAdjustmentRepository,
+            CapitalAllocationRepository capitalAllocationRepository,
             CapitalAllocationReader capitalAllocationReader,
             CapitalHistoryRepository capitalHistoryRepository
     ) {
@@ -75,6 +85,8 @@ public class CapitalCycleServiceImpl implements CapitalCycleService {
                 capitalCycleBusinessValidator,
                 timeCapitalRepository,
                 moneyCapitalRepository,
+                capitalAdjustmentRepository,
+                capitalAllocationRepository,
                 capitalAllocationReader,
                 capitalHistoryRepository,
                 Clock.systemUTC()
@@ -87,6 +99,8 @@ public class CapitalCycleServiceImpl implements CapitalCycleService {
             CapitalCycleBusinessValidator capitalCycleBusinessValidator,
             TimeCapitalRepository timeCapitalRepository,
             MoneyCapitalRepository moneyCapitalRepository,
+            CapitalAdjustmentRepository capitalAdjustmentRepository,
+            CapitalAllocationRepository capitalAllocationRepository,
             CapitalAllocationReader capitalAllocationReader,
             CapitalHistoryRepository capitalHistoryRepository,
             Clock clock
@@ -96,9 +110,52 @@ public class CapitalCycleServiceImpl implements CapitalCycleService {
         this.capitalCycleBusinessValidator = capitalCycleBusinessValidator;
         this.timeCapitalRepository = timeCapitalRepository;
         this.moneyCapitalRepository = moneyCapitalRepository;
+        this.capitalAdjustmentRepository = capitalAdjustmentRepository;
+        this.capitalAllocationRepository = capitalAllocationRepository;
         this.capitalAllocationReader = capitalAllocationReader;
         this.capitalHistoryRepository = capitalHistoryRepository;
         this.clock = clock;
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public Page<CapitalCycleResponse> listCycles(
+            UUID ownerId,
+            CapitalCycleType type,
+            CapitalCycleStatus status,
+            LocalDate fromDate,
+            LocalDate toDate,
+            Pageable pageable
+    ) {
+        Objects.requireNonNull(ownerId, "Owner id is required.");
+        Objects.requireNonNull(pageable, "Pageable is required.");
+
+        return capitalCycleRepository.searchOwnedCycles(ownerId, type, status, fromDate, toDate, pageable)
+                .map(capitalCycleMapper::toResponse);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public Optional<CapitalCycleResponse> getActiveCycle(UUID ownerId, CapitalCycleType type) {
+        Objects.requireNonNull(ownerId, "Owner id is required.");
+
+        Optional<CapitalCycle> activeCycle = type == null
+                ? capitalCycleRepository.findFirstByOwnerIdAndStatusOrderByActivatedAtDescCreatedAtDesc(
+                        ownerId,
+                        CapitalCycleStatus.ACTIVE
+                )
+                : capitalCycleRepository.findByOwnerIdAndTypeAndStatus(
+                        ownerId,
+                        type,
+                        CapitalCycleStatus.ACTIVE
+                );
+        return activeCycle.map(capitalCycleMapper::toResponse);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public CapitalCycleResponse getCycle(UUID ownerId, UUID cycleId) {
+        return capitalCycleMapper.toResponse(findOwnedCycle(ownerId, cycleId));
     }
 
     @Transactional
@@ -229,6 +286,22 @@ public class CapitalCycleServiceImpl implements CapitalCycleService {
             case TIME -> transferTimeRemaining(ownerId, cyclePair.source(), cyclePair.target(), requestedAmount, reason);
             case MONEY -> transferMoneyRemaining(ownerId, cyclePair.source(), cyclePair.target(), requestedAmount, reason);
         };
+    }
+
+    @Transactional
+    @Override
+    public void deleteCycle(UUID ownerId, UUID cycleId) {
+        Objects.requireNonNull(ownerId, "Owner id is required.");
+        CapitalCycle cycle = findOwnedCycleForUpdate(ownerId, cycleId);
+        if (!cycle.isDraft()) {
+            throw new CapitalCycleDeletionNotAllowedException(
+                    cycleId,
+                    "only draft capital cycles can be deleted"
+            );
+        }
+        ensureNoDeletionDependencies(ownerId, cycleId);
+
+        capitalCycleRepository.delete(cycle);
     }
 
     private CapitalCycle findOwnedCycle(UUID ownerId, UUID cycleId) {
@@ -542,6 +615,24 @@ public class CapitalCycleServiceImpl implements CapitalCycleService {
         Throwable mostSpecificCause = exception.getMostSpecificCause();
         String message = mostSpecificCause.getMessage();
         return message != null && message.contains(ACTIVE_CYCLE_UNIQUE_INDEX);
+    }
+
+    private void ensureNoDeletionDependencies(UUID ownerId, UUID cycleId) {
+        if (timeCapitalRepository.existsByCapitalCycleId(cycleId)) {
+            throw new CapitalCycleDeletionNotAllowedException(cycleId, "time capital is already initialized");
+        }
+        if (moneyCapitalRepository.existsByCapitalCycleId(cycleId)) {
+            throw new CapitalCycleDeletionNotAllowedException(cycleId, "money capital is already initialized");
+        }
+        if (capitalAdjustmentRepository.existsByUserIdAndCapitalCycleId(ownerId, cycleId)) {
+            throw new CapitalCycleDeletionNotAllowedException(cycleId, "capital adjustments already exist");
+        }
+        if (capitalAllocationRepository.existsByUserIdAndCapitalCycleId(ownerId, cycleId)) {
+            throw new CapitalCycleDeletionNotAllowedException(cycleId, "capital allocations already exist");
+        }
+        if (capitalHistoryRepository.existsByCapitalCycleId(cycleId)) {
+            throw new CapitalCycleDeletionNotAllowedException(cycleId, "capital history already exists");
+        }
     }
 
     private record TransferCyclePair(CapitalCycle source, CapitalCycle target) {

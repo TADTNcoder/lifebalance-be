@@ -1763,6 +1763,21 @@
             "claim.name": "groups",
             "userinfo.token.claim": "true"
           }
+        },
+        {
+          "id": "1d818e68-0cb8-4f17-8f20-b130a1c6368f",
+          "name": "lifebalance-user-id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "id",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "false",
+            "claim.name": "lifebalance_user_id",
+            "jsonType.label": "String"
+          }
         }
       ]
     }
@@ -1932,88 +1947,6 @@
         "config": {
           "allow-default-scopes": [
             "true"
-          ]
-        }
-      }
-    ],
-    "org.keycloak.keys.KeyProvider": [
-      {
-        "id": "44a5907f-5525-424c-9e99-66ffe37b6064",
-        "name": "rsa-generated",
-        "providerId": "rsa-generated",
-        "subComponents": {},
-        "config": {
-          "privateKey": [
-            "MIIEowIBAAKCAQEA7WuZNJLMcHzOYhEN30TKMtqAgUz07jRCPlQ+fdCL/21uZuIzOJe0SCYiAVCP9Mk7SPQUfySvpLdZlcz5xLhd7VlDW0hi3dS8ydo0A1cCwYHH9bw1g20SH2WgU5Q2IWHs8ji66Nw4cg0EytpNqmbMmeVFJfrVepBtVY4QB+yolC11bLjgeHi6byNErDbiNbD4m0GTVhJ40pa5oGgyCl8Qrj7+DTC/YGqowhz7P04O5sNON1c2WLw0M+QIDnuOsogp75+iGEZKHKcCaOcSXvDLAc7g1iRBSYI6g/DyQ4Zjt7v01Mf3TZtc8WOiz99LiuuOJCxl14mPYXpfB2SfbhjYtwIDAQABAoIBADo37NEaADzDNf6RLQQnQ6fVsbZDLzpsISRUlyBV78Z6SJy88g96D9CzXRpSbYJ6h+mbRJ1q2xE6jqKvqT2mcg3eGii7pta7sHGU6rU49GmMEAL/nGW2bL+7NWXZTa7A6w/4fkjUm5jH/Xlar7nNzHUeZebqy8dqvAzDMcYnr6zpwdvRQELOuZBKACgsAQss8wVU5g73bhdlL68cgbP5em4CLBaXQg+liNzOsxU83j7OPM2t7ORyn1Z22eHjFlpdpBYLHCihM27Db5OW7VQXGOlFIKTp9p+H/+FWN2wUu7nchQW/4JNNWNV4jNPhLhtr3SJqIkvv1puttMtlboLa4b0CgYEA+RJFwZjaFXvX1cgRW52EnQWJAcfIwfZyM0LCApea+lKn34YX5HxVySGQai0wSDYH9wN7FCcmbYjXfyrNIDt3lvetM2saQIjASp0vDhYr/7ZJLr8CihEcvXwNE2YoavTr5K849Y9GnllghvdENm9JBlfW8Ai+HYRvBkHFnJKBqU0CgYEA9AZavyqR1r0f04BJuxSNp2X29Zzzlr+LU53d/Yxo+nLvDueDw/o48kqbVdpKg+jqoGS2hateQ5qxqmLPSGzq5JT85yhiJFs3lIjkqU0F7lvPUxmprxqpV8QA8kEoKfVtAWIqSRD77PnxR0/M60hZrrvyHE4WcQz++kpmhH96aBMCgYEAimD/hnbgu0zp9mlIU4kpU3/uxaF0xWahvh8Z4QzP2sGvaP18KsJ1euB99q+SgpwaQr+ZUvIJZJPBfnKOMpk3cRW8EbQwiqgvhYTczsu8uD5TXHhc9c5aFGBmd1+rlvjqUkyTrcJjbrija3jXWhLsFG0bCpMg5Q9eC7DhFINFLIUCgYAFG8zyi5WaBUORTfI9NGTyyDOvWKXQ1hm4mml3UWUxOQ7AJSChDa/7goxV88fzkwC2cuVPTxMeHzLw+jiUr5MLTgMtY68KS86SEXuX/8DMCKgCeVsQC2LYL4ZFjA+nMTgi+0cfWHetsl3WvFjx5AXcnpqm9QuLOlZsLvqOc4zAeQKBgBgrjJPSioAJLU9VGhP1VXEXdN8TOwwG8JKFc2EFKDla8DIeFD2OgMbI8jPnxRV2vFcxhJ7ZGLG5LtASbYJwtJzG1rygAnoC9AKeTK6wGQorDD6SbkrkzgAtgYTqWDYQbRm6PuXt7UIdx3YVTtxw78Zlp/COdOXmg8eL5eCtj4dJ"
-          ],
-          "keyUse": [
-            "SIG"
-          ],
-          "certificate": [
-            "MIICpTCCAY0CBgGfVDAvnzANBgkqhkiG9w0BAQsFADAWMRQwEgYDVQQDDAtsaWZlYmFsYW5jZTAeFw0yNjA3MTIwMjM2MTFaFw0zNjA3MTIwMjM3NTFaMBYxFDASBgNVBAMMC2xpZmViYWxhbmNlMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA7WuZNJLMcHzOYhEN30TKMtqAgUz07jRCPlQ+fdCL/21uZuIzOJe0SCYiAVCP9Mk7SPQUfySvpLdZlcz5xLhd7VlDW0hi3dS8ydo0A1cCwYHH9bw1g20SH2WgU5Q2IWHs8ji66Nw4cg0EytpNqmbMmeVFJfrVepBtVY4QB+yolC11bLjgeHi6byNErDbiNbD4m0GTVhJ40pa5oGgyCl8Qrj7+DTC/YGqowhz7P04O5sNON1c2WLw0M+QIDnuOsogp75+iGEZKHKcCaOcSXvDLAc7g1iRBSYI6g/DyQ4Zjt7v01Mf3TZtc8WOiz99LiuuOJCxl14mPYXpfB2SfbhjYtwIDAQABMA0GCSqGSIb3DQEBCwUAA4IBAQAYDyYKDr1jYVuEz3hbf3z30EzIC+qHq1WDU9bfOAX7Z8KcqxHRdTQY7vFAiBP6mNIVTXuKfPX336E2x2BV6k5qP2PbY//QNgkbJkuclIwd2mUvGBYJ9AYv4WajkyHZlJDpv0kgT4LMqG5Jl42F+l/ZP53q8feWUeHtzISY/PAEOo6th2ic1lxcvGHl6vpXzOY4RjDl6/3Rm/6Z3YzwE6zJiQBPS+IDZYJQ3ILZu28csmfAg9aWowseo88qHTmscownx8+/X2xpijcX1mlBibhPBUGxQmQsNvKRPw/5VYz+sASklZcQUE16742fvnG7+f5UEXNN+fT+CKlRFZnSWfuF"
-          ],
-          "priority": [
-            "100"
-          ]
-        }
-      },
-      {
-        "id": "93b75c4b-26ff-4705-9b11-4079d87d5a75",
-        "name": "hmac-generated-hs512",
-        "providerId": "hmac-generated",
-        "subComponents": {},
-        "config": {
-          "kid": [
-            "81fb03ab-f685-45a5-a0a3-3b74d3b0cb59"
-          ],
-          "secret": [
-            "Lbs2V9dZF_IcBIARCOYMXugYz2hMX4pA22z3zt6o_YWxNWraZOGCMkXDJXLZJlAOoGgzQvh_whOAXalcsOr_YGI05r_fiHoQEXw4X-LuDOWS_jg2HeIq_Kyrc9wzuYzFacxW2CSHpx_ib_X2TYgFOnMLRAV_M4A4-hYXIrfRQOQ"
-          ],
-          "priority": [
-            "100"
-          ],
-          "algorithm": [
-            "HS512"
-          ]
-        }
-      },
-      {
-        "id": "ea383f7b-452d-4797-9375-b916b321491a",
-        "name": "rsa-enc-generated",
-        "providerId": "rsa-enc-generated",
-        "subComponents": {},
-        "config": {
-          "privateKey": [
-            "MIIEowIBAAKCAQEA6NPTu0khqOZKyD8ER+sF7EVQtnCf8Ja76i8Cfud5qOl2QpMj2JlD8p7IcYyJDajaI8Ka2U5mkxPhjkr4rSk2jzTgSVLY7dxpt9oZhlN/uxNrV9DCbMF5N+AgJe8x7OxQm9ozOhOkEfdl8rIXZCahk5eeGnnoiTtmBm88ClOoD05/HtB5iOHAVcOBqrlCpIl0OWxfxDiPCMmwEnene5fcJtw0QbxZjhlLTmcvHUMcBmeAtq0CEoL6vKI2hWb0/fzuHlkFUE67ZslWr5RCfao+Pz9XCpEaziham1KjkNSk1NLiwXBSzegtnKwryKRByq7+j/RH8GM0Gz+pQ8dxfjoWKQIDAQABAoIBADNFcnrrv93R2OX/+pFb0BIXsY57fr0cdIU9lO8dSk1IHCLNBDfOiIgFL17R89xuMpttX2w7N5tr5V/QYrK/QKSIoFuFQwAeaaly/ev2t0obHKhZ8HbCpE8JrAqugfAKmjW390/yw06xjGHFliEX4Lz/xnFOJ0cRLYZ9OFuN0JSN6Si4DKOK+uiuTTwFXdfD2o/+m/pKq8zmrr8For5S6K5SVUkWTGXAvo5iQwh4oSoiGxmqm7rMLIdzQqvQiPKSQk4G15cdjL+fW17cgFsviKg/gpnlMBuqvEDJ8+ji3dwuof+s1iYRhXxySL3yaUQTtQ8HoRRxp8E0AVAA0EHxaYECgYEA9lh/GK+wXLkNiqB1CgQ+Itiv5m2YqPmKdCa0JpsvB0gjywjM14b4aWwuMF46sj2sczfIEM6nEAjBNMLMcVPWFRLJoHtcgV50b3AcfQ6/xz0k262y/smV2nhSd0biTddk+KrLwJUbTfEjZ85qLAGS9C9Z1064hu2SHIPhb03Z8+MCgYEA8fO05uL9wzFEDP6VgDK2Rj2qGPe2fuaeGuW50oty7LBDanBbiy4Pxu/UyKGX2iAWWRCsXidWZPZLipMmWZrpLHs4cn25ZTju0bWtta/pQu6ow5GE0IIcAnyTY5UJfixSIgefE0477HpL7/boOAMPrKuWv5n0iRVYXG4fVZTQ44MCgYA6SfhQzAlr9zF4Er1+0EAvmJwOZvJPUTRshVftJpz7GRu3B+8INFyE/V70fOdgk21BmfpR18P57EhjBpC/Y/ns5JQmz+m0hrgAQkPLZ3kDWLlm7XPEC8jUd9HzfSdBCe1PVYJ+oAlk6ODayCGhJgIymx2j73GEI6SF8MKfxokCxwKBgQDqbZJK34a2eGaSHJ2n//rB5f+If4LwQ+zO7OT2Di1FDafUWpcoLHIW88t8ta1XKB3fIBuSgpTf8A/Tba4Lxd/FPIK90/ktDVPAF0L/NjlRo8Ia80T3bglLk36PTxlKihDubeoAn53KC9jF4bqwgq7OQ9clQDtCE09xBzYPCsi2lwKBgF6YIq7vW/lMZcNxlu88OEa5I1araWzxtczg3lvtUUnFInsVamCC4uOzYFm7m0j3q6yiasAyDSWbcubpp3aQmcs5T+bhV4xyeTDXryd2pCDVXCp1ATi9OTB70MB00QOcdwY7oqfviF4D4EWsZ+Cb9Oo9TorQO3x3IZlBQRbAW1g3"
-          ],
-          "keyUse": [
-            "ENC"
-          ],
-          "certificate": [
-            "MIICpTCCAY0CBgGfVDAwdTANBgkqhkiG9w0BAQsFADAWMRQwEgYDVQQDDAtsaWZlYmFsYW5jZTAeFw0yNjA3MTIwMjM2MTJaFw0zNjA3MTIwMjM3NTJaMBYxFDASBgNVBAMMC2xpZmViYWxhbmNlMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA6NPTu0khqOZKyD8ER+sF7EVQtnCf8Ja76i8Cfud5qOl2QpMj2JlD8p7IcYyJDajaI8Ka2U5mkxPhjkr4rSk2jzTgSVLY7dxpt9oZhlN/uxNrV9DCbMF5N+AgJe8x7OxQm9ozOhOkEfdl8rIXZCahk5eeGnnoiTtmBm88ClOoD05/HtB5iOHAVcOBqrlCpIl0OWxfxDiPCMmwEnene5fcJtw0QbxZjhlLTmcvHUMcBmeAtq0CEoL6vKI2hWb0/fzuHlkFUE67ZslWr5RCfao+Pz9XCpEaziham1KjkNSk1NLiwXBSzegtnKwryKRByq7+j/RH8GM0Gz+pQ8dxfjoWKQIDAQABMA0GCSqGSIb3DQEBCwUAA4IBAQBkWbEjsfgZZFfIJ+iBvGZ3qnb+gQ7WY4ROZSwOLgKnfKIOE32HfSPvjKASDYEeu7WjBDHpupFlRZlDqkcllPrxwEvKry0kH0ylWAu+30yFIIVbIrIbNSlrTHMMEB8sVk7sedslKWC8LInf8AClFP+VRf01ERV5xNhJ3xxp0vwtGfTeLiQpal4oBxy9Gv23B6EkgcvBlJeiM2Fx4wlr1S72pCa67zmH4yZufj2rfyfxL3q8Bhbpr0Vet7kCAXwJKsepWScQnmErB83Oa4dQzf4I41qikHJuDln7fV5EzQPZZX7v1CKQWIhARn2lGGNSWTV3wh/XAH0F7dshrbtYuhYt"
-          ],
-          "priority": [
-            "100"
-          ],
-          "algorithm": [
-            "RSA-OAEP"
-          ]
-        }
-      },
-      {
-        "id": "a54c055f-e811-4b16-ac8a-f0d267516b55",
-        "name": "aes-generated",
-        "providerId": "aes-generated",
-        "subComponents": {},
-        "config": {
-          "kid": [
-            "4e9f8d0e-5cad-4e2f-a62b-94c61a83fc6d"
-          ],
-          "secret": [
-            "43qoAUHSv0V92i5YCgsfHQ"
-          ],
-          "priority": [
-            "100"
           ]
         }
       }
@@ -2783,70 +2716,5 @@
   "clientPolicies": {
     "policies": []
   },
-  "users": [
-    {
-      "id": "6e1ebac9-02f0-4dbb-8247-648b34c38ff3",
-      "username": "admin@lifebalance.local",
-      "email": "admin@lifebalance.local",
-      "firstName": "LifeBalance",
-      "lastName": "Administrator",
-      "enabled": true,
-      "emailVerified": true,
-      "createdTimestamp": 0,
-      "credentials": [
-        {
-          "type": "password",
-          "value": "Admin123!ChangeMe",
-          "temporary": true
-        }
-      ],
-      "requiredActions": [
-        "UPDATE_PASSWORD"
-      ],
-      "realmRoles": [
-        "USER",
-        "ADMIN",
-        "IDENTITY_ADMIN",
-        "TASK_MANAGER",
-        "TIMELINE_MANAGER",
-        "FINANCE_MANAGER",
-        "NOTIFICATION_MANAGER",
-        "ANALYTICS_VIEWER",
-        "AI_USER"
-      ],
-      "groups": [
-        "/administrators"
-      ],
-      "clientRoles": {},
-      "notBefore": 0
-    },
-    {
-      "id": "975946b2-90c3-4206-a2de-4f6652fcaa71",
-      "username": "user@lifebalance.local",
-      "email": "user@lifebalance.local",
-      "firstName": "LifeBalance",
-      "lastName": "User",
-      "enabled": true,
-      "emailVerified": true,
-      "createdTimestamp": 0,
-      "credentials": [
-        {
-          "type": "password",
-          "value": "User123!ChangeMe",
-          "temporary": true
-        }
-      ],
-      "requiredActions": [
-        "UPDATE_PASSWORD"
-      ],
-      "realmRoles": [
-        "USER"
-      ],
-      "groups": [
-        "/users"
-      ],
-      "clientRoles": {},
-      "notBefore": 0
-    }
-  ]
+  "users": []
 }

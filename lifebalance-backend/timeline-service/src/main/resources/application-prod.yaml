@@ -1,6 +1,10 @@
 server:
   port: ${TIMELINE_SERVICE_PORT:8096}
 
+lifebalance:
+  integration:
+    internal-secret: ${LIFEBALANCE_INTERNAL_SERVICE_SECRET:}
+
 spring:
   datasource:
     url: ${SPRING_DATASOURCE_URL}

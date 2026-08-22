@@ -6,6 +6,7 @@ import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycle;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleStatus;
 import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleType;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.ActiveCapitalCycleAlreadyExistsException;
+import com.lifebalance.resourcecapital.domain.capitalcycle.exception.CapitalCycleDeletionNotAllowedException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.CapitalCycleNotFoundException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.CapitalCycleOverlapException;
 import com.lifebalance.resourcecapital.domain.capitalcycle.exception.InvalidCapitalCyclePeriodException;
@@ -20,6 +21,8 @@ import com.lifebalance.resourcecapital.dto.ReopenCapitalCycleRequest;
 import com.lifebalance.resourcecapital.dto.TransferRemainingCapitalRequest;
 import com.lifebalance.resourcecapital.dto.TransferRemainingCapitalResponse;
 import com.lifebalance.resourcecapital.dto.UpdateCapitalCycleRequest;
+import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalAdjustmentRepository;
+import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalAllocationRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalCycleRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.CapitalHistoryRepository;
 import com.lifebalance.resourcecapital.infrastructure.persistence.MoneyCapitalRepository;
@@ -33,6 +36,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
@@ -40,6 +46,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -80,10 +87,118 @@ class CapitalCycleServiceImplTest {
     private MoneyCapitalRepository moneyCapitalRepository;
 
     @Mock
+    private CapitalAdjustmentRepository capitalAdjustmentRepository;
+
+    @Mock
+    private CapitalAllocationRepository capitalAllocationRepository;
+
+    @Mock
     private CapitalAllocationReader capitalAllocationReader;
 
     @Mock
     private CapitalHistoryRepository capitalHistoryRepository;
+
+    @Test
+    void listCyclesMapsOwnedSearchResultsWithFilters() throws Exception {
+        CapitalCycle cycle = monthlyCycle();
+        setField(cycle, "id", CYCLE_ID);
+        PageRequest pageable = PageRequest.of(0, 10);
+        when(capitalCycleRepository.searchOwnedCycles(
+                OWNER_ID,
+                CapitalCycleType.MONTHLY,
+                CapitalCycleStatus.DRAFT,
+                LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 8, 31),
+                pageable
+        )).thenReturn(new PageImpl<>(List.of(cycle), pageable, 1));
+
+        Page<CapitalCycleResponse> response = createService().listCycles(
+                OWNER_ID,
+                CapitalCycleType.MONTHLY,
+                CapitalCycleStatus.DRAFT,
+                LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 8, 31),
+                pageable
+        );
+
+        assertThat(response.getTotalElements()).isEqualTo(1);
+        assertThat(response.getContent().get(0).getId()).isEqualTo(CYCLE_ID);
+        assertThat(response.getContent().get(0).getType()).isEqualTo(CapitalCycleType.MONTHLY);
+    }
+
+    @Test
+    void getActiveCycleReturnsTypeFilteredActiveCycle() throws Exception {
+        CapitalCycle cycle = dailyCycle();
+        setField(cycle, "id", CYCLE_ID);
+        cycle.activate(NOW.minusSeconds(60));
+        when(capitalCycleRepository.findByOwnerIdAndTypeAndStatus(
+                OWNER_ID,
+                CapitalCycleType.DAILY,
+                CapitalCycleStatus.ACTIVE
+        )).thenReturn(Optional.of(cycle));
+
+        Optional<CapitalCycleResponse> response = createService().getActiveCycle(OWNER_ID, CapitalCycleType.DAILY);
+
+        assertThat(response).isPresent();
+        assertThat(response.get().getId()).isEqualTo(CYCLE_ID);
+        assertThat(response.get().getStatus()).isEqualTo(CapitalCycleStatus.ACTIVE);
+    }
+
+    @Test
+    void getCycleReturnsOwnedCycleDetail() throws Exception {
+        CapitalCycle cycle = dailyCycle();
+        setField(cycle, "id", CYCLE_ID);
+        when(capitalCycleRepository.findByIdAndOwnerId(CYCLE_ID, OWNER_ID)).thenReturn(Optional.of(cycle));
+
+        CapitalCycleResponse response = createService().getCycle(OWNER_ID, CYCLE_ID);
+
+        assertThat(response.getId()).isEqualTo(CYCLE_ID);
+        assertThat(response.getName()).isEqualTo("August 1");
+    }
+
+    @Test
+    void deleteCycleDeletesDraftCycleWhenNoDependentRecordsExist() throws Exception {
+        CapitalCycle cycle = dailyCycle();
+        setField(cycle, "id", CYCLE_ID);
+        when(capitalCycleRepository.findByIdAndOwnerIdForUpdate(CYCLE_ID, OWNER_ID)).thenReturn(Optional.of(cycle));
+
+        createService().deleteCycle(OWNER_ID, CYCLE_ID);
+
+        verify(timeCapitalRepository).existsByCapitalCycleId(CYCLE_ID);
+        verify(moneyCapitalRepository).existsByCapitalCycleId(CYCLE_ID);
+        verify(capitalAdjustmentRepository).existsByUserIdAndCapitalCycleId(OWNER_ID, CYCLE_ID);
+        verify(capitalAllocationRepository).existsByUserIdAndCapitalCycleId(OWNER_ID, CYCLE_ID);
+        verify(capitalHistoryRepository).existsByCapitalCycleId(CYCLE_ID);
+        verify(capitalCycleRepository).delete(cycle);
+    }
+
+    @Test
+    void deleteCycleRejectsActiveCycle() throws Exception {
+        CapitalCycle cycle = dailyCycle();
+        setField(cycle, "id", CYCLE_ID);
+        cycle.activate(NOW.minusSeconds(60));
+        when(capitalCycleRepository.findByIdAndOwnerIdForUpdate(CYCLE_ID, OWNER_ID)).thenReturn(Optional.of(cycle));
+
+        assertThatThrownBy(() -> createService().deleteCycle(OWNER_ID, CYCLE_ID))
+                .isInstanceOf(CapitalCycleDeletionNotAllowedException.class)
+                .hasMessageContaining("only draft capital cycles can be deleted");
+
+        verify(capitalCycleRepository, never()).delete(any());
+    }
+
+    @Test
+    void deleteCycleRejectsDraftCycleWithDependentRecords() throws Exception {
+        CapitalCycle cycle = dailyCycle();
+        setField(cycle, "id", CYCLE_ID);
+        when(capitalCycleRepository.findByIdAndOwnerIdForUpdate(CYCLE_ID, OWNER_ID)).thenReturn(Optional.of(cycle));
+        when(timeCapitalRepository.existsByCapitalCycleId(CYCLE_ID)).thenReturn(true);
+
+        assertThatThrownBy(() -> createService().deleteCycle(OWNER_ID, CYCLE_ID))
+                .isInstanceOf(CapitalCycleDeletionNotAllowedException.class)
+                .hasMessageContaining("time capital is already initialized");
+
+        verify(capitalCycleRepository, never()).delete(any());
+    }
 
     @Test
     void createCycleCreatesDraftCycleWhenPeriodDoesNotOverlap() {
@@ -562,6 +677,8 @@ class CapitalCycleServiceImplTest {
                 capitalCycleBusinessValidator,
                 timeCapitalRepository,
                 moneyCapitalRepository,
+                capitalAdjustmentRepository,
+                capitalAllocationRepository,
                 capitalAllocationReader,
                 capitalHistoryRepository,
                 CLOCK

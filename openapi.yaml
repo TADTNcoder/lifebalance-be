@@ -155,6 +155,33 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
   /api/v1/capital-cycles/{id}:
+    get:
+      tags:
+        - Capital Cycles
+      summary: Get capital cycle
+      description: Get an authenticated user's capital cycle detail by id.
+      operationId: getCapitalCycle
+      parameters:
+        - $ref: '#/components/parameters/CapitalCycleIdPath'
+      responses:
+        '200':
+          description: Capital cycle returned successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseCapitalCycle'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
     put:
       tags:
         - Capital Cycles
@@ -182,6 +209,29 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseCapitalCycle'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      tags:
+        - Capital Cycles
+      summary: Delete capital cycle
+      description: Delete an authenticated user's DRAFT capital cycle only when no dependent capital records exist.
+      operationId: deleteCapitalCycle
+      parameters:
+        - $ref: '#/components/parameters/CapitalCycleIdPath'
+      responses:
+        '204':
+          description: Capital cycle deleted successfully.
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':

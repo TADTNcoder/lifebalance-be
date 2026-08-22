@@ -36,10 +36,14 @@ public class KeycloakUserMapper {
         Set<String> roles = new LinkedHashSet<>();
         roles.addAll(realmRoles);
         roles.addAll(clientRoles);
+        UUID internalUserId = uuidClaim(jwt, CLAIM_LIFEBALANCE_USER_ID);
+        if (internalUserId == null) {
+            internalUserId = uuidClaim(jwt, CLAIM_SUBJECT);
+        }
 
         return new KeycloakUserPrincipal(
                 stringClaim(jwt, CLAIM_SUBJECT),
-                uuidClaim(jwt, CLAIM_LIFEBALANCE_USER_ID),
+                internalUserId,
                 stringClaim(jwt, CLAIM_USERNAME),
                 stringClaim(jwt, CLAIM_EMAIL),
                 stringClaim(jwt, CLAIM_NAME),

@@ -29,6 +29,7 @@ public final class PublicReadinessBearerTokenResolver implements BearerTokenReso
 
     private static boolean isPublicActuatorPath(String path) {
         return "/actuator/info".equals(path)
+                || "/actuator/prometheus".equals(path)
                 || "/actuator/health".equals(path)
                 || path.startsWith("/actuator/health/");
     }

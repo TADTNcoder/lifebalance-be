@@ -3,6 +3,7 @@ server:
 
 lifebalance:
   integration:
+    internal-secret: ${LIFEBALANCE_INTERNAL_SERVICE_SECRET:}
     timeline-service:
       base-url: ${TIMELINE_SERVICE_BASE_URL:http://timeline-service:8080}
     notification-service:

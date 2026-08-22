@@ -43,6 +43,7 @@ public class NotificationDeliveryController {
             Pageable pageable,
             @RequestAttribute(value = CURRENT_USER_ATTRIBUTE, required = false) KeycloakUserPrincipal currentUser
     ) {
+        CurrentNotificationUser.requireNotificationManager(currentUser, false);
         return ResponseEntity.ok(ApiResponse.success(PageResponse.from(deliveryService.getPending(
                 CurrentNotificationUser.ownerId(currentUser),
                 channel,
@@ -57,6 +58,7 @@ public class NotificationDeliveryController {
             @Valid @RequestBody(required = false) MarkDeliverySentRequest request,
             @RequestAttribute(value = CURRENT_USER_ATTRIBUTE, required = false) KeycloakUserPrincipal currentUser
     ) {
+        CurrentNotificationUser.requireNotificationManager(currentUser, false);
         return ResponseEntity.ok(ApiResponse.success(deliveryService.markSent(
                 CurrentNotificationUser.ownerId(currentUser),
                 notificationId,
@@ -70,6 +72,7 @@ public class NotificationDeliveryController {
             @Valid @RequestBody(required = false) MarkDeliveryFailedRequest request,
             @RequestAttribute(value = CURRENT_USER_ATTRIBUTE, required = false) KeycloakUserPrincipal currentUser
     ) {
+        CurrentNotificationUser.requireNotificationManager(currentUser, false);
         return ResponseEntity.ok(ApiResponse.success(deliveryService.markFailed(
                 CurrentNotificationUser.ownerId(currentUser),
                 notificationId,
@@ -83,6 +86,7 @@ public class NotificationDeliveryController {
             @Valid @RequestBody(required = false) RetryDeliveryRequest request,
             @RequestAttribute(value = CURRENT_USER_ATTRIBUTE, required = false) KeycloakUserPrincipal currentUser
     ) {
+        CurrentNotificationUser.requireNotificationManager(currentUser, false);
         return ResponseEntity.ok(ApiResponse.success(deliveryService.retry(
                 CurrentNotificationUser.ownerId(currentUser),
                 notificationId,

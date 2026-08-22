@@ -1,5 +1,6 @@
 package com.lifebalance.identity.service.impl;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.Optional;
 import java.util.UUID;
@@ -150,7 +151,8 @@ public class PermissionEvaluationServiceImpl implements PermissionEvaluationServ
         }
 
         return userRepository.findByKeycloakId(keycloakId)
-                .filter(user -> user.getStatus() == AccountStatus.ACTIVE);
+                .filter(user -> user.getStatus() == AccountStatus.ACTIVE)
+                .filter(user -> tokenIssuedAfterValidCutoff(authentication, user));
     }
 
     private static boolean isUsableAuthentication(Authentication authentication) {
@@ -181,5 +183,29 @@ public class PermissionEvaluationServiceImpl implements PermissionEvaluationServ
         return name == null || name.isBlank()
                 ? null
                 : name.trim();
+    }
+
+    private static boolean tokenIssuedAfterValidCutoff(Authentication authentication, User user) {
+        if (user.getTokenValidAfter() == null) {
+            return true;
+        }
+
+        Instant issuedAt = resolveJwt(authentication)
+                .map(Jwt::getIssuedAt)
+                .orElse(null);
+        return issuedAt != null && !issuedAt.isBefore(user.getTokenValidAfter().toInstant());
+    }
+
+    private static Optional<Jwt> resolveJwt(Authentication authentication) {
+        if (authentication instanceof JwtAuthenticationToken jwtAuthenticationToken) {
+            return Optional.ofNullable(jwtAuthenticationToken.getToken());
+        }
+
+        Object principal = authentication.getPrincipal();
+        if (principal instanceof Jwt jwt) {
+            return Optional.of(jwt);
+        }
+
+        return Optional.empty();
     }
 }

@@ -18,9 +18,12 @@ import com.lifebalance.notification.dto.UnreadCountResponse;
 import com.lifebalance.notification.service.NotificationService;
 import com.lifebalance.security.keycloak.KeycloakUserPrincipal;
 import jakarta.validation.Valid;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -29,6 +32,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -37,17 +41,30 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/notifications")
 public class NotificationController {
 
-    private final NotificationService notificationService;
+    static final String INTERNAL_SECRET_HEADER = "X-Lifebalance-Internal-Secret";
 
-    public NotificationController(NotificationService notificationService) {
+    private final NotificationService notificationService;
+    private final String internalSecret;
+
+    public NotificationController(
+            NotificationService notificationService,
+            @Value("${lifebalance.integration.internal-secret:}") String internalSecret
+    ) {
         this.notificationService = notificationService;
+        this.internalSecret = trimToEmpty(internalSecret);
     }
 
     @PostMapping
     public ResponseEntity<ApiResponse<List<NotificationResponse>>> create(
             @Valid @RequestBody CreateNotificationRequest request,
-            @RequestAttribute(value = CURRENT_USER_ATTRIBUTE, required = false) KeycloakUserPrincipal currentUser
+            @RequestAttribute(value = CURRENT_USER_ATTRIBUTE, required = false) KeycloakUserPrincipal currentUser,
+            @RequestHeader(value = INTERNAL_SECRET_HEADER, required = false) String submittedInternalSecret
     ) {
+        CurrentNotificationUser.requireAllowedChannels(
+                currentUser,
+                request.channels(),
+                isTrustedInternalRequest(submittedInternalSecret)
+        );
         List<NotificationResponse> response = notificationService.create(
                 CurrentNotificationUser.ownerId(currentUser),
                 request
@@ -58,8 +75,13 @@ public class NotificationController {
     @PostMapping("/broadcast")
     public ResponseEntity<ApiResponse<List<NotificationResponse>>> broadcast(
             @Valid @RequestBody BroadcastNotificationRequest request,
-            @RequestAttribute(value = CURRENT_USER_ATTRIBUTE, required = false) KeycloakUserPrincipal currentUser
+            @RequestAttribute(value = CURRENT_USER_ATTRIBUTE, required = false) KeycloakUserPrincipal currentUser,
+            @RequestHeader(value = INTERNAL_SECRET_HEADER, required = false) String submittedInternalSecret
     ) {
+        CurrentNotificationUser.requireNotificationManager(
+                currentUser,
+                isTrustedInternalRequest(submittedInternalSecret)
+        );
         List<NotificationResponse> response = notificationService.broadcast(
                 CurrentNotificationUser.ownerId(currentUser),
                 request
@@ -156,5 +178,20 @@ public class NotificationController {
         return ResponseEntity.ok(ApiResponse.success(notificationService.unreadCount(
                 CurrentNotificationUser.ownerId(currentUser)
         )));
+    }
+
+    private boolean isTrustedInternalRequest(String submittedInternalSecret) {
+        String submitted = trimToEmpty(submittedInternalSecret);
+        if (internalSecret.isEmpty() || submitted.isEmpty()) {
+            return false;
+        }
+        return MessageDigest.isEqual(
+                internalSecret.getBytes(StandardCharsets.UTF_8),
+                submitted.getBytes(StandardCharsets.UTF_8)
+        );
+    }
+
+    private static String trimToEmpty(String value) {
+        return value == null ? "" : value.trim();
     }
 }

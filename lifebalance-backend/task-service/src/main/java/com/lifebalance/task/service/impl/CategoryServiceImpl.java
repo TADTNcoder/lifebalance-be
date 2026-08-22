@@ -16,6 +16,7 @@ import com.lifebalance.task.service.CategoryService;
 import com.lifebalance.task.util.SlugGenerator;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 
 @Service
 @RequiredArgsConstructor
@@ -72,6 +73,7 @@ public class CategoryServiceImpl implements CategoryService {
             UpdateCategoryRequest request) {
 
         Category category = getCategoryOrThrow(id);
+        rejectSystemCategoryMutation(category);
 
         categoryRepository.findByName(request.getName())
                 .ifPresent(existing -> {
@@ -104,8 +106,15 @@ public class CategoryServiceImpl implements CategoryService {
     public void delete(UUID id) {
 
         Category category = getCategoryOrThrow(id);
+        rejectSystemCategoryMutation(category);
 
         categoryRepository.delete(category);
+    }
+
+    private void rejectSystemCategoryMutation(Category category) {
+        if (Boolean.TRUE.equals(category.getIsSystem())) {
+            throw new AccessDeniedException("System categories cannot be modified.");
+        }
     }
 
     private Category getCategoryOrThrow(UUID id) {

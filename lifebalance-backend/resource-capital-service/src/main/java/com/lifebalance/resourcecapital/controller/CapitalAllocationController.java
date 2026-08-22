@@ -12,6 +12,7 @@ import com.lifebalance.resourcecapital.dto.CapitalAllocationReleaseRequest;
 import com.lifebalance.resourcecapital.dto.CapitalAllocationResponse;
 import com.lifebalance.resourcecapital.dto.CapitalReallocationRequest;
 import com.lifebalance.resourcecapital.dto.CreateCapitalAllocationRequest;
+import com.lifebalance.resourcecapital.dto.OverAllocationConfirmationResponse;
 import com.lifebalance.resourcecapital.dto.PageResponseDTO;
 import com.lifebalance.resourcecapital.service.CapitalAllocationService;
 import com.lifebalance.security.keycloak.KeycloakUserPrincipal;
@@ -59,6 +60,23 @@ public class CapitalAllocationController {
         AllocationResponse response = capitalAllocationService.allocateCapital(ownerId, request);
 
         return ResponseEntity.status(201).body(ApiResponse.success(response));
+    }
+
+    @Operation(
+            summary = "Prepare over-allocation confirmation",
+            description = "Calculate whether an allocation would over-allocate capital and return the confirmation key required for a confirmed allocation retry."
+    )
+    @PostMapping("/over-allocation-confirmation")
+    public ResponseEntity<ApiResponse<OverAllocationConfirmationResponse>> prepareOverAllocationConfirmation(
+            @Valid @RequestBody CreateCapitalAllocationRequest request,
+            @RequestAttribute(value = CURRENT_USER_ATTRIBUTE, required = false)
+            KeycloakUserPrincipal currentUser
+    ) {
+        UUID ownerId = resolveOwnerId(currentUser);
+        OverAllocationConfirmationResponse response =
+                capitalAllocationService.prepareOverAllocationConfirmation(ownerId, request);
+
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @Operation(

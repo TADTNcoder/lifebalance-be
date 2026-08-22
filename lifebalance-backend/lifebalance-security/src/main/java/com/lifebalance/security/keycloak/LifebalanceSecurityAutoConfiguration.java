@@ -21,6 +21,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -136,20 +137,20 @@ public class LifebalanceSecurityAutoConfiguration {
                 )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
-                                "/actuator/health/**",
-                                "/actuator/info",
-                                "/v3/api-docs/**",
-                                "/swagger-ui/**",
-                                "/swagger-ui.html"
+                                publicPath("/actuator/health/**"),
+                                publicPath("/actuator/info"),
+                                publicPath("/actuator/prometheus"),
+                                publicPath("/v3/api-docs/**"),
+                                publicPath("/swagger-ui/**"),
+                                publicPath("/swagger-ui.html")
                         ).permitAll()
                         .requestMatchers(
-                                HttpMethod.GET,
-                                "/api/*/status",
-                                "/api/*/*/status",
-                                "/api/*/*/*/status",
-                                "/api/*/health",
-                                "/api/*/*/health",
-                                "/api/*/*/*/health"
+                                publicGetPath("/api/*/status"),
+                                publicGetPath("/api/*/*/status"),
+                                publicGetPath("/api/*/*/*/status"),
+                                publicGetPath("/api/*/health"),
+                                publicGetPath("/api/*/*/health"),
+                                publicGetPath("/api/*/*/*/health")
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
@@ -173,6 +174,14 @@ public class LifebalanceSecurityAutoConfiguration {
                         BearerTokenAuthenticationFilter.class
                 )
                 .build();
+    }
+
+    private static AntPathRequestMatcher publicPath(String pattern) {
+        return new AntPathRequestMatcher(pattern);
+    }
+
+    private static AntPathRequestMatcher publicGetPath(String pattern) {
+        return new AntPathRequestMatcher(pattern, HttpMethod.GET.name());
     }
 
     private JwtDecoder preferredJwtDecoder(Map<String, JwtDecoder> jwtDecoders) {

@@ -8,8 +8,12 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.OffsetDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -24,18 +28,28 @@ import org.springframework.data.domain.Pageable;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lifebalance.identity.dto.AssignSupportTicketRequest;
+import com.lifebalance.identity.dto.AdministrationReportResponse;
 import com.lifebalance.identity.dto.CreateSupportTicketRequest;
 import com.lifebalance.identity.dto.SupportTicketResponse;
+import com.lifebalance.identity.dto.SystemAnnouncementResponse;
+import com.lifebalance.identity.dto.UpdateMaintenanceStatusRequest;
 import com.lifebalance.identity.dto.UpdateSystemConfigurationRequest;
 import com.lifebalance.identity.exception.AdministrationSupportException;
 import com.lifebalance.identity.model.ActivityLog;
+import com.lifebalance.identity.model.AuditLog;
 import com.lifebalance.identity.model.SupportTicket;
 import com.lifebalance.identity.model.SupportTicketHistory;
+import com.lifebalance.identity.model.SystemAnnouncement;
 import com.lifebalance.identity.model.SystemConfiguration;
 import com.lifebalance.identity.model.User;
 import com.lifebalance.identity.model.enums.AccountStatus;
+import com.lifebalance.identity.model.enums.AdministrationReportType;
 import com.lifebalance.identity.model.enums.ActivityCategory;
+import com.lifebalance.identity.model.enums.AnnouncementAudience;
+import com.lifebalance.identity.model.enums.AnnouncementStatus;
 import com.lifebalance.identity.model.enums.AuditAction;
+import com.lifebalance.identity.model.enums.AuditEntityName;
+import com.lifebalance.identity.model.enums.AuditStatus;
 import com.lifebalance.identity.model.enums.SupportTicketCategory;
 import com.lifebalance.identity.model.enums.SupportTicketPriority;
 import com.lifebalance.identity.model.enums.SupportTicketStatus;
@@ -245,6 +259,301 @@ class AdministrationSupportServiceImplTest {
         verify(auditLogService, never()).saveAudit(any(AuditLogCommand.class));
     }
 
+    @Test
+    void searchAnnouncementsRestrictsRegularUserToPublicAudience() {
+        User regularUser = user(UUID.fromString("66666666-6666-6666-6666-666666666666"), "alice@example.com");
+        CurrentUser userPrincipal = new CurrentUser("kc-user-1", "alice", "alice@example.com", List.of("user"));
+
+        when(internalUserService.getCurrentUser(userPrincipal)).thenReturn(regularUser);
+        when(userRepository.findRoleCodesByUserId(regularUser.getId())).thenReturn(List.of("user"));
+
+        Page<SystemAnnouncementResponse> response = service.searchAnnouncements(
+                userPrincipal,
+                AnnouncementStatus.ACTIVE,
+                AnnouncementAudience.STAFF,
+                null,
+                null,
+                "",
+                Pageable.unpaged()
+        );
+
+        assertThat(response.getContent()).isEmpty();
+        verify(systemAnnouncementRepository, never()).searchVisible(any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void searchAnnouncementsAllowsStaffAudienceForManager() {
+        SystemAnnouncement announcement = SystemAnnouncement.builder()
+                .id(UUID.fromString("77777777-7777-7777-7777-777777777777"))
+                .title("Staff notice")
+                .message("Internal maintenance")
+                .audience(AnnouncementAudience.STAFF)
+                .status(AnnouncementStatus.ACTIVE)
+                .startsAt(OffsetDateTime.parse("2026-08-21T07:00:00Z"))
+                .publishedBy(actor)
+                .build();
+
+        when(internalUserService.getCurrentUser(currentUser)).thenReturn(actor);
+        when(userRepository.findRoleCodesByUserId(actor.getId())).thenReturn(List.of("manager"));
+        when(systemAnnouncementRepository.searchVisible(
+                eq(AnnouncementStatus.ACTIVE),
+                eq(AnnouncementAudience.STAFF),
+                eq(Set.of(AnnouncementAudience.ALL_USERS, AnnouncementAudience.STAFF)),
+                eq(null),
+                eq(null),
+                eq(null),
+                any(Pageable.class)
+        )).thenReturn(new PageImpl<>(List.of(announcement)));
+
+        Page<SystemAnnouncementResponse> response = service.searchAnnouncements(
+                currentUser,
+                AnnouncementStatus.ACTIVE,
+                AnnouncementAudience.STAFF,
+                null,
+                null,
+                "",
+                Pageable.unpaged()
+        );
+
+        assertThat(response.getContent()).hasSize(1);
+        assertThat(response.getContent().getFirst().audience()).isEqualTo(AnnouncementAudience.STAFF);
+    }
+
+    @Test
+    void getAnnouncementReturnsVisibleAnnouncement() {
+        UUID announcementId = UUID.fromString("88888888-8888-8888-8888-888888888888");
+        SystemAnnouncement announcement = SystemAnnouncement.builder()
+                .id(announcementId)
+                .title("Public notice")
+                .message("Visible to users")
+                .audience(AnnouncementAudience.ALL_USERS)
+                .status(AnnouncementStatus.ACTIVE)
+                .startsAt(OffsetDateTime.parse("2026-08-21T07:00:00Z"))
+                .publishedBy(actor)
+                .build();
+
+        when(internalUserService.getCurrentUser(currentUser)).thenReturn(actor);
+        when(userRepository.findRoleCodesByUserId(actor.getId())).thenReturn(List.of("admin"));
+        when(systemAnnouncementRepository.findDetailById(announcementId)).thenReturn(Optional.of(announcement));
+
+        SystemAnnouncementResponse response = service.getAnnouncement(currentUser, announcementId);
+
+        assertThat(response.id()).isEqualTo(announcementId);
+        assertThat(response.title()).isEqualTo("Public notice");
+        assertThat(response.audience()).isEqualTo(AnnouncementAudience.ALL_USERS);
+    }
+
+    @Test
+    void getAnnouncementHistoryChecksVisibilityAndMapsAuditEntries() {
+        UUID announcementId = UUID.fromString("99999999-9999-9999-9999-999999999999");
+        SystemAnnouncement announcement = SystemAnnouncement.builder()
+                .id(announcementId)
+                .title("Admin notice")
+                .message("Visible to admins")
+                .audience(AnnouncementAudience.ADMINS)
+                .status(AnnouncementStatus.ACTIVE)
+                .startsAt(OffsetDateTime.parse("2026-08-21T07:00:00Z"))
+                .publishedBy(actor)
+                .build();
+        AuditLog auditLog = AuditLog.builder()
+                .id(UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"))
+                .entityName(AuditEntityName.ANNOUNCEMENT)
+                .entityId(announcementId.toString())
+                .action(AuditAction.BROADCAST_ANNOUNCEMENT)
+                .status(AuditStatus.SUCCESS)
+                .details("System announcement broadcast")
+                .build();
+
+        when(internalUserService.getCurrentUser(currentUser)).thenReturn(actor);
+        when(userRepository.findRoleCodesByUserId(actor.getId())).thenReturn(List.of("admin"));
+        when(systemAnnouncementRepository.findDetailById(announcementId)).thenReturn(Optional.of(announcement));
+        when(auditLogRepository.findByEntityNameAndEntityIdOrderByCreatedAtDesc(
+                eq(AuditEntityName.ANNOUNCEMENT),
+                eq(announcementId.toString()),
+                any(Pageable.class)
+        )).thenReturn(new PageImpl<>(List.of(auditLog)));
+
+        var response = service.getAnnouncementHistory(currentUser, announcementId, Pageable.unpaged());
+
+        assertThat(response.getContent()).hasSize(1);
+        assertThat(response.getContent().getFirst().action()).isEqualTo(AuditAction.BROADCAST_ANNOUNCEMENT);
+    }
+
+    @Test
+    void updateMaintenanceStatusUpdatesConfigurationsAndRecordsAudit() {
+        OffsetDateTime startsAt = OffsetDateTime.parse("2026-08-22T01:00:00Z");
+        OffsetDateTime endsAt = OffsetDateTime.parse("2026-08-22T02:00:00Z");
+        Map<String, SystemConfiguration> configurations = new HashMap<>();
+        configurations.put("maintenance.policy.enabled", configuration("maintenance.policy.enabled", "true", SystemConfigurationValueType.BOOLEAN, true));
+        configurations.put("maintenance.mode.enabled", configuration("maintenance.mode.enabled", "false", SystemConfigurationValueType.BOOLEAN, true));
+        configurations.put("maintenance.message", configuration("maintenance.message", "LifeBalance is operating normally.", SystemConfigurationValueType.STRING, false));
+
+        UpdateMaintenanceStatusRequest request = new UpdateMaintenanceStatusRequest();
+        request.setEnabled(true);
+        request.setMessage("Scheduled maintenance");
+        request.setStartsAt(startsAt);
+        request.setEndsAt(endsAt);
+        request.setReason("Database upgrade");
+        request.setConfirmed(true);
+
+        when(internalUserService.getCurrentUser(currentUser)).thenReturn(actor);
+        when(userRepository.findRoleCodesByUserId(actor.getId())).thenReturn(List.of("admin"));
+        when(systemConfigurationRepository.findByConfigKey(any()))
+                .thenAnswer(invocation -> Optional.ofNullable(configurations.get(invocation.getArgument(0))));
+        when(systemConfigurationRepository.save(any(SystemConfiguration.class))).thenAnswer(invocation -> {
+            SystemConfiguration configuration = invocation.getArgument(0);
+            if (configuration.getId() == null) {
+                configuration.setId(UUID.randomUUID());
+            }
+            configurations.put(configuration.getConfigKey(), configuration);
+            return configuration;
+        });
+
+        var response = service.updateMaintenanceStatus(currentUser, request);
+
+        assertThat(response.policyEnabled()).isTrue();
+        assertThat(response.maintenanceMode()).isTrue();
+        assertThat(response.message()).isEqualTo("Scheduled maintenance");
+        assertThat(response.startsAt()).isEqualTo(startsAt);
+        assertThat(response.endsAt()).isEqualTo(endsAt);
+
+        ArgumentCaptor<ActivityLog> activityCaptor = ArgumentCaptor.forClass(ActivityLog.class);
+        verify(activityLogRepository).save(activityCaptor.capture());
+        assertThat(activityCaptor.getValue().getCategory()).isEqualTo(ActivityCategory.MAINTENANCE);
+        assertThat(activityCaptor.getValue().getAction()).isEqualTo("UPDATE_MAINTENANCE_STATUS");
+
+        ArgumentCaptor<AuditLogCommand> auditCaptor = ArgumentCaptor.forClass(AuditLogCommand.class);
+        verify(auditLogService).saveAudit(auditCaptor.capture());
+        assertThat(auditCaptor.getValue().entityName()).isEqualTo(AuditEntityName.MAINTENANCE);
+        assertThat(auditCaptor.getValue().action()).isEqualTo(AuditAction.UPDATE_MAINTENANCE_STATUS);
+        assertThat(auditCaptor.getValue().oldValue()).contains("maintenance.mode.enabled=false");
+        assertThat(auditCaptor.getValue().newValue()).contains("maintenance.mode.enabled=true");
+    }
+
+    @Test
+    void ticketReportIncludesGroupedTicketMetrics() {
+        OffsetDateTime periodStart = OffsetDateTime.parse("2026-08-01T00:00:00Z");
+        OffsetDateTime periodEnd = OffsetDateTime.parse("2026-08-22T00:00:00Z");
+
+        when(supportTicketRepository.countByStatus(periodStart, periodEnd))
+                .thenReturn(List.<Object[]>of(new Object[] { SupportTicketStatus.NEW, 2L }));
+        when(supportTicketRepository.countByPriority(periodStart, periodEnd))
+                .thenReturn(List.<Object[]>of(new Object[] { SupportTicketPriority.HIGH, 1L }));
+        when(supportTicketRepository.countByCategory(periodStart, periodEnd))
+                .thenReturn(List.<Object[]>of(new Object[] { SupportTicketCategory.ACCOUNT_ACCESS, 2L }));
+        when(supportTicketRepository.countByStatusIn(openStatusesForTest())).thenReturn(2L);
+        when(supportTicketRepository.countByAssigneeIsNullAndStatusIn(openStatusesForTest())).thenReturn(1L);
+
+        AdministrationReportResponse response = service.report(
+                AdministrationReportType.TICKETS,
+                periodStart,
+                periodEnd
+        );
+
+        assertThat(response.reportType()).isEqualTo("TICKETS");
+        assertThat(response.metrics()).containsEntry("status.NEW", 2L);
+        assertThat(response.metrics()).containsEntry("priority.HIGH", 1L);
+        assertThat(response.metrics()).containsEntry("category.ACCOUNT_ACCESS", 2L);
+        assertThat(response.metrics()).containsEntry("total", 2L);
+        assertThat(response.metrics()).containsEntry("open.current", 2L);
+        assertThat(response.metrics()).containsEntry("unassigned.current", 1L);
+    }
+
+    @Test
+    void roleAssignmentReportIncludesAuditActionMetrics() {
+        OffsetDateTime periodStart = OffsetDateTime.parse("2026-08-01T00:00:00Z");
+        OffsetDateTime periodEnd = OffsetDateTime.parse("2026-08-22T00:00:00Z");
+
+        when(auditLogRepository.countByActionForEntities(
+                eq(List.of(AuditEntityName.USER_ROLE)),
+                eq(List.of(AuditAction.ASSIGN_ROLE, AuditAction.REVOKE_ROLE)),
+                eq(periodStart),
+                eq(periodEnd)
+        )).thenReturn(List.<Object[]>of(new Object[] { AuditAction.ASSIGN_ROLE, 3L }));
+
+        AdministrationReportResponse response = service.report(
+                AdministrationReportType.ROLE_ASSIGNMENTS,
+                periodStart,
+                periodEnd
+        );
+
+        assertThat(response.metrics()).containsEntry("action.ASSIGN_ROLE", 3L);
+        assertThat(response.metrics()).containsEntry("action.REVOKE_ROLE", 0L);
+        assertThat(response.metrics()).containsEntry("total", 3L);
+    }
+
+    @Test
+    void auditReportIncludesActionAndEntityMetrics() {
+        OffsetDateTime periodStart = OffsetDateTime.parse("2026-08-01T00:00:00Z");
+        OffsetDateTime periodEnd = OffsetDateTime.parse("2026-08-22T00:00:00Z");
+
+        when(auditLogRepository.countByAction(periodStart, periodEnd))
+                .thenReturn(List.<Object[]>of(new Object[] { AuditAction.UPDATE_USER, 2L }));
+        when(auditLogRepository.countByEntityName(periodStart, periodEnd))
+                .thenReturn(List.<Object[]>of(new Object[] { AuditEntityName.USER, 2L }));
+
+        AdministrationReportResponse response = service.report(
+                AdministrationReportType.AUDIT,
+                periodStart,
+                periodEnd
+        );
+
+        assertThat(response.reportType()).isEqualTo("AUDIT");
+        assertThat(response.metrics()).containsEntry("action.UPDATE_USER", 2L);
+        assertThat(response.metrics()).containsEntry("entity.USER", 2L);
+        assertThat(response.metrics()).containsEntry("total", 2L);
+    }
+
+    @Test
+    void systemOperationReportIncludesOperationalActivityAndAuditMetrics() {
+        OffsetDateTime periodStart = OffsetDateTime.parse("2026-08-01T00:00:00Z");
+        OffsetDateTime periodEnd = OffsetDateTime.parse("2026-08-22T00:00:00Z");
+
+        when(activityLogRepository.countByCategory(periodStart, periodEnd))
+                .thenReturn(List.<Object[]>of(
+                        new Object[] { ActivityCategory.CONFIGURATION, 1L },
+                        new Object[] { ActivityCategory.MAINTENANCE, 2L },
+                        new Object[] { ActivityCategory.SUPPORT_TICKET, 9L }
+                ));
+        when(auditLogRepository.countByActionForEntities(
+                eq(List.of(AuditEntityName.SYSTEM_CONFIGURATION, AuditEntityName.MAINTENANCE)),
+                eq(List.of(AuditAction.UPDATE_CONFIGURATION, AuditAction.UPDATE_MAINTENANCE_STATUS)),
+                eq(periodStart),
+                eq(periodEnd)
+        )).thenReturn(List.<Object[]>of(new Object[] { AuditAction.UPDATE_MAINTENANCE_STATUS, 4L }));
+        when(systemConfigurationRepository.findByConfigKey("maintenance.policy.enabled"))
+                .thenReturn(Optional.of(configuration(
+                        "maintenance.policy.enabled",
+                        "true",
+                        SystemConfigurationValueType.BOOLEAN,
+                        false
+                )));
+        when(systemConfigurationRepository.findByConfigKey("maintenance.mode.enabled"))
+                .thenReturn(Optional.of(configuration(
+                        "maintenance.mode.enabled",
+                        "false",
+                        SystemConfigurationValueType.BOOLEAN,
+                        false
+                )));
+
+        AdministrationReportResponse response = service.report(
+                AdministrationReportType.SYSTEM_OPERATION,
+                periodStart,
+                periodEnd
+        );
+
+        assertThat(response.reportType()).isEqualTo("SYSTEM_OPERATION");
+        assertThat(response.metrics()).containsEntry("activity.category.CONFIGURATION", 1L);
+        assertThat(response.metrics()).containsEntry("activity.category.MAINTENANCE", 2L);
+        assertThat(response.metrics()).containsEntry("activity.category.SYSTEM", 0L);
+        assertThat(response.metrics()).containsEntry("activity.total", 3L);
+        assertThat(response.metrics()).containsEntry("audit.action.UPDATE_MAINTENANCE_STATUS", 4L);
+        assertThat(response.metrics()).containsEntry("audit.total", 4L);
+        assertThat(response.metrics()).containsEntry("policy.enabled", 1L);
+        assertThat(response.metrics()).containsEntry("mode.enabled", 0L);
+        assertThat(response.metrics()).containsEntry("total", 7L);
+    }
+
     private static SupportTicket ticket(User requester) {
         return SupportTicket.builder()
                 .id(UUID.randomUUID())
@@ -265,5 +574,34 @@ class AdministrationSupportServiceImplTest {
         user.setUsername(email.substring(0, email.indexOf('@')));
         user.setStatus(AccountStatus.ACTIVE);
         return user;
+    }
+
+    private static SystemConfiguration configuration(
+            String configKey,
+            String configValue,
+            SystemConfigurationValueType valueType,
+            boolean requiresConfirmation
+    ) {
+        return SystemConfiguration.builder()
+                .id(UUID.randomUUID())
+                .configKey(configKey)
+                .displayName(configKey)
+                .configValue(configValue)
+                .valueType(valueType)
+                .editable(true)
+                .sensitive(false)
+                .requiresConfirmation(requiresConfirmation)
+                .build();
+    }
+
+    private static Set<SupportTicketStatus> openStatusesForTest() {
+        return Set.of(
+                SupportTicketStatus.NEW,
+                SupportTicketStatus.RECEIVED,
+                SupportTicketStatus.ASSIGNED,
+                SupportTicketStatus.IN_PROGRESS,
+                SupportTicketStatus.ESCALATED,
+                SupportTicketStatus.REOPENED
+        );
     }
 }

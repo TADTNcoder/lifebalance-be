@@ -2,6 +2,9 @@ package com.lifebalance.resourcecapital.controller;
 
 import static com.lifebalance.security.keycloak.KeycloakUserMappingFilter.CURRENT_USER_ATTRIBUTE;
 
+import com.lifebalance.common.web.PageableLimits;
+import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleStatus;
+import com.lifebalance.resourcecapital.domain.capitalcycle.CapitalCycleType;
 import com.lifebalance.resourcecapital.dto.CapitalCycleResponse;
 import com.lifebalance.resourcecapital.dto.CloseCapitalCycleRequest;
 import com.lifebalance.resourcecapital.dto.CreateCapitalCycleRequest;
@@ -17,15 +20,22 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.net.URI;
+import java.time.LocalDate;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "Capital Cycles", description = "Capital Cycle APIs")
@@ -37,6 +47,77 @@ public class CapitalCycleController {
 
     public CapitalCycleController(CapitalCycleService capitalCycleService) {
         this.capitalCycleService = capitalCycleService;
+    }
+
+    @Operation(
+            summary = "List capital cycles",
+            description = "List authenticated user's capital cycles with optional type, status, period, pagination, and sorting filters."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Capital cycles returned"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized")
+    })
+    @GetMapping
+    public ResponseEntity<Page<CapitalCycleResponse>> list(
+            @RequestParam(required = false) CapitalCycleType type,
+            @RequestParam(required = false) CapitalCycleStatus status,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            Pageable pageable,
+            @RequestAttribute(value = CURRENT_USER_ATTRIBUTE, required = false)
+            KeycloakUserPrincipal currentUser
+    ) {
+        UUID ownerId = resolveOwnerId(currentUser);
+        Page<CapitalCycleResponse> response = capitalCycleService.listCycles(
+                ownerId,
+                type,
+                status,
+                fromDate,
+                toDate,
+                PageableLimits.normalize(pageable)
+        );
+
+        return ResponseEntity.ok(response);
+    }
+
+    @Operation(
+            summary = "Get active capital cycle",
+            description = "Get the authenticated user's active capital cycle, optionally filtered by cycle type."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Active capital cycle returned"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "404", description = "Active capital cycle not found")
+    })
+    @GetMapping("/active")
+    public ResponseEntity<CapitalCycleResponse> active(
+            @RequestParam(required = false) CapitalCycleType type,
+            @RequestAttribute(value = CURRENT_USER_ATTRIBUTE, required = false)
+            KeycloakUserPrincipal currentUser
+    ) {
+        UUID ownerId = resolveOwnerId(currentUser);
+
+        return ResponseEntity.of(capitalCycleService.getActiveCycle(ownerId, type));
+    }
+
+    @Operation(
+            summary = "Get capital cycle detail",
+            description = "Get a single authenticated user-owned capital cycle by id."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Capital cycle returned"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "404", description = "Capital cycle not found")
+    })
+    @GetMapping("/{id}")
+    public ResponseEntity<CapitalCycleResponse> get(
+            @PathVariable UUID id,
+            @RequestAttribute(value = CURRENT_USER_ATTRIBUTE, required = false)
+            KeycloakUserPrincipal currentUser
+    ) {
+        UUID ownerId = resolveOwnerId(currentUser);
+
+        return ResponseEntity.ok(capitalCycleService.getCycle(ownerId, id));
     }
 
     @Operation(
@@ -82,6 +163,28 @@ public class CapitalCycleController {
         CapitalCycleResponse response = capitalCycleService.updateCycle(ownerId, id, request);
 
         return ResponseEntity.ok(response);
+    }
+
+    @Operation(
+            summary = "Delete capital cycle",
+            description = "Delete an authenticated user's draft capital cycle only when no dependent capital records exist."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Capital cycle deleted"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "404", description = "Capital cycle not found"),
+            @ApiResponse(responseCode = "409", description = "Capital cycle cannot be deleted")
+    })
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(
+            @PathVariable UUID id,
+            @RequestAttribute(value = CURRENT_USER_ATTRIBUTE, required = false)
+            KeycloakUserPrincipal currentUser
+    ) {
+        UUID ownerId = resolveOwnerId(currentUser);
+        capitalCycleService.deleteCycle(ownerId, id);
+
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(

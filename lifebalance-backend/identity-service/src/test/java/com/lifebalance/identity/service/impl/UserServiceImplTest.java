@@ -365,6 +365,7 @@ class UserServiceImplTest {
         UserResponse response = service.disableUser(userId);
 
         assertThat(response.getStatus()).isEqualTo(AccountStatus.DISABLED);
+        assertThat(user.getTokenValidAfter()).isNotNull();
         verify(userRepository).save(user);
         verify(userSessionRevocationService).revokeSessions(user, "USER_DISABLED");
     }
@@ -625,6 +626,7 @@ class UserServiceImplTest {
 
         service.softDeleteUser(userId);
 
+        assertThat(user.getTokenValidAfter()).isNotNull();
         verify(userRepository).delete(user);
         verify(userSessionRevocationService).revokeSessions(user, "USER_DELETED");
     }

@@ -18,12 +18,17 @@ spring:
             - id: identity-service
               uri: lb://IDENTITY-SERVICE
               predicates:
-                - Path=/api/identity/**,/api/v1/identity/**,/api/auth/**,/auth/**,/api/users/**,/api/roles/**,/api/permissions/**
+                - Path=/api/identity/**,/api/v1/identity/**,/api/auth/**,/auth/**,/api/users/**,/users/**,/api/roles/**,/roles/**,/api/permissions/**,/permissions/**,/api/administration-support/**,/administration-support/**,/api/audit-logs/**,/audit-logs/**
 
             - id: task-service
               uri: lb://TASK-SERVICE
               predicates:
-                - Path=/api/tasks/**,/api/task-groups/**
+                - Path=/api/tasks/**,/api/categories/**,/api/tags/**,/tags/**
+
+            - id: resource-capital-service
+              uri: lb://RESOURCE-CAPITAL-SERVICE
+              predicates:
+                - Path=/api/v1/capital/**,/api/v1/capital-cycles/**,/api/v1/capital-adjustments/**,/api/v1/capital-allocations/**
 
             - id: timeline-service
               uri: lb://TIMELINE-SERVICE
@@ -51,10 +56,15 @@ spring:
                 - Path=/api/analytics/**
 
 management:
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus
 
   endpoint:
     gateway:

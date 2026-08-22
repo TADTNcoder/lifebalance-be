@@ -5,6 +5,7 @@ import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -24,6 +25,7 @@ import com.lifebalance.common.web.PageableLimits;
 import com.lifebalance.identity.dto.ActivityLogResponse;
 import com.lifebalance.identity.dto.AdministrationAuditLogResponse;
 import com.lifebalance.identity.dto.AdministrationDashboardResponse;
+import com.lifebalance.identity.dto.AdministrationReportResponse;
 import com.lifebalance.identity.dto.AssignSupportTicketRequest;
 import com.lifebalance.identity.dto.CreateAnnouncementRequest;
 import com.lifebalance.identity.dto.CreateSupportTicketRequest;
@@ -35,6 +37,7 @@ import com.lifebalance.identity.dto.SystemAnnouncementResponse;
 import com.lifebalance.identity.dto.SystemConfigurationResponse;
 import com.lifebalance.identity.dto.TicketCommentRequest;
 import com.lifebalance.identity.dto.TicketReasonRequest;
+import com.lifebalance.identity.dto.UpdateMaintenanceStatusRequest;
 import com.lifebalance.identity.dto.UpdateSupportTicketRequest;
 import com.lifebalance.identity.dto.UpdateSystemConfigurationRequest;
 import com.lifebalance.identity.dto.UserResponse;
@@ -48,6 +51,7 @@ import com.lifebalance.identity.model.SystemAnnouncement;
 import com.lifebalance.identity.model.SystemConfiguration;
 import com.lifebalance.identity.model.User;
 import com.lifebalance.identity.model.enums.AccountStatus;
+import com.lifebalance.identity.model.enums.AdministrationReportType;
 import com.lifebalance.identity.model.enums.ActivityCategory;
 import com.lifebalance.identity.model.enums.AnnouncementAudience;
 import com.lifebalance.identity.model.enums.AnnouncementStatus;
@@ -94,6 +98,8 @@ public class AdministrationSupportServiceImpl implements AdministrationSupportSe
     private static final String MAINTENANCE_POLICY_KEY = "maintenance.policy.enabled";
     private static final String MAINTENANCE_MODE_KEY = "maintenance.mode.enabled";
     private static final String MAINTENANCE_MESSAGE_KEY = "maintenance.message";
+    private static final String MAINTENANCE_WINDOW_STARTS_AT_KEY = "maintenance.window.starts_at";
+    private static final String MAINTENANCE_WINDOW_ENDS_AT_KEY = "maintenance.window.ends_at";
 
     private final InternalUserService internalUserService;
     private final UserRepository userRepository;
@@ -701,6 +707,7 @@ public class AdministrationSupportServiceImpl implements AdministrationSupportSe
 
     @Override
     public Page<SystemAnnouncementResponse> searchAnnouncements(
+            CurrentUser currentUser,
             AnnouncementStatus status,
             AnnouncementAudience audience,
             OffsetDateTime startsFrom,
@@ -708,15 +715,46 @@ public class AdministrationSupportServiceImpl implements AdministrationSupportSe
             String keyword,
             Pageable pageable
     ) {
+        ActorContext actor = actorContext(currentUser);
+        Set<AnnouncementAudience> visibleAudiences = actor.visibleAnnouncementAudiences();
+        Pageable normalizedPageable = PageableLimits.normalize(pageable);
+        if (audience != null && !visibleAudiences.contains(audience)) {
+            return Page.empty(normalizedPageable);
+        }
         validatePeriod(startsFrom, startsTo);
-        return systemAnnouncementRepository.search(
+        return systemAnnouncementRepository.searchVisible(
                 status,
                 audience,
+                visibleAudiences,
                 startsFrom,
                 startsTo,
                 keyword(keyword),
-                PageableLimits.normalize(pageable)
+                normalizedPageable
         ).map(this::toAnnouncementResponse);
+    }
+
+    @Override
+    public SystemAnnouncementResponse getAnnouncement(CurrentUser currentUser, UUID announcementId) {
+        ActorContext actor = actorContext(currentUser);
+        SystemAnnouncement announcement = findAnnouncement(announcementId);
+        assertCanViewAnnouncement(actor, announcement);
+        return toAnnouncementResponse(announcement);
+    }
+
+    @Override
+    public Page<AdministrationAuditLogResponse> getAnnouncementHistory(
+            CurrentUser currentUser,
+            UUID announcementId,
+            Pageable pageable
+    ) {
+        ActorContext actor = actorContext(currentUser);
+        SystemAnnouncement announcement = findAnnouncement(announcementId);
+        assertCanViewAnnouncement(actor, announcement);
+        return auditLogRepository.findByEntityNameAndEntityIdOrderByCreatedAtDesc(
+                AuditEntityName.ANNOUNCEMENT,
+                announcement.getId().toString(),
+                PageableLimits.normalize(pageable)
+        ).map(this::toAuditLogResponse);
     }
 
     @Override
@@ -725,7 +763,110 @@ public class AdministrationSupportServiceImpl implements AdministrationSupportSe
                 .policyEnabled(policyEnabled(MAINTENANCE_POLICY_KEY))
                 .maintenanceMode(policyEnabled(MAINTENANCE_MODE_KEY))
                 .message(configurationValue(MAINTENANCE_MESSAGE_KEY))
+                .startsAt(configurationDateTimeValue(MAINTENANCE_WINDOW_STARTS_AT_KEY))
+                .endsAt(configurationDateTimeValue(MAINTENANCE_WINDOW_ENDS_AT_KEY))
                 .build();
+    }
+
+    @Override
+    @Transactional
+    public MaintenanceStatusResponse updateMaintenanceStatus(
+            CurrentUser currentUser,
+            UpdateMaintenanceStatusRequest request
+    ) {
+        ActorContext actor = actorContext(currentUser);
+        validateMaintenanceUpdateRequest(request);
+
+        Boolean requestedMaintenanceMode = requestedMaintenanceMode(request);
+        OffsetDateTime nextStartsAt = request.getStartsAt() == null
+                ? configurationDateTimeValue(MAINTENANCE_WINDOW_STARTS_AT_KEY)
+                : request.getStartsAt();
+        OffsetDateTime nextEndsAt = request.getEndsAt() == null
+                ? configurationDateTimeValue(MAINTENANCE_WINDOW_ENDS_AT_KEY)
+                : request.getEndsAt();
+        validateMaintenanceWindow(nextStartsAt, nextEndsAt);
+
+        Map<String, String> oldValues = new LinkedHashMap<>();
+        Map<String, String> newValues = new LinkedHashMap<>();
+        if (requestedMaintenanceMode != null) {
+            updateMaintenanceConfiguration(
+                    MAINTENANCE_MODE_KEY,
+                    "Maintenance Mode Enabled",
+                    "Current operational maintenance status.",
+                    String.valueOf(requestedMaintenanceMode),
+                    SystemConfigurationValueType.BOOLEAN,
+                    true,
+                    actor.user(),
+                    request,
+                    oldValues,
+                    newValues
+            );
+        }
+        if (request.getMessage() != null) {
+            updateMaintenanceConfiguration(
+                    MAINTENANCE_MESSAGE_KEY,
+                    "Maintenance Message",
+                    "Message displayed with maintenance status.",
+                    request.getMessage(),
+                    SystemConfigurationValueType.STRING,
+                    false,
+                    actor.user(),
+                    request,
+                    oldValues,
+                    newValues
+            );
+        }
+        if (request.getStartsAt() != null) {
+            updateMaintenanceConfiguration(
+                    MAINTENANCE_WINDOW_STARTS_AT_KEY,
+                    "Maintenance Window Starts At",
+                    "Scheduled maintenance window start time.",
+                    request.getStartsAt().toString(),
+                    SystemConfigurationValueType.STRING,
+                    false,
+                    actor.user(),
+                    request,
+                    oldValues,
+                    newValues
+            );
+        }
+        if (request.getEndsAt() != null) {
+            updateMaintenanceConfiguration(
+                    MAINTENANCE_WINDOW_ENDS_AT_KEY,
+                    "Maintenance Window Ends At",
+                    "Scheduled maintenance window end time.",
+                    request.getEndsAt().toString(),
+                    SystemConfigurationValueType.STRING,
+                    false,
+                    actor.user(),
+                    request,
+                    oldValues,
+                    newValues
+            );
+        }
+
+        if (!oldValues.isEmpty()) {
+            recordActivity(
+                    actor.user(),
+                    ActivityCategory.MAINTENANCE,
+                    AuditAction.UPDATE_MAINTENANCE_STATUS.name(),
+                    "MAINTENANCE",
+                    "maintenance-status",
+                    "Maintenance status updated",
+                    request.getReason()
+            );
+            saveAudit(
+                    actor.user(),
+                    AuditEntityName.MAINTENANCE,
+                    "maintenance-status",
+                    AuditAction.UPDATE_MAINTENANCE_STATUS,
+                    maintenanceSnapshot(oldValues),
+                    maintenanceSnapshot(newValues),
+                    request.getReason()
+            );
+        }
+
+        return maintenanceStatus();
     }
 
     @Override
@@ -747,6 +888,202 @@ public class AdministrationSupportServiceImpl implements AdministrationSupportSe
                 .permissionCount(permissionRepository.count())
                 .maintenanceStatus(maintenanceStatus())
                 .build();
+    }
+
+    @Override
+    public AdministrationReportResponse report(
+            AdministrationReportType reportType,
+            OffsetDateTime periodStart,
+            OffsetDateTime periodEnd
+    ) {
+        if (reportType == null) {
+            throw AdministrationSupportException.validation("Administration report type is required");
+        }
+        validatePeriod(periodStart, periodEnd);
+
+        return AdministrationReportResponse.builder()
+                .reportType(reportType.name())
+                .periodStart(periodStart)
+                .periodEnd(periodEnd)
+                .generatedAt(OffsetDateTime.now())
+                .metrics(reportMetrics(reportType, periodStart, periodEnd))
+                .build();
+    }
+
+    private Map<String, Long> reportMetrics(
+            AdministrationReportType reportType,
+            OffsetDateTime periodStart,
+            OffsetDateTime periodEnd
+    ) {
+        return switch (reportType) {
+            case TICKETS -> ticketReportMetrics(periodStart, periodEnd);
+            case SUPPORT_PERFORMANCE -> supportPerformanceReportMetrics(periodStart, periodEnd);
+            case USER_ACTIVITY -> userActivityReportMetrics(periodStart, periodEnd);
+            case ROLE_ASSIGNMENTS -> auditActionReportMetrics(
+                    List.of(AuditEntityName.USER_ROLE),
+                    List.of(AuditAction.ASSIGN_ROLE, AuditAction.REVOKE_ROLE),
+                    periodStart,
+                    periodEnd
+            );
+            case PERMISSION_CHANGES -> auditActionReportMetrics(
+                    List.of(AuditEntityName.PERMISSION, AuditEntityName.ROLE_PERMISSION),
+                    List.of(
+                            AuditAction.CREATE_PERMISSION,
+                            AuditAction.UPDATE_PERMISSION,
+                            AuditAction.DELETE_PERMISSION,
+                            AuditAction.ASSIGN_PERMISSION,
+                            AuditAction.ASSIGN_ROLE_PERMISSIONS,
+                            AuditAction.REVOKE_PERMISSION,
+                            AuditAction.REMOVE_PERMISSION
+                    ),
+                    periodStart,
+                    periodEnd
+            );
+            case CONFIGURATION_CHANGES -> auditActionReportMetrics(
+                    List.of(AuditEntityName.SYSTEM_CONFIGURATION),
+                    List.of(AuditAction.UPDATE_CONFIGURATION),
+                    periodStart,
+                    periodEnd
+            );
+            case AUDIT -> auditReportMetrics(periodStart, periodEnd);
+            case SYSTEM_OPERATION -> systemOperationReportMetrics(periodStart, periodEnd);
+        };
+    }
+
+    private Map<String, Long> ticketReportMetrics(OffsetDateTime periodStart, OffsetDateTime periodEnd) {
+        Map<String, Long> metrics = new LinkedHashMap<>();
+        List<Object[]> statusRows = supportTicketRepository.countByStatus(periodStart, periodEnd);
+        putEnumCounts(metrics, "status", SupportTicketStatus.class, statusRows);
+        putEnumCounts(metrics, "priority", SupportTicketPriority.class, supportTicketRepository.countByPriority(periodStart, periodEnd));
+        putEnumCounts(metrics, "category", SupportTicketCategory.class, supportTicketRepository.countByCategory(periodStart, periodEnd));
+        metrics.put("total", sumRows(statusRows));
+        metrics.put("open.current", supportTicketRepository.countByStatusIn(OPEN_STATUSES));
+        metrics.put("unassigned.current", supportTicketRepository.countByAssigneeIsNullAndStatusIn(OPEN_STATUSES));
+        return metrics;
+    }
+
+    private Map<String, Long> supportPerformanceReportMetrics(
+            OffsetDateTime periodStart,
+            OffsetDateTime periodEnd
+    ) {
+        Map<String, Long> metrics = auditActionReportMetrics(
+                List.of(AuditEntityName.SUPPORT_TICKET),
+                List.of(
+                        AuditAction.ASSIGN_SUPPORT_TICKET,
+                        AuditAction.RESOLVE_SUPPORT_TICKET,
+                        AuditAction.CLOSE_SUPPORT_TICKET,
+                        AuditAction.REOPEN_SUPPORT_TICKET,
+                        AuditAction.UPDATE_SUPPORT_TICKET
+                ),
+                periodStart,
+                periodEnd
+        );
+        metrics.put("open.current", supportTicketRepository.countByStatusIn(OPEN_STATUSES));
+        metrics.put("unassigned.current", supportTicketRepository.countByAssigneeIsNullAndStatusIn(OPEN_STATUSES));
+        return metrics;
+    }
+
+    private Map<String, Long> userActivityReportMetrics(OffsetDateTime periodStart, OffsetDateTime periodEnd) {
+        Map<String, Long> metrics = new LinkedHashMap<>();
+        List<Object[]> categoryRows = activityLogRepository.countByCategory(periodStart, periodEnd);
+        putEnumCounts(metrics, "category", ActivityCategory.class, categoryRows);
+        metrics.put("total", sumRows(categoryRows));
+        return metrics;
+    }
+
+    private Map<String, Long> auditReportMetrics(OffsetDateTime periodStart, OffsetDateTime periodEnd) {
+        Map<String, Long> metrics = new LinkedHashMap<>();
+        List<Object[]> actionRows = auditLogRepository.countByAction(periodStart, periodEnd);
+        List<Object[]> entityRows = auditLogRepository.countByEntityName(periodStart, periodEnd);
+        putEnumCounts(metrics, "action", AuditAction.class, actionRows);
+        putEnumCounts(metrics, "entity", AuditEntityName.class, entityRows);
+        metrics.put("total", sumRows(actionRows));
+        return metrics;
+    }
+
+    private Map<String, Long> systemOperationReportMetrics(OffsetDateTime periodStart, OffsetDateTime periodEnd) {
+        Map<String, Long> metrics = new LinkedHashMap<>();
+        List<ActivityCategory> activityCategories = List.of(
+                ActivityCategory.CONFIGURATION,
+                ActivityCategory.MAINTENANCE,
+                ActivityCategory.SYSTEM
+        );
+        List<AuditAction> auditActions = List.of(
+                AuditAction.UPDATE_CONFIGURATION,
+                AuditAction.UPDATE_MAINTENANCE_STATUS
+        );
+        List<Object[]> activityRows = activityLogRepository.countByCategory(periodStart, periodEnd);
+        List<Object[]> auditRows = auditLogRepository.countByActionForEntities(
+                List.of(AuditEntityName.SYSTEM_CONFIGURATION, AuditEntityName.MAINTENANCE),
+                auditActions,
+                periodStart,
+                periodEnd
+        );
+
+        putEnumCounts(metrics, "activity.category", activityCategories, activityRows);
+        putEnumCounts(metrics, "audit.action", auditActions, auditRows);
+        metrics.put("activity.total", sumRowsForValues(activityRows, activityCategories));
+        metrics.put("audit.total", sumRows(auditRows));
+        metrics.put("policy.enabled", policyEnabled(MAINTENANCE_POLICY_KEY) ? 1L : 0L);
+        metrics.put("mode.enabled", policyEnabled(MAINTENANCE_MODE_KEY) ? 1L : 0L);
+        metrics.put("total", metrics.get("activity.total") + metrics.get("audit.total"));
+        return metrics;
+    }
+
+    private Map<String, Long> auditActionReportMetrics(
+            Collection<AuditEntityName> entityNames,
+            List<AuditAction> actions,
+            OffsetDateTime periodStart,
+            OffsetDateTime periodEnd
+    ) {
+        Map<String, Long> metrics = new LinkedHashMap<>();
+        List<Object[]> actionRows = auditLogRepository.countByActionForEntities(
+                entityNames,
+                actions,
+                periodStart,
+                periodEnd
+        );
+        putEnumCounts(metrics, "action", actions, actionRows);
+        metrics.put("total", sumRows(actionRows));
+        return metrics;
+    }
+
+    private <E extends Enum<E>> void putEnumCounts(
+            Map<String, Long> metrics,
+            String prefix,
+            Class<E> enumType,
+            List<Object[]> rows
+    ) {
+        putEnumCounts(metrics, prefix, List.of(enumType.getEnumConstants()), rows);
+    }
+
+    private <E extends Enum<E>> void putEnumCounts(
+            Map<String, Long> metrics,
+            String prefix,
+            Collection<E> expectedValues,
+            List<Object[]> rows
+    ) {
+        expectedValues.forEach(value -> metrics.put(prefix + "." + value.name(), 0L));
+        for (Object[] row : rows) {
+            if (row.length >= 2 && row[0] instanceof Enum<?> enumValue && row[1] instanceof Number number
+                    && expectedValues.contains(row[0])) {
+                metrics.put(prefix + "." + enumValue.name(), number.longValue());
+            }
+        }
+    }
+
+    private long sumRows(List<Object[]> rows) {
+        return rows.stream()
+                .filter(row -> row.length >= 2 && row[1] instanceof Number)
+                .mapToLong(row -> ((Number) row[1]).longValue())
+                .sum();
+    }
+
+    private long sumRowsForValues(List<Object[]> rows, Collection<?> expectedValues) {
+        return rows.stream()
+                .filter(row -> row.length >= 2 && expectedValues.contains(row[0]) && row[1] instanceof Number)
+                .mapToLong(row -> ((Number) row[1]).longValue())
+                .sum();
     }
 
     private SupportTicketResponse saveTicketMutation(
@@ -821,6 +1158,23 @@ public class AdministrationSupportServiceImpl implements AdministrationSupportSe
 
         return supportTicketRepository.findByIdForUpdate(ticketId)
                 .orElseThrow(() -> AdministrationSupportException.ticketNotFound(ticketId));
+    }
+
+    private SystemAnnouncement findAnnouncement(UUID announcementId) {
+        if (announcementId == null) {
+            throw AdministrationSupportException.validation("Announcement id is required");
+        }
+
+        return systemAnnouncementRepository.findDetailById(announcementId)
+                .orElseThrow(() -> AdministrationSupportException.announcementNotFound(announcementId));
+    }
+
+    private void assertCanViewAnnouncement(ActorContext actor, SystemAnnouncement announcement) {
+        if (actor.visibleAnnouncementAudiences().contains(announcement.getAudience())) {
+            return;
+        }
+
+        throw AdministrationSupportException.announcementNotFound(announcement.getId());
     }
 
     private ActorContext actorContext(CurrentUser currentUser) {
@@ -1047,6 +1401,71 @@ public class AdministrationSupportServiceImpl implements AdministrationSupportSe
                 .orElse(null);
     }
 
+    private OffsetDateTime configurationDateTimeValue(String configKey) {
+        String value = configurationValue(configKey);
+        if (blank(value)) {
+            return null;
+        }
+        try {
+            return OffsetDateTime.parse(value);
+        } catch (RuntimeException exception) {
+            return null;
+        }
+    }
+
+    private Boolean requestedMaintenanceMode(UpdateMaintenanceStatusRequest request) {
+        return request.getMaintenanceMode() == null ? request.getEnabled() : request.getMaintenanceMode();
+    }
+
+    private void updateMaintenanceConfiguration(
+            String configKey,
+            String displayName,
+            String description,
+            String value,
+            SystemConfigurationValueType valueType,
+            boolean requiresConfirmation,
+            User actor,
+            UpdateMaintenanceStatusRequest request,
+            Map<String, String> oldValues,
+            Map<String, String> newValues
+    ) {
+        SystemConfiguration configuration = systemConfigurationRepository.findByConfigKey(configKey)
+                .orElseGet(() -> SystemConfiguration.builder()
+                        .configKey(configKey)
+                        .displayName(displayName)
+                        .description(description)
+                        .configValue(value)
+                        .valueType(valueType)
+                        .editable(true)
+                        .sensitive(false)
+                        .requiresConfirmation(requiresConfirmation)
+                        .build());
+        UpdateSystemConfigurationRequest configurationRequest = new UpdateSystemConfigurationRequest();
+        configurationRequest.setValue(value);
+        configurationRequest.setReason(request.getReason());
+        configurationRequest.setConfirmed(request.getConfirmed());
+        validateConfigurationUpdate(configuration, configurationRequest);
+
+        String oldValue = configuration.getId() == null ? null : configuration.getConfigValue();
+        if (Objects.equals(oldValue, value)) {
+            return;
+        }
+
+        configuration.setConfigValue(value);
+        configuration.setUpdatedBy(actor);
+        configuration.setLastChangeReason(request.getReason());
+        systemConfigurationRepository.save(configuration);
+        oldValues.put(configKey, oldValue);
+        newValues.put(configKey, value);
+    }
+
+    private String maintenanceSnapshot(Map<String, String> values) {
+        return values.entrySet()
+                .stream()
+                .map(entry -> entry.getKey() + "=" + value(entry.getValue()))
+                .collect(Collectors.joining(";"));
+    }
+
     private String nextTicketNumber() {
         String datePart = OffsetDateTime.now().format(TICKET_DATE_FORMAT);
         for (int attempt = 0; attempt < 10; attempt++) {
@@ -1116,6 +1535,34 @@ public class AdministrationSupportServiceImpl implements AdministrationSupportSe
                 && request.getStartsAt() != null
                 && request.getEndsAt().isBefore(request.getStartsAt())) {
             throw AdministrationSupportException.validation("Announcement end time must be after start time");
+        }
+    }
+
+    private void validateMaintenanceUpdateRequest(UpdateMaintenanceStatusRequest request) {
+        if (request == null) {
+            throw AdministrationSupportException.validation("Maintenance update request is required");
+        }
+        if (request.getMaintenanceMode() == null
+                && request.getEnabled() == null
+                && request.getMessage() == null
+                && request.getStartsAt() == null
+                && request.getEndsAt() == null) {
+            throw AdministrationSupportException.validation("Maintenance update request must contain at least one change");
+        }
+        if (request.getMaintenanceMode() != null
+                && request.getEnabled() != null
+                && !Objects.equals(request.getMaintenanceMode(), request.getEnabled())) {
+            throw AdministrationSupportException.validation("Maintenance mode and enabled values must match");
+        }
+        if (request.getMessage() != null && blank(request.getMessage())) {
+            throw AdministrationSupportException.validation("Maintenance message must not be blank");
+        }
+        validateMaintenanceWindow(request.getStartsAt(), request.getEndsAt());
+    }
+
+    private void validateMaintenanceWindow(OffsetDateTime startsAt, OffsetDateTime endsAt) {
+        if (startsAt != null && endsAt != null && endsAt.isBefore(startsAt)) {
+            throw AdministrationSupportException.validation("Maintenance end time must be after or equal to start time");
         }
     }
 
@@ -1327,8 +1774,27 @@ public class AdministrationSupportServiceImpl implements AdministrationSupportSe
 
     private record ActorContext(User user, Set<String> roleCodes) {
 
+        boolean isAdmin() {
+            return roleCodes.contains("admin");
+        }
+
         boolean canManageSupport() {
             return roleCodes.stream().anyMatch(STAFF_ROLE_CODES::contains);
+        }
+
+        Set<AnnouncementAudience> visibleAnnouncementAudiences() {
+            if (isAdmin()) {
+                return Set.of(
+                        AnnouncementAudience.ALL_USERS,
+                        AnnouncementAudience.STAFF,
+                        AnnouncementAudience.ADMINS
+                );
+            }
+            if (canManageSupport()) {
+                return Set.of(AnnouncementAudience.ALL_USERS, AnnouncementAudience.STAFF);
+            }
+
+            return Set.of(AnnouncementAudience.ALL_USERS);
         }
     }
 }
