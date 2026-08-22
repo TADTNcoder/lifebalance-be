@@ -122,7 +122,9 @@ public class UserServiceImpl implements UserService {
         }
 
         User oldUser = auditCopy(user);
+        OffsetDateTime disabledAt = OffsetDateTime.now();
         user.setStatus(AccountStatus.DISABLED);
+        user.setTokenValidAfter(disabledAt);
         User disabledUser = userRepository.save(user);
         userSessionRevocationService.revokeSessions(disabledUser, "USER_DISABLED");
         userAuthorizationCacheService.evictUser(disabledUser.getId());
@@ -211,6 +213,7 @@ public class UserServiceImpl implements UserService {
     public void softDeleteUser(UUID id) {
         User user = findExistingUser(id);
         User oldUser = auditCopy(user);
+        user.setTokenValidAfter(OffsetDateTime.now());
 
         userRepository.delete(user);
         userSessionRevocationService.revokeSessions(user, "USER_DELETED");

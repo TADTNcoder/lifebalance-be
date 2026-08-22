@@ -11,7 +11,7 @@ public interface UserRoleService {
     void assignRole(
             UUID userId,
             AssignRoleRequest request,
-            UUID assignedBy);
+            String assignedByKeycloakId);
 
     void removeRole(
             UUID userId,

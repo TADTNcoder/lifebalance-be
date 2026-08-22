@@ -10,6 +10,7 @@ import org.springframework.data.domain.Pageable;
 import com.lifebalance.identity.dto.ActivityLogResponse;
 import com.lifebalance.identity.dto.AdministrationAuditLogResponse;
 import com.lifebalance.identity.dto.AdministrationDashboardResponse;
+import com.lifebalance.identity.dto.AdministrationReportResponse;
 import com.lifebalance.identity.dto.AssignSupportTicketRequest;
 import com.lifebalance.identity.dto.CreateAnnouncementRequest;
 import com.lifebalance.identity.dto.CreateSupportTicketRequest;
@@ -21,10 +22,12 @@ import com.lifebalance.identity.dto.SystemAnnouncementResponse;
 import com.lifebalance.identity.dto.SystemConfigurationResponse;
 import com.lifebalance.identity.dto.TicketCommentRequest;
 import com.lifebalance.identity.dto.TicketReasonRequest;
+import com.lifebalance.identity.dto.UpdateMaintenanceStatusRequest;
 import com.lifebalance.identity.dto.UpdateSupportTicketRequest;
 import com.lifebalance.identity.dto.UpdateSystemConfigurationRequest;
 import com.lifebalance.identity.dto.UserResponse;
 import com.lifebalance.identity.model.enums.AccountStatus;
+import com.lifebalance.identity.model.enums.AdministrationReportType;
 import com.lifebalance.identity.model.enums.ActivityCategory;
 import com.lifebalance.identity.model.enums.AnnouncementAudience;
 import com.lifebalance.identity.model.enums.AnnouncementStatus;
@@ -124,6 +127,7 @@ public interface AdministrationSupportService {
     );
 
     Page<SystemAnnouncementResponse> searchAnnouncements(
+            CurrentUser currentUser,
             AnnouncementStatus status,
             AnnouncementAudience audience,
             OffsetDateTime startsFrom,
@@ -132,7 +136,23 @@ public interface AdministrationSupportService {
             Pageable pageable
     );
 
+    SystemAnnouncementResponse getAnnouncement(CurrentUser currentUser, UUID announcementId);
+
+    Page<AdministrationAuditLogResponse> getAnnouncementHistory(
+            CurrentUser currentUser,
+            UUID announcementId,
+            Pageable pageable
+    );
+
     MaintenanceStatusResponse maintenanceStatus();
 
+    MaintenanceStatusResponse updateMaintenanceStatus(CurrentUser currentUser, UpdateMaintenanceStatusRequest request);
+
     AdministrationDashboardResponse dashboard(OffsetDateTime periodStart, OffsetDateTime periodEnd);
+
+    AdministrationReportResponse report(
+            AdministrationReportType reportType,
+            OffsetDateTime periodStart,
+            OffsetDateTime periodEnd
+    );
 }

@@ -237,7 +237,7 @@ class InternalUserServiceImplTest {
         });
         when(roleRepository.findByCodesIgnoreCase(any())).thenReturn(List.of(userRole));
 
-        User user = createService().findOrCreate(currentUser);
+        User user = createService(true).findOrCreate(currentUser);
 
         ArgumentCaptor<List<UserRole>> userRolesCaptor = ArgumentCaptor.forClass(List.class);
         verify(userRoleRepository).saveAll(userRolesCaptor.capture());
@@ -274,7 +274,7 @@ class InternalUserServiceImplTest {
         });
         when(roleRepository.findByCodesIgnoreCase(any())).thenReturn(List.of(adminRole, standardUserRole));
 
-        createService().findOrCreate(currentUser);
+        createService(true).findOrCreate(currentUser);
 
         ArgumentCaptor<Collection<String>> roleCodesCaptor = ArgumentCaptor.forClass(Collection.class);
         verify(roleRepository).findByCodesIgnoreCase(roleCodesCaptor.capture());
@@ -305,10 +305,39 @@ class InternalUserServiceImplTest {
                 .id(new com.lifebalance.identity.model.UserRoleId(userId, staleRoleId))
                 .build()));
 
-        createService().findOrCreate(currentUser);
+        createService(true).findOrCreate(currentUser);
 
         verify(userRoleRepository).deleteByUserIdAndRoleIds(userId, List.of(staleRoleId));
         verify(userAuthorizationCacheService).evictUser(userId);
+    }
+
+    @Test
+    void shouldAssignDefaultUserRoleWhenTokenRoleSyncIsDisabled() {
+        UUID userId = UUID.randomUUID();
+        UUID roleId = UUID.randomUUID();
+        CurrentUser currentUser = createCurrentUser("kc-user-1", "alice", "alice@example.com", List.of("ADMIN"));
+        Role userRole = createRole(roleId, "USER");
+
+        when(userRepository.findByKeycloakId("kc-user-1")).thenReturn(Optional.empty());
+        when(userRepository.existsDeletedByKeycloakId("kc-user-1")).thenReturn(false);
+        when(userRepository.existsByEmail("alice@example.com")).thenReturn(false);
+        when(userRepository.existsByUsername("alice")).thenReturn(false);
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+            User user = invocation.getArgument(0);
+            user.setId(userId);
+            return user;
+        });
+        when(roleRepository.findByCode("USER")).thenReturn(Optional.of(userRole));
+        when(userRoleRepository.existsByUserIdAndRoleId(userId, roleId)).thenReturn(false);
+
+        createService().findOrCreate(currentUser);
+
+        ArgumentCaptor<UserRole> userRoleCaptor = ArgumentCaptor.forClass(UserRole.class);
+        verify(userRoleRepository).save(userRoleCaptor.capture());
+        assertThat(userRoleCaptor.getValue().getId().getUserId()).isEqualTo(userId);
+        assertThat(userRoleCaptor.getValue().getId().getRoleId()).isEqualTo(roleId);
+        verify(userAuthorizationCacheService).evictUser(userId);
+        verify(roleRepository, never()).findByCodesIgnoreCase(any());
     }
 
     private static CurrentUser createCurrentUser() {
@@ -334,11 +363,16 @@ class InternalUserServiceImplTest {
     }
 
     private InternalUserServiceImpl createService() {
+        return createService(false);
+    }
+
+    private InternalUserServiceImpl createService(boolean tokenRoleSyncEnabled) {
         return new InternalUserServiceImpl(
                 userRepository,
                 roleRepository,
                 userRoleRepository,
-                userAuthorizationCacheService
+                userAuthorizationCacheService,
+                tokenRoleSyncEnabled
         );
     }
 

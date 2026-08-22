@@ -209,8 +209,20 @@ class AnalyticsReportExporter {
     }
 
     private static String csvValue(String value) {
-        String normalized = value == null ? "" : value;
+        String normalized = escapeSpreadsheetFormula(value == null ? "" : value);
         return '"' + normalized.replace("\"", "\"\"") + '"';
+    }
+
+    private static String escapeSpreadsheetFormula(String value) {
+        String trimmed = value.stripLeading();
+        if (trimmed.isEmpty()) {
+            return value;
+        }
+        char first = trimmed.charAt(0);
+        if (first == '=' || first == '+' || first == '-' || first == '@') {
+            return "'" + value;
+        }
+        return value;
     }
 
     private static String xml(String value) {

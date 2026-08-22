@@ -20,6 +20,24 @@ public interface CapitalCycleRepository extends JpaRepository<CapitalCycle, UUID
 
     Optional<CapitalCycle> findByIdAndOwnerId(UUID id, UUID ownerId);
 
+    @Query("""
+            select cycle
+            from CapitalCycle cycle
+            where cycle.ownerId = :ownerId
+              and (:type is null or cycle.type = :type)
+              and (:status is null or cycle.status = :status)
+              and (:fromDate is null or cycle.endDate >= :fromDate)
+              and (:toDate is null or cycle.startDate <= :toDate)
+            """)
+    Page<CapitalCycle> searchOwnedCycles(
+            @Param("ownerId") UUID ownerId,
+            @Param("type") CapitalCycleType type,
+            @Param("status") CapitalCycleStatus status,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate,
+            Pageable pageable
+    );
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select cycle

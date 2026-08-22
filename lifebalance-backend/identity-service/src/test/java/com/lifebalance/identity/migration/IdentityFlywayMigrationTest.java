@@ -27,6 +27,7 @@ class IdentityFlywayMigrationTest {
             "configuration:read",
             "configuration:update",
             "maintenance:read",
+            "maintenance:update",
             "permission:create",
             "permission:delete",
             "permission:read",

@@ -24,6 +24,7 @@ import com.lifebalance.notification.service.NotificationService;
 import com.lifebalance.security.keycloak.LifebalanceSecurityAutoConfiguration;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,6 +36,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
@@ -44,6 +46,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
         LifebalanceSecurityAutoConfiguration.class,
         NotificationControllerTest.TestSecuritySupport.class
 })
+@TestPropertySource(properties = "lifebalance.integration.internal-secret=test-secret")
 class NotificationControllerTest {
 
     private static final UUID OWNER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
@@ -128,6 +131,101 @@ class NotificationControllerTest {
         verify(notificationService, never()).create(any(), any());
     }
 
+    @Test
+    void createRejectsExternalChannelForRegularUser() throws Exception {
+        mockMvc.perform(post("/api/notifications")
+                        .with(authenticatedUser())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "eventType": "TASK_REMINDER",
+                                  "channels": ["EMAIL"],
+                                  "priority": "HIGH",
+                                  "title": "Task starts soon",
+                                  "message": "Focus block starts at 10:00.",
+                                  "purpose": "Reminder requested by user",
+                                  "policyApproved": true
+                                }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value(AuthErrorCode.FORBIDDEN));
+
+        verify(notificationService, never()).create(any(), any());
+    }
+
+    @Test
+    void createAllowsExternalChannelForTrustedInternalRequest() throws Exception {
+        when(notificationService.create(eq(OWNER_ID), any(CreateNotificationRequest.class)))
+                .thenReturn(List.of(response()));
+
+        mockMvc.perform(post("/api/notifications")
+                        .with(authenticatedUser())
+                        .header(NotificationController.INTERNAL_SECRET_HEADER, "test-secret")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "eventType": "TASK_REMINDER",
+                                  "channels": ["EMAIL"],
+                                  "priority": "HIGH",
+                                  "title": "Task starts soon",
+                                  "message": "Focus block starts at 10:00.",
+                                  "purpose": "Reminder requested by user",
+                                  "policyApproved": true
+                                }
+                                """))
+                .andExpect(status().isCreated());
+
+        verify(notificationService).create(eq(OWNER_ID), any(CreateNotificationRequest.class));
+    }
+
+    @Test
+    void broadcastRejectsRegularUser() throws Exception {
+        mockMvc.perform(post("/api/notifications/broadcast")
+                        .with(authenticatedUser())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "recipientIds": ["%s"],
+                                  "eventType": "TIMELINE_CHANGE",
+                                  "channels": ["IN_APP"],
+                                  "title": "Maintenance",
+                                  "message": "Window starts tonight.",
+                                  "purpose": "Notify users",
+                                  "policyApproved": true
+                                }
+                                """.formatted(OWNER_ID)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value(AuthErrorCode.FORBIDDEN));
+
+        verify(notificationService, never()).broadcast(any(), any());
+    }
+
+    @Test
+    void broadcastAllowsAdminRole() throws Exception {
+        when(notificationService.broadcast(eq(OWNER_ID), any()))
+                .thenReturn(List.of(response()));
+
+        mockMvc.perform(post("/api/notifications/broadcast")
+                        .with(authenticatedAdmin())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "recipientIds": ["%s"],
+                                  "eventType": "TIMELINE_CHANGE",
+                                  "channels": ["IN_APP"],
+                                  "title": "Maintenance",
+                                  "message": "Window starts tonight.",
+                                  "purpose": "Notify users",
+                                  "policyApproved": true
+                                }
+                                """.formatted(OWNER_ID)))
+                .andExpect(status().isCreated());
+
+        verify(notificationService).broadcast(eq(OWNER_ID), any());
+    }
+
     private static NotificationResponse response() {
         return new NotificationResponse(
                 NOTIFICATION_ID,
@@ -163,6 +261,14 @@ class NotificationControllerTest {
         return jwt().jwt(jwt -> jwt
                 .subject("kc-user-123")
                 .claim("lifebalance_user_id", OWNER_ID.toString())
+        );
+    }
+
+    private static RequestPostProcessor authenticatedAdmin() {
+        return jwt().jwt(jwt -> jwt
+                .subject("kc-admin-123")
+                .claim("lifebalance_user_id", OWNER_ID.toString())
+                .claim("realm_access", Map.of("roles", List.of("ADMIN")))
         );
     }
 

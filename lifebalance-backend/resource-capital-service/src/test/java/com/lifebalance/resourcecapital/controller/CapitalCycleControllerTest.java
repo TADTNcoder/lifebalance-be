@@ -8,6 +8,8 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -35,8 +37,11 @@ import com.lifebalance.resourcecapital.dto.TransferRemainingCapitalResponse;
 import com.lifebalance.resourcecapital.dto.UpdateCapitalCycleRequest;
 import com.lifebalance.resourcecapital.service.CapitalCycleService;
 import com.lifebalance.security.keycloak.LifebalanceSecurityAutoConfiguration;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -45,13 +50,15 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
-import java.math.BigDecimal;
 
 @WebMvcTest(CapitalCycleController.class)
 @Import({
@@ -76,6 +83,92 @@ class CapitalCycleControllerTest {
 
     @MockitoBean
     private CapitalCycleService capitalCycleService;
+
+    @Test
+    void listReturnsOkWhenUserIsAuthenticated() throws Exception {
+        when(capitalCycleService.listCycles(
+                eq(OWNER_ID),
+                eq(CapitalCycleType.MONTHLY),
+                eq(CapitalCycleStatus.DRAFT),
+                eq(LocalDate.of(2026, 8, 1)),
+                eq(LocalDate.of(2026, 8, 31)),
+                any(Pageable.class)
+        )).thenReturn(new PageImpl<>(List.of(response()), PageRequest.of(0, 5), 1));
+
+        mockMvc.perform(get(ENDPOINT)
+                        .with(authenticatedUser())
+                        .param("type", "MONTHLY")
+                        .param("status", "DRAFT")
+                        .param("fromDate", "2026-08-01")
+                        .param("toDate", "2026-08-31")
+                        .param("page", "0")
+                        .param("size", "5"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value(CYCLE_ID.toString()))
+                .andExpect(jsonPath("$.content[0].type").value("MONTHLY"))
+                .andExpect(jsonPath("$.content[0].status").value("DRAFT"));
+
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(capitalCycleService).listCycles(
+                eq(OWNER_ID),
+                eq(CapitalCycleType.MONTHLY),
+                eq(CapitalCycleStatus.DRAFT),
+                eq(LocalDate.of(2026, 8, 1)),
+                eq(LocalDate.of(2026, 8, 31)),
+                pageableCaptor.capture()
+        );
+        assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(5);
+    }
+
+    @Test
+    void activeReturnsOkWhenActiveCycleExists() throws Exception {
+        when(capitalCycleService.getActiveCycle(OWNER_ID, CapitalCycleType.MONTHLY))
+                .thenReturn(Optional.of(activatedResponse()));
+
+        mockMvc.perform(get(ENDPOINT + "/active")
+                        .with(authenticatedUser())
+                        .param("type", "MONTHLY"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(CYCLE_ID.toString()))
+                .andExpect(jsonPath("$.status").value("ACTIVE"));
+
+        verify(capitalCycleService).getActiveCycle(OWNER_ID, CapitalCycleType.MONTHLY);
+    }
+
+    @Test
+    void activeReturnsNotFoundWhenActiveCycleDoesNotExist() throws Exception {
+        when(capitalCycleService.getActiveCycle(OWNER_ID, CapitalCycleType.WEEKLY))
+                .thenReturn(Optional.empty());
+
+        mockMvc.perform(get(ENDPOINT + "/active")
+                        .with(authenticatedUser())
+                        .param("type", "WEEKLY"))
+                .andExpect(status().isNotFound());
+
+        verify(capitalCycleService).getActiveCycle(OWNER_ID, CapitalCycleType.WEEKLY);
+    }
+
+    @Test
+    void getReturnsOkWhenUserOwnsCycle() throws Exception {
+        when(capitalCycleService.getCycle(OWNER_ID, CYCLE_ID)).thenReturn(response());
+
+        mockMvc.perform(get(ENDPOINT + "/{id}", CYCLE_ID)
+                        .with(authenticatedUser()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(CYCLE_ID.toString()))
+                .andExpect(jsonPath("$.status").value("DRAFT"));
+
+        verify(capitalCycleService).getCycle(OWNER_ID, CYCLE_ID);
+    }
+
+    @Test
+    void deleteReturnsNoContentWhenCycleCanBeDeleted() throws Exception {
+        mockMvc.perform(delete(ENDPOINT + "/{id}", CYCLE_ID)
+                        .with(authenticatedUser()))
+                .andExpect(status().isNoContent());
+
+        verify(capitalCycleService).deleteCycle(OWNER_ID, CYCLE_ID);
+    }
 
     @Test
     void createReturnsCreatedWhenRequestIsValidAndUserIsAuthenticated() throws Exception {

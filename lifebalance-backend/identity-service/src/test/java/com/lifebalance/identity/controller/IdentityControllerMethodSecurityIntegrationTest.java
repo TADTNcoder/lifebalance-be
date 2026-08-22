@@ -159,7 +159,7 @@ class IdentityControllerMethodSecurityIntegrationTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk());
 
-        verify(userRoleService).assignRole(eq(USER_ID), any(AssignRoleRequest.class), eq(ACTOR_ID));
+        verify(userRoleService).assignRole(eq(USER_ID), any(AssignRoleRequest.class), eq(ACTOR_ID.toString()));
     }
 
     @Test

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -149,6 +150,20 @@ class PermissionEvaluationServiceImplTest {
         JwtAuthenticationToken authentication = jwtAuthentication("kc-user-1");
         User user = activeUser(userId);
         user.setStatus(AccountStatus.LOCKED);
+
+        when(userRepository.findByKeycloakId("kc-user-1")).thenReturn(Optional.of(user));
+
+        assertThat(service.hasPermission(authentication, "user:read")).isFalse();
+        assertThat(service.isCurrentUser(authentication, userId)).isFalse();
+        verifyNoInteractions(rbacAuthorizationService);
+    }
+
+    @Test
+    void shouldReturnFalseWhenJwtWasIssuedBeforeUserTokenCutoff() {
+        UUID userId = UUID.randomUUID();
+        JwtAuthenticationToken authentication = jwtAuthentication("kc-user-1");
+        User user = activeUser(userId);
+        user.setTokenValidAfter(OffsetDateTime.now().plusMinutes(1));
 
         when(userRepository.findByKeycloakId("kc-user-1")).thenReturn(Optional.of(user));
 

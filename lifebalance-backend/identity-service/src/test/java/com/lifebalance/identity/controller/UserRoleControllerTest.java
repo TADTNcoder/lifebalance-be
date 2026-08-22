@@ -80,7 +80,7 @@ class UserRoleControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk());
 
-        verify(userRoleService).assignRole(eq(USER_ID), any(AssignRoleRequest.class), eq(adminId));
+        verify(userRoleService).assignRole(eq(USER_ID), any(AssignRoleRequest.class), eq(adminId.toString()));
     }
     @Test
     void shouldRemoveRoleFromUser() throws Exception {

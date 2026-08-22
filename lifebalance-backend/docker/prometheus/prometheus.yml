@@ -6,7 +6,7 @@ scrape_configs:
   - job_name: discovery-server
     metrics_path: /actuator/prometheus
     static_configs:
-      - targets: ["discovery-server:8761"]
+      - targets: ["discovery-server:8080"]
 
   - job_name: gateway
     metrics_path: /actuator/prometheus
@@ -27,6 +27,11 @@ scrape_configs:
     metrics_path: /actuator/prometheus
     static_configs:
       - targets: ["timeline-service:8080"]
+
+  - job_name: resource-capital-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["resource-capital-service:8080"]
 
   - job_name: finance-service
     metrics_path: /actuator/prometheus

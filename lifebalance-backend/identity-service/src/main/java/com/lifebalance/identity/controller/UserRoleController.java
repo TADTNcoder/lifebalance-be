@@ -49,7 +49,7 @@ public class UserRoleController {
         userRoleService.assignRole(
                 userId,
                 request,
-                UUID.fromString(currentUser.getUserId()));
+                currentUser.getUserId());
     }
 
     @Operation(summary = "Remove role from user")

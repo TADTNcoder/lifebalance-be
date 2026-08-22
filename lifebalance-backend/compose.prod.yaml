@@ -1,9 +1,9 @@
 services:
   postgres:
-    ports: []
+    ports: !reset []
 
   keycloak:
-    ports: []
+    ports: !reset []
     command:
       - start
       - --health-enabled=true
@@ -14,28 +14,51 @@ services:
       KC_HTTP_ENABLED: ${KEYCLOAK_HTTP_ENABLED:-true}
 
   discovery-server:
-    ports: []
+    ports: !reset []
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
 
   identity-service:
-    ports: []
+    ports: !reset []
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
 
   task-service:
-    ports: []
+    ports: !reset []
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
 
   timeline-service:
-    ports: []
+    ports: !reset []
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
 
   resource-capital-service:
-    ports: []
+    ports: !reset []
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
 
   finance-service:
-    ports: []
+    ports: !reset []
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
 
   notification-service:
-    ports: []
+    ports: !reset []
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
 
   analytics-service:
-    ports: []
+    ports: !reset []
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
 
   ai-service:
-    ports: []
+    ports: !reset []
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+
+  gateway:
+    ports: !reset []
+    environment:
+      SPRING_PROFILES_ACTIVE: prod

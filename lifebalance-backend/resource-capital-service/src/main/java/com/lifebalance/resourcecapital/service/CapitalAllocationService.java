@@ -11,6 +11,7 @@ import com.lifebalance.resourcecapital.dto.CapitalAllocationResponse;
 import com.lifebalance.resourcecapital.dto.CapitalReallocationRequest;
 import com.lifebalance.resourcecapital.dto.ChangeCapitalAllocationRequestDTO;
 import com.lifebalance.resourcecapital.dto.CreateCapitalAllocationRequest;
+import com.lifebalance.resourcecapital.dto.OverAllocationConfirmationResponse;
 import com.lifebalance.resourcecapital.dto.ReallocateCapitalRequestDTO;
 import com.lifebalance.resourcecapital.dto.ReleaseCapitalRequestDTO;
 import org.springframework.data.domain.Page;
@@ -22,6 +23,11 @@ import java.util.UUID;
 public interface CapitalAllocationService {
 
     AllocationResponse allocateCapital(UUID ownerId, CreateCapitalAllocationRequest request);
+
+    OverAllocationConfirmationResponse prepareOverAllocationConfirmation(
+            UUID ownerId,
+            CreateCapitalAllocationRequest request
+    );
 
     AllocationResponseDTO allocateCapital(UUID ownerId, AllocateCapitalRequestDTO request);
 

@@ -54,6 +54,8 @@ public interface CapitalAllocationRepository extends
             @Param("capitalCycleId") UUID capitalCycleId
     );
 
+    boolean existsByUserIdAndCapitalCycleId(UUID userId, UUID capitalCycleId);
+
     @Query("""
             select allocation
             from CapitalAllocation allocation

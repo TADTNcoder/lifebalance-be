@@ -9,6 +9,8 @@ public class TaskIntegrationProperties {
 
     private boolean enabled = true;
 
+    private String internalSecret;
+
     private ServiceEndpoint timelineService = new ServiceEndpoint("http://timeline-service:8080", true);
 
     private NotificationEndpoint notificationService = new NotificationEndpoint();
@@ -21,6 +23,18 @@ public class TaskIntegrationProperties {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
+    }
+
+    public String getInternalSecret() {
+        return internalSecret;
+    }
+
+    public void setInternalSecret(String internalSecret) {
+        this.internalSecret = internalSecret;
+    }
+
+    public boolean hasInternalSecret() {
+        return internalSecret != null && !internalSecret.isBlank();
     }
 
     public ServiceEndpoint getTimelineService() {

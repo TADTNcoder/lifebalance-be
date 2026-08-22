@@ -1,6 +1,7 @@
 package com.lifebalance.identity.repository;
 
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.domain.Page;
@@ -19,6 +20,12 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, UUID> {
     Page<AuditLog> findByUserId(UUID userId, Pageable pageable);
 
     Page<AuditLog> findByAction(AuditAction action, Pageable pageable);
+
+    Page<AuditLog> findByEntityNameAndEntityIdOrderByCreatedAtDesc(
+            AuditEntityName entityName,
+            String entityId,
+            Pageable pageable
+    );
 
     @Query("""
             SELECT auditLog
@@ -53,6 +60,34 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, UUID> {
             GROUP BY auditLog.action
             """)
     java.util.List<Object[]> countByAction(
+            @Param("createdFrom") OffsetDateTime createdFrom,
+            @Param("createdTo") OffsetDateTime createdTo
+    );
+
+    @Query("""
+            SELECT auditLog.action, count(auditLog)
+            FROM AuditLog auditLog
+            WHERE auditLog.entityName IN :entityNames
+              AND auditLog.action IN :actions
+              AND (:createdFrom IS NULL OR auditLog.createdAt >= :createdFrom)
+              AND (:createdTo IS NULL OR auditLog.createdAt <= :createdTo)
+            GROUP BY auditLog.action
+            """)
+    java.util.List<Object[]> countByActionForEntities(
+            @Param("entityNames") Collection<AuditEntityName> entityNames,
+            @Param("actions") Collection<AuditAction> actions,
+            @Param("createdFrom") OffsetDateTime createdFrom,
+            @Param("createdTo") OffsetDateTime createdTo
+    );
+
+    @Query("""
+            SELECT auditLog.entityName, count(auditLog)
+            FROM AuditLog auditLog
+            WHERE (:createdFrom IS NULL OR auditLog.createdAt >= :createdFrom)
+              AND (:createdTo IS NULL OR auditLog.createdAt <= :createdTo)
+            GROUP BY auditLog.entityName
+            """)
+    java.util.List<Object[]> countByEntityName(
             @Param("createdFrom") OffsetDateTime createdFrom,
             @Param("createdTo") OffsetDateTime createdTo
     );

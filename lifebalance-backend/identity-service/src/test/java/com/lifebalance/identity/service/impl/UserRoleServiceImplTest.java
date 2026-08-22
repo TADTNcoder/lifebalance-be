@@ -73,11 +73,11 @@ class UserRoleServiceImplTest {
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
         when(roleRepository.findById(roleId)).thenReturn(Optional.of(role));
         when(userRoleRepository.existsByUserIdAndRoleId(userId, roleId)).thenReturn(false);
-        when(userRepository.findById(actorId)).thenReturn(Optional.of(actor));
+        when(userRepository.findByKeycloakId("kc-admin")).thenReturn(Optional.of(actor));
         when(currentAuditActorResolver.resolve()).thenReturn(new AuditActor(null, null, null));
         when(currentAuditRequestMetadataResolver.resolve()).thenReturn(new AuditRequestMetadata("198.51.100.10", "JUnit"));
 
-        createService().assignRole(userId, request, actorId);
+        createService().assignRole(userId, request, "kc-admin");
 
         ArgumentCaptor<UserRole> userRoleCaptor = ArgumentCaptor.forClass(UserRole.class);
         ArgumentCaptor<AuditLogCommand> auditCaptor = ArgumentCaptor.forClass(AuditLogCommand.class);
@@ -134,7 +134,7 @@ class UserRoleServiceImplTest {
         when(roleRepository.findById(roleId)).thenReturn(Optional.of(role(roleId, "staff")));
         when(userRoleRepository.existsByUserIdAndRoleId(userId, roleId)).thenReturn(true);
 
-        assertThatThrownBy(() -> createService().assignRole(userId, request, actorId))
+        assertThatThrownBy(() -> createService().assignRole(userId, request, "kc-admin"))
                 .isInstanceOf(UserRoleAssignmentException.class)
                 .extracting("code")
                 .isEqualTo(IdentityErrorCode.ROLE_ALREADY_ASSIGNED_TO_USER);
