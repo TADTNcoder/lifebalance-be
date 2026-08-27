@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -107,6 +108,9 @@ class UserControllerTest {
                 List.of("user")
         );
         User user = createUserEntity(UUID.fromString("1f3f8e30-8b2d-4c92-9fd8-3f11e50b2031"));
+        user.setPhone("+84 912 345 678");
+        user.setGender("Nữ");
+        user.setBirthDate(LocalDate.of(1998, 5, 20));
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRemoteAddr("127.0.0.1");
         request.addHeader("User-Agent", "JUnit");
@@ -119,6 +123,9 @@ class UserControllerTest {
         assertThat(response.getId()).isEqualTo(user.getId());
         assertThat(response.getEmail()).isEqualTo("alice@example.com");
         assertThat(response.getUsername()).isEqualTo("alice");
+        assertThat(response.getPhone()).isEqualTo("+84 912 345 678");
+        assertThat(response.getGender()).isEqualTo("Nữ");
+        assertThat(response.getBirthDate()).isEqualTo(LocalDate.of(1998, 5, 20));
         verify(internalUserService).findOrCreate(currentUser);
         verify(internalUserService, never()).getCurrentUser(currentUser);
         verify(auditLogService).saveAudit(

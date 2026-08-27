@@ -23,7 +23,7 @@ import com.lifebalance.identity.service.RbacAuthorizationService;
 
 import lombok.RequiredArgsConstructor;
 
-@Service
+@Service("permissionEvaluationService")
 @RequiredArgsConstructor
 public class PermissionEvaluationServiceImpl implements PermissionEvaluationService {
 

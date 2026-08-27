@@ -254,6 +254,9 @@ public class UserController {
         response.setEmail(user.getEmail());
         response.setUsername(user.getUsername());
         response.setDisplayName(user.getDisplayName());
+        response.setPhone(user.getPhone());
+        response.setGender(user.getGender());
+        response.setBirthDate(user.getBirthDate());
         response.setStatus(user.getStatus());
         response.setRegisteredAt(user.getRegisteredAt());
         response.setLastLoginAt(user.getLastLoginAt());

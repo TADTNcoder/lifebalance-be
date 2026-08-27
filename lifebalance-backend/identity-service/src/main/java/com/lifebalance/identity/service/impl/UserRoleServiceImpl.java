@@ -121,6 +121,7 @@ public class UserRoleServiceImpl implements UserRoleService {
     }
 
     @Override
+    @Transactional
     public List<RoleResponse> getRoles(UUID userId) {
 
         return userRoleRepository.findByUserId(userId)

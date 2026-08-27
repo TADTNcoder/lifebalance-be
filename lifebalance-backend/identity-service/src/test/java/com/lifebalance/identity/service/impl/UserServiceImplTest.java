@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
@@ -86,13 +87,16 @@ class UserServiceImplTest {
     }
 
     @Test
-    void shouldUpdateUserEmailUsernameAndDisplayName() {
+    void shouldUpdateUserProfileDetails() {
         UUID userId = UUID.randomUUID();
         User user = createUser(userId);
         UpdateUserRequest request = new UpdateUserRequest();
         request.setEmail(" New.Alice@Example.COM ");
         request.setUsername("  AliceUpdated  ");
         request.setDisplayName("  Alice Updated  ");
+        request.setPhone("  +84 912 345 678  ");
+        request.setGender("  Nữ  ");
+        request.setBirthDate(LocalDate.of(1998, 5, 20));
 
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
         when(userRepository.existsByEmailAndIdNot("new.alice@example.com", userId))
@@ -110,9 +114,15 @@ class UserServiceImplTest {
         assertThat(userCaptor.getValue().getEmail()).isEqualTo("new.alice@example.com");
         assertThat(userCaptor.getValue().getUsername()).isEqualTo("aliceupdated");
         assertThat(userCaptor.getValue().getDisplayName()).isEqualTo("Alice Updated");
+        assertThat(userCaptor.getValue().getPhone()).isEqualTo("+84 912 345 678");
+        assertThat(userCaptor.getValue().getGender()).isEqualTo("Nữ");
+        assertThat(userCaptor.getValue().getBirthDate()).isEqualTo(LocalDate.of(1998, 5, 20));
         assertThat(response.getEmail()).isEqualTo("new.alice@example.com");
         assertThat(response.getUsername()).isEqualTo("aliceupdated");
         assertThat(response.getDisplayName()).isEqualTo("Alice Updated");
+        assertThat(response.getPhone()).isEqualTo("+84 912 345 678");
+        assertThat(response.getGender()).isEqualTo("Nữ");
+        assertThat(response.getBirthDate()).isEqualTo(LocalDate.of(1998, 5, 20));
     }
 
     @Test

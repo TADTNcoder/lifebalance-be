@@ -56,6 +56,13 @@ class IdentityFlywayMigrationTest {
     private JdbcTemplate jdbcTemplate;
 
     @Test
+    void flywayCreatesUserProfileColumns() {
+        assertColumnExists("users", "phone");
+        assertColumnExists("users", "gender");
+        assertColumnExists("users", "birth_date");
+    }
+
+    @Test
     void flywayCreatesRoleSchemaAndIndexes() {
         assertTableExists("roles");
         assertTableExists("role_permissions");

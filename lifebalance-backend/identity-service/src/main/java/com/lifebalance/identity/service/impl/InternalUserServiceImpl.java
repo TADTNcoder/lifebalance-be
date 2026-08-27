@@ -126,8 +126,18 @@ public class InternalUserServiceImpl implements InternalUserService {
                 .map(InternalUserServiceImpl::requireActive)
                 .orElseThrow(() -> new UserNotFoundException(keycloakId));
 
+        if (request.getUsername() != null) {
+            String username = normalizeUsername(request.getUsername());
+            if (userRepository.existsByUsernameAndIdNot(username, user.getId())) {
+                throw new UserUsernameAlreadyExistsException(username);
+            }
+            user.setUsername(username);
+        }
         user.setDisplayName(request.getDisplayName());
         user.setEmail(request.getEmail());
+        user.setPhone(request.getPhone());
+        user.setGender(request.getGender());
+        user.setBirthDate(request.getBirthDate());
         return userRepository.save(user);
     }
 
@@ -152,6 +162,9 @@ public class InternalUserServiceImpl implements InternalUserService {
         response.setEmail(user.getEmail());
         response.setUsername(user.getUsername());
         response.setDisplayName(user.getDisplayName());
+        response.setPhone(user.getPhone());
+        response.setGender(user.getGender());
+        response.setBirthDate(user.getBirthDate());
         response.setStatus(user.getStatus());
         response.setLockReason(user.getLockReason());
         response.setLockedAt(user.getLockedAt());

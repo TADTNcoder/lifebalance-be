@@ -1,5 +1,6 @@
 package com.lifebalance.identity.dto;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -23,6 +24,15 @@ public class UserResponse {
 
     @Schema(description = "Display name", example = "Alice Nguyen")
     private String displayName;
+
+    @Schema(description = "Phone number", example = "+84 912 345 678")
+    private String phone;
+
+    @Schema(description = "Gender", example = "Nữ")
+    private String gender;
+
+    @Schema(description = "Birth date", example = "1998-05-20")
+    private LocalDate birthDate;
 
     @Schema(description = "Account status", example = "ACTIVE")
     private AccountStatus status;

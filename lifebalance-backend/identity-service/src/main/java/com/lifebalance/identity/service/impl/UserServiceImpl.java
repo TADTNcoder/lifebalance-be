@@ -1,5 +1,6 @@
 package com.lifebalance.identity.service.impl;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.Locale;
 import java.util.UUID;
@@ -40,6 +41,8 @@ public class UserServiceImpl implements UserService {
     private static final int MAX_EMAIL_LENGTH = 255;
     private static final int MAX_USERNAME_LENGTH = 100;
     private static final int MAX_DISPLAY_NAME_LENGTH = 255;
+    private static final int MAX_PHONE_LENGTH = 20;
+    private static final int MAX_GENDER_LENGTH = 50;
     private static final Pattern EMAIL_PATTERN = Pattern.compile(
             "^[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}$",
             Pattern.CASE_INSENSITIVE
@@ -72,6 +75,9 @@ public class UserServiceImpl implements UserService {
         applyEmailUpdate(user, request.getEmail());
         applyUsernameUpdate(user, request.getUsername());
         applyDisplayNameUpdate(user, request.getDisplayName());
+        applyPhoneUpdate(user, request.getPhone());
+        applyGenderUpdate(user, request.getGender());
+        applyBirthDateUpdate(user, request.getBirthDate());
 
         User updatedUser = userRepository.save(user);
         userAuditEventPublisher.publishUserAudit(
@@ -278,6 +284,24 @@ public class UserServiceImpl implements UserService {
         user.setDisplayName(displayName.trim());
     }
 
+    private static void applyPhoneUpdate(User user, String phone) {
+        if (phone != null) {
+            user.setPhone(phone);
+        }
+    }
+
+    private static void applyGenderUpdate(User user, String gender) {
+        if (gender != null) {
+            user.setGender(gender);
+        }
+    }
+
+    private static void applyBirthDateUpdate(User user, LocalDate birthDate) {
+        if (birthDate != null) {
+            user.setBirthDate(birthDate);
+        }
+    }
+
     private static void validateUserId(UUID id) {
         if (id == null) {
             throw new UserValidationException("User id is required");
@@ -292,6 +316,9 @@ public class UserServiceImpl implements UserService {
         validateEmail(request.getEmail());
         validateUsername(request.getUsername());
         validateDisplayName(request.getDisplayName());
+        validatePhone(request.getPhone());
+        validateGender(request.getGender());
+        validateBirthDate(request.getBirthDate());
     }
 
     private static String validateActorKeycloakId(String actorKeycloakId) {
@@ -361,12 +388,33 @@ public class UserServiceImpl implements UserService {
         }
     }
 
+    private static void validatePhone(String phone) {
+        if (phone != null && phone.trim().length() > MAX_PHONE_LENGTH) {
+            throw new UserValidationException("Phone must be at most 20 characters");
+        }
+    }
+
+    private static void validateGender(String gender) {
+        if (gender != null && gender.trim().length() > MAX_GENDER_LENGTH) {
+            throw new UserValidationException("Gender must be at most 50 characters");
+        }
+    }
+
+    private static void validateBirthDate(LocalDate birthDate) {
+        if (birthDate != null && birthDate.isAfter(LocalDate.now())) {
+            throw new UserValidationException("Birth date must not be in the future");
+        }
+    }
+
     private static UserResponse toResponse(User user) {
         UserResponse response = new UserResponse();
         response.setId(user.getId());
         response.setEmail(user.getEmail());
         response.setUsername(user.getUsername());
         response.setDisplayName(user.getDisplayName());
+        response.setPhone(user.getPhone());
+        response.setGender(user.getGender());
+        response.setBirthDate(user.getBirthDate());
         response.setStatus(user.getStatus());
         response.setRegisteredAt(user.getRegisteredAt());
         response.setLastLoginAt(user.getLastLoginAt());
@@ -388,6 +436,9 @@ public class UserServiceImpl implements UserService {
         copy.setEmail(user.getEmail());
         copy.setUsername(user.getUsername());
         copy.setDisplayName(user.getDisplayName());
+        copy.setPhone(user.getPhone());
+        copy.setGender(user.getGender());
+        copy.setBirthDate(user.getBirthDate());
         copy.setStatus(user.getStatus());
         copy.setRegisteredAt(user.getRegisteredAt());
         copy.setLastLoginAt(user.getLastLoginAt());
