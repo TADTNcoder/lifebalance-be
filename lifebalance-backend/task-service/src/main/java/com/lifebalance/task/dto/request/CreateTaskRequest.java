@@ -6,8 +6,10 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 import com.lifebalance.task.model.enums.PriorityLevel;
+import com.lifebalance.task.validation.ValidPlanningWindow;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
@@ -15,7 +17,8 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public class CreateTaskRequest {
+@ValidPlanningWindow
+public class CreateTaskRequest implements PlanningWindowRequest {
 
     @NotBlank
     @Size(max = 255)
@@ -32,7 +35,7 @@ public class CreateTaskRequest {
 
     private OffsetDateTime plannedEndAt;
 
-    @PositiveOrZero
+    @Positive
     private Integer estimatedMinutes;
 
     @PositiveOrZero

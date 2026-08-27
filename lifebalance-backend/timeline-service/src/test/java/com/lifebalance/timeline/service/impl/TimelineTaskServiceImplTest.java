@@ -52,6 +52,7 @@ class TimelineTaskServiceImplTest {
         when(taskRepository.save(any(TimelineTask.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         TimelineTaskResponse response = createService().upsertTask(OWNER_ID, new UpsertTimelineTaskRequest(
+                OWNER_ID,
                 TASK_ID,
                 "Design schedule",
                 TimelineTaskStatus.PLANNED,
@@ -120,6 +121,7 @@ class TimelineTaskServiceImplTest {
         when(placementRepository.save(placement)).thenReturn(placement);
 
         TimelineTaskResponse response = createService().upsertTask(OWNER_ID, new UpsertTimelineTaskRequest(
+                OWNER_ID,
                 TASK_ID,
                 "Design schedule",
                 TimelineTaskStatus.ARCHIVED,

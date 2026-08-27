@@ -38,6 +38,7 @@ class RestTaskIntegrationClient implements TaskIntegrationClient {
         }
 
         TimelineTaskSyncRequest request = new TimelineTaskSyncRequest(
+                event.ownerId(),
                 event.taskId(),
                 event.title(),
                 timelineStatus(event),

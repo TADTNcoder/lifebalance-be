@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -217,6 +218,32 @@ class InternalUserServiceImplTest {
                 .isInstanceOf(UserNotFoundException.class)
                 .hasMessage("User not found for Keycloak subject: kc-user-1");
         verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void updateCurrentUserShouldPersistProfileDetails() {
+        CurrentUser currentUser = createCurrentUser();
+        User user = createUser(AccountStatus.ACTIVE);
+        UpdateUserRequest request = new UpdateUserRequest();
+        request.setUsername("alice-updated");
+        request.setDisplayName("Alice Updated");
+        request.setEmail("alice.updated@example.com");
+        request.setPhone("+84 912 345 678");
+        request.setGender("Nữ");
+        request.setBirthDate(LocalDate.of(1998, 5, 20));
+
+        when(userRepository.findByKeycloakId("kc-user-1")).thenReturn(Optional.of(user));
+        when(userRepository.save(user)).thenAnswer(invocation -> invocation.getArgument(0));
+
+        User updated = createService().updateCurrentUser(currentUser, request);
+
+        assertThat(updated.getUsername()).isEqualTo("alice-updated");
+        assertThat(updated.getDisplayName()).isEqualTo("Alice Updated");
+        assertThat(updated.getEmail()).isEqualTo("alice.updated@example.com");
+        assertThat(updated.getPhone()).isEqualTo("+84 912 345 678");
+        assertThat(updated.getGender()).isEqualTo("Nữ");
+        assertThat(updated.getBirthDate()).isEqualTo(LocalDate.of(1998, 5, 20));
+        verify(userRepository).save(user);
     }
 
     @Test

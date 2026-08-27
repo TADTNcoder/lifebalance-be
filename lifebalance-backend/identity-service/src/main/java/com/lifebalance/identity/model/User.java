@@ -10,6 +10,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.Locale;
 import java.util.UUID;
@@ -41,6 +42,17 @@ public class User extends BaseAuditableEntity {
     @Size(max = 255)
     @Column(name = "display_name")
     private String displayName;
+
+    @Size(max = 20)
+    @Column(length = 20)
+    private String phone;
+
+    @Size(max = 50)
+    @Column(length = 50)
+    private String gender;
+
+    @Column(name = "birth_date")
+    private LocalDate birthDate;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -80,11 +92,21 @@ public class User extends BaseAuditableEntity {
         this.username = normalize(username);
     }
 
+    public void setPhone(String phone) {
+        this.phone = trimToNull(phone);
+    }
+
+    public void setGender(String gender) {
+        this.gender = trimToNull(gender);
+    }
+
     @PrePersist
     @PreUpdate
     void applyDefaults() {
         email = normalize(email);
         username = normalize(username);
+        phone = trimToNull(phone);
+        gender = trimToNull(gender);
         if (status == null) {
             status = AccountStatus.ACTIVE;
         }
@@ -95,6 +117,14 @@ public class User extends BaseAuditableEntity {
             return null;
         }
         String normalized = value.trim().toLowerCase(Locale.ROOT);
+        return normalized.isEmpty() ? null : normalized;
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.trim();
         return normalized.isEmpty() ? null : normalized;
     }
 

@@ -7,6 +7,7 @@ import java.util.UUID;
 
 import com.lifebalance.task.model.enums.PriorityLevel;
 import com.lifebalance.task.model.enums.TaskStatus;
+import com.lifebalance.task.validation.ValidPlanningWindow;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -18,7 +19,8 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public class UpdateTaskRequest {
+@ValidPlanningWindow
+public class UpdateTaskRequest implements PlanningWindowRequest {
 
     @NotBlank
     @Size(max = 255)

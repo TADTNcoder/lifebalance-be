@@ -32,6 +32,9 @@ public class UserAuditSnapshotMapper {
         snapshot.put("email", user.getEmail());
         snapshot.put("username", user.getUsername());
         snapshot.put("displayName", user.getDisplayName());
+        snapshot.put("phone", user.getPhone());
+        snapshot.put("gender", user.getGender());
+        snapshot.put("birthDate", user.getBirthDate());
         snapshot.put("status", user.getStatus());
         snapshot.put("registeredAt", user.getRegisteredAt());
         snapshot.put("lastLoginAt", user.getLastLoginAt());

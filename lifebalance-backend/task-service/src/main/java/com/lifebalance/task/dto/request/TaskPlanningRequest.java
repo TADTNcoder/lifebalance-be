@@ -1,6 +1,7 @@
 package com.lifebalance.task.dto.request;
 
 import com.lifebalance.task.model.enums.PriorityLevel;
+import com.lifebalance.task.validation.ValidPlanningWindow;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
@@ -14,7 +15,8 @@ import java.util.UUID;
 
 @Getter
 @Setter
-public class TaskPlanningRequest {
+@ValidPlanningWindow
+public class TaskPlanningRequest implements PlanningWindowRequest {
 
     private PriorityLevel priority;
 

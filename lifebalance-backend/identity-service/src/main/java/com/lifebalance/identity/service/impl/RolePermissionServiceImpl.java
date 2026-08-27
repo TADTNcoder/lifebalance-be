@@ -123,6 +123,7 @@ public class RolePermissionServiceImpl implements RolePermissionService {
     }
 
     @Override
+    @Transactional
     public List<PermissionResponse> getPermissions(UUID roleId) {
 
         return rolePermissionRepository.findByIdRoleId(roleId)

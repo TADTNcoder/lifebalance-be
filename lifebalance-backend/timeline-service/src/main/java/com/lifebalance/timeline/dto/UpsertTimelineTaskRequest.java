@@ -10,6 +10,7 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 public record UpsertTimelineTaskRequest(
+        @NotNull UUID ownerId,
         @NotNull UUID taskId,
         @NotBlank @Size(max = 255) String title,
         @NotNull TimelineTaskStatus taskStatus,

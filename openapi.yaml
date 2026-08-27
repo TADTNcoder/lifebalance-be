@@ -701,7 +701,6 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateTaskRequest'
             example:
-              userId: 11111111-1111-1111-1111-111111111111
               name: Prepare sprint planning
               description: Review capacity and scope for Sprint 3.
               priority: HIGH
@@ -2447,13 +2446,8 @@ components:
     CreateTaskRequest:
       type: object
       required:
-        - userId
         - name
       properties:
-        userId:
-          type: string
-          format: uuid
-          example: 11111111-1111-1111-1111-111111111111
         name:
           type: string
           example: Prepare sprint planning
