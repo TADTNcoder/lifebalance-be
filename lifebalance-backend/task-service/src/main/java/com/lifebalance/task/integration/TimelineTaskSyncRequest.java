@@ -5,6 +5,7 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 record TimelineTaskSyncRequest(
+        UUID ownerId,
         UUID taskId,
         String title,
         String taskStatus,

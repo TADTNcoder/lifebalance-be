@@ -12,6 +12,7 @@ import com.lifebalance.timeline.service.TimelineTaskService;
 import jakarta.validation.Valid;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.Objects;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Pageable;
@@ -50,8 +51,10 @@ public class TimelineTaskController {
             @RequestHeader(value = INTERNAL_SECRET_HEADER, required = false) String submittedInternalSecret
     ) {
         requireTrustedInternalRequest(submittedInternalSecret);
+        UUID ownerId = CurrentTimelineUser.ownerId(currentUser);
+        requirePayloadOwnerMatchesAuthenticatedOwner(ownerId, request.ownerId());
         return ResponseEntity.ok(ApiResponse.success(
-                timelineTaskService.upsertTask(CurrentTimelineUser.ownerId(currentUser), request)));
+                timelineTaskService.upsertTask(ownerId, request)));
     }
 
     @GetMapping("/eligible")
@@ -82,6 +85,12 @@ public class TimelineTaskController {
                 submitted.getBytes(StandardCharsets.UTF_8)
         )) {
             throw new AccessDeniedException("Internal service credential is required.");
+        }
+    }
+
+    private static void requirePayloadOwnerMatchesAuthenticatedOwner(UUID authenticatedOwnerId, UUID payloadOwnerId) {
+        if (!Objects.equals(authenticatedOwnerId, payloadOwnerId)) {
+            throw new AccessDeniedException("Timeline task owner does not match authenticated user.");
         }
     }
 
