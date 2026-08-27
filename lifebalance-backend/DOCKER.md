@@ -117,7 +117,7 @@ Containers must communicate through Docker DNS names:
 
 - `postgres:5432`
 - `keycloak:8080`
-- `discovery-server:8761`
+- `discovery-server:8080`
 - `gateway:8080`
 - `identity-service:8080`
 

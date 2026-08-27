@@ -1952,8 +1952,9 @@
       }
     ]
   },
-  "internationalizationEnabled": false,
-  "supportedLocales": [],
+  "internationalizationEnabled": true,
+  "supportedLocales": ["vi"],
+  "defaultLocale": "vi",
   "authenticationFlows": [
     {
       "id": "7c06d48d-bf8d-43a2-8468-a427915db4ec",

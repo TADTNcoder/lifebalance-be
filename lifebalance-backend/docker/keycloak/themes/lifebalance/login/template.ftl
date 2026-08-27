@@ -107,63 +107,49 @@
         </#if>
     </#if>
     <div class="auth-shell">
-        <header class="auth-topbar" aria-label="LifeBalance authentication">
-            <a class="auth-brand" href="${appHomeUrl}" aria-label="LifeBalance home">
+        <header class="auth-topbar" aria-label="Xác thực LifeBalance">
+            <a class="auth-brand" href="${appHomeUrl}" aria-label="Trang chủ LifeBalance">
                 <span class="auth-brand-mark" aria-hidden="true">LB</span>
                 <span class="auth-brand-text">LifeBalance</span>
             </a>
 
-            <nav class="auth-nav" aria-label="Authentication links">
-                <a href="${appHomeUrl}">Home</a>
-                <a href="${appHomeUrl}">Help Center</a>
-                <#if realm.internationalizationEnabled && locale.supported?size gt 1>
-                    <label class="auth-locale">
-                        <span class="auth-sr-only">${msg("languages")}</span>
-                        <select
-                            aria-label="${msg("languages")}"
-                            onchange="if (this.value) window.location.href=this.value"
-                        >
-                            <#list locale.supported?sort_by("label") as l>
-                                <option value="${l.url}" ${(l.languageTag == locale.currentLanguageTag)?then('selected','')}>
-                                    ${l.label}
-                                </option>
-                            </#list>
-                        </select>
-                    </label>
-                </#if>
-                <#if realm.registrationAllowed && !registrationDisabled??>
-                    <a class="auth-nav-primary" href="${url.registrationUrl}">${msg("doRegister")}</a>
-                </#if>
+            <nav class="auth-nav" aria-label="Liên kết xác thực">
+                <a href="${appHomeUrl}">Trang chủ</a>
+                <a href="${appHomeUrl}post">Cộng đồng</a>
+                <a href="${appHomeUrl}tasks">Công việc</a>
+                <a href="${appHomeUrl}capital">Nguồn vốn</a>
+                <a href="${appHomeUrl}dashboard">Tổng quan</a>
+                <span class="auth-nav-session" aria-label="Đăng ký hoặc đăng nhập">
+                    <#if realm.registrationAllowed && !registrationDisabled??>
+                        <a class="auth-nav-register" href="${url.registrationUrl}">${msg("doRegister")}</a>
+                        <span class="auth-nav-separator" aria-hidden="true">|</span>
+                    </#if>
+                    <a class="auth-nav-login" href="${url.loginUrl!appHomeUrl}">${msg("doLogIn")}</a>
+                </span>
             </nav>
         </header>
 
         <main class="auth-main">
             <section class="auth-identity" aria-labelledby="auth-identity-title">
+                <div class="auth-orbit" aria-hidden="true">
+                    <span class="auth-orbit-ring auth-orbit-ring--outer"></span>
+                    <span class="auth-orbit-ring auth-orbit-ring--inner"></span>
+                    <span class="auth-orbit-axis auth-orbit-axis--one"></span>
+                    <span class="auth-orbit-axis auth-orbit-axis--two"></span>
+                    <span class="auth-orbit-core"><span class="auth-gem"></span></span>
+                    <span class="auth-orbit-token auth-orbit-token--time">◔</span>
+                    <span class="auth-orbit-token auth-orbit-token--coin">$</span>
+                </div>
                 <div class="auth-identity-content">
-                    <span class="auth-eyebrow">Identity Gateway</span>
-                    <h2 id="auth-identity-title">LifeBalance Identity</h2>
-                    <p>Secure access for your LifeBalance workspace.</p>
-                    <ul class="auth-assurance-list" aria-label="Authentication assurances">
-                        <li>
-                            <span class="auth-check" aria-hidden="true"></span>
-                            <span>OpenID Connect</span>
-                        </li>
-                        <li>
-                            <span class="auth-check" aria-hidden="true"></span>
-                            <span>Role-based access</span>
-                        </li>
-                        <li>
-                            <span class="auth-check" aria-hidden="true"></span>
-                            <span>Session protection</span>
-                        </li>
-                    </ul>
+                    <h2 id="auth-identity-title">Chào mừng trở lại</h2>
+                    <p>Tiếp tục hành trình làm chủ nguồn lực<br class="auth-desktop-break"> và khai phá tối đa tiềm năng<br class="auth-desktop-break"> của chính bạn.</p>
                 </div>
             </section>
 
             <section class="auth-panel" aria-labelledby="kc-page-title">
                 <div class="auth-panel-header">
-                    <span class="auth-eyebrow">LifeBalance</span>
                     <h1 id="kc-page-title"><#nested "header"></h1>
+                    <p class="auth-panel-subtitle">Không chia sẻ mật khẩu tài khoản của bạn với bất kỳ ai.</p>
                     <#if displayRequiredFields>
                         <p class="auth-required">* ${msg("requiredFields")}</p>
                     </#if>
@@ -202,6 +188,18 @@
                     <#nested "form">
                 </div>
 
+                <#if !(social.providers?? && social.providers?has_content)>
+                    <div class="auth-google-fallback" aria-label="Đăng nhập bằng Google">
+                        <div class="auth-social-divider">
+                            <span>Hoặc tiếp tục với</span>
+                        </div>
+                        <span class="auth-google-button" role="button" aria-disabled="true" title="Google Identity Provider chưa được cấu hình">
+                            <span class="auth-google-mark" aria-hidden="true">G</span>
+                            <span>Đăng nhập bằng Google</span>
+                        </span>
+                    </div>
+                </#if>
+
                 <#if auth?has_content && auth.showTryAnotherWayLink()>
                     <form id="kc-select-try-another-way-form" class="auth-try-another" action="${url.loginAction}" method="post" novalidate="novalidate">
                         <input type="hidden" name="tryAnotherWay" value="on"/>
@@ -228,11 +226,11 @@
         </main>
 
         <footer class="auth-footer">
-            <span>Copyright 2026 LifeBalance. All rights reserved.</span>
-            <nav aria-label="Footer links">
-                <a href="${appHomeUrl}">Privacy Policy</a>
-                <a href="${appHomeUrl}">Help Center</a>
-                <a href="${appHomeUrl}">Terms of Service</a>
+            <span>© 2026 LifeBalance. Đã đăng ký mọi quyền.</span>
+            <nav aria-label="Liên kết chân trang">
+                <a href="${appHomeUrl}">Chính sách quyền riêng tư</a>
+                <a href="${appHomeUrl}">Trung tâm trợ giúp</a>
+                <a href="${appHomeUrl}">Điều khoản dịch vụ</a>
             </nav>
         </footer>
     </div>
