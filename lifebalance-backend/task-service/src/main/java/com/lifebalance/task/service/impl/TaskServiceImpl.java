@@ -2,6 +2,7 @@ package com.lifebalance.task.service.impl;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -70,6 +71,8 @@ public class TaskServiceImpl implements TaskService {
                 .userId(ownerId)
                 .name(request.getName())
                 .description(request.getDescription())
+                .note(request.getNote())
+                .currency(request.getCurrency())
                 .priority(request.getPriority())
                 .deadline(request.getDeadline())
                 .plannedStartAt(request.getPlannedStartAt())
@@ -145,9 +148,26 @@ public class TaskServiceImpl implements TaskService {
                     request.getEstimatedMinutes(),
                     request.getEstimatedCost(),
                     category);
+            if (request.getNote() != null) {
+                task.setNote(request.getNote());
+            }
+            if (request.getCurrency() != null) {
+                task.setCurrency(request.getCurrency());
+            }
             task.planWindow(
                     request.getPlannedStartAt(),
                     request.getPlannedEndAt());
+        } else {
+            // Completed/cancelled/archived tasks keep their planning immutable, but
+            // core descriptive fields (name, description and note) remain editable.
+            task.setName(request.getName());
+            task.setDescription(request.getDescription());
+            if (request.getNote() != null) {
+                task.setNote(request.getNote());
+            }
+            if (request.getCurrency() != null) {
+                task.setCurrency(request.getCurrency());
+            }
         }
 
         if (request.getProgress() != null) {
@@ -564,7 +584,10 @@ public class TaskServiceImpl implements TaskService {
                 ownerId,
                 TaskIntegrationAction.TASK_DELETED,
                 null);
-        taskRepository.delete(task);
+        OffsetDateTime deletedAt = OffsetDateTime.now();
+        task.setDeletedAt(deletedAt);
+        task.setUpdatedAt(deletedAt);
+        taskRepository.save(task);
     }
 
     @Override
@@ -589,6 +612,8 @@ public class TaskServiceImpl implements TaskService {
                 .userId(ownerId)
                 .name(copyName)
                 .description(source.getDescription())
+                .note(source.getNote())
+                .currency(source.getCurrency())
                 .priority(source.getPriority())
                 .deadline(source.getDeadline())
                 .estimatedMinutes(source.getEstimatedMinutes())
@@ -782,9 +807,7 @@ public class TaskServiceImpl implements TaskService {
         UUID currentCategoryId = task.getCategory() == null
                 ? null
                 : task.getCategory().getId();
-        return !Objects.equals(task.getName(), request.getName())
-                || !Objects.equals(task.getDescription(), request.getDescription())
-                || !Objects.equals(task.getPriority(), request.getPriority())
+        return !Objects.equals(task.getPriority(), request.getPriority())
                 || !Objects.equals(task.getDeadline(), request.getDeadline())
                 || !Objects.equals(task.getEstimatedMinutes(), request.getEstimatedMinutes())
                 || !Objects.equals(task.getEstimatedCost(), request.getEstimatedCost())
@@ -815,6 +838,8 @@ public class TaskServiceImpl implements TaskService {
                 ? null
                 : task.getCategory().getId();
         return "name=" + task.getName()
+                + ";note=" + task.getNote()
+                + ";currency=" + task.getCurrency()
                 + ";status=" + task.getStatus()
                 + ";priority=" + task.getPriority()
                 + ";deadline=" + task.getDeadline()
@@ -848,6 +873,10 @@ public class TaskServiceImpl implements TaskService {
         response.setName(task.getName());
         response.setDescription(
                 task.getDescription());
+        response.setNote(
+                task.getNote());
+        response.setCurrency(
+                task.getCurrency());
         response.setStatus(task.getStatus());
         response.setPriority(
                 task.getPriority());

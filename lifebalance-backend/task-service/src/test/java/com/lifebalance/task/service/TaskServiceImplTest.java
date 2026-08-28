@@ -79,6 +79,8 @@ class TaskServiceImplTest {
                 .userId(USER_ID)
                 .name("Học Spring Boot")
                 .description("Học để làm đồ án")
+                .note("Ôn lại dependency injection")
+                .currency("USD")
                 .estimatedMinutes(120)
                 .estimatedCost(new BigDecimal("500000"))
                 .status(TaskStatus.DRAFT)
@@ -97,6 +99,8 @@ class TaskServiceImplTest {
         CreateTaskRequest request = new CreateTaskRequest();
         request.setName("Học Spring Boot");
         request.setDescription("Học để làm đồ án");
+        request.setNote("Ôn lại dependency injection");
+        request.setCurrency("USD");
         request.setPriority(PriorityLevel.HIGH);
         request.setDeadline(LocalDate.now().plusDays(3));
         request.setEstimatedMinutes(120);
@@ -118,6 +122,8 @@ class TaskServiceImplTest {
 
         assertNotNull(response);
         assertEquals("Học Spring Boot", response.getName());
+        assertEquals("Ôn lại dependency injection", response.getNote());
+        assertEquals("USD", response.getCurrency());
         assertEquals(USER_ID, response.getOwnerId());
         assertEquals(USER_ID, response.getUserId());
         assertEquals(TaskStatus.DRAFT, response.getStatus());
@@ -144,6 +150,7 @@ class TaskServiceImplTest {
         UpdateTaskRequest request = new UpdateTaskRequest();
         request.setName("Học Spring Boot Nâng Cao");
         request.setDescription("Cập nhật mô tả");
+        request.setNote("Cập nhật ghi chú");
         request.setPriority(PriorityLevel.CRITICAL);
         request.setDeadline(LocalDate.now().plusDays(5));
         request.setProgress(50);
@@ -159,6 +166,7 @@ class TaskServiceImplTest {
 
         assertNotNull(response);
         assertEquals("Học Spring Boot Nâng Cao", response.getName());
+        assertEquals("Cập nhật ghi chú", response.getNote());
         assertEquals(PriorityLevel.CRITICAL, response.getPriority());
         assertEquals(50, response.getProgress());
         assertEquals(TaskStatus.PLANNED, response.getStatus());
@@ -176,6 +184,7 @@ class TaskServiceImplTest {
         assertEquals(TASK_ID, response.getId());
         assertEquals(USER_ID, response.getOwnerId());
         assertEquals("Học Spring Boot", response.getName());
+        assertEquals("Ôn lại dependency injection", response.getNote());
     }
 
     @Test
@@ -205,7 +214,31 @@ class TaskServiceImplTest {
 
         taskService.delete(TASK_ID, USER_ID);
 
-        verify(taskRepository).delete(mockTask);
+        assertNotNull(mockTask.getDeletedAt());
+        assertEquals(mockTask.getDeletedAt(), mockTask.getUpdatedAt());
+        verify(taskRepository).save(mockTask);
+        verify(taskRepository, never()).delete(any(Task.class));
+        verify(taskChangeHistoryService).recordTaskChange(
+                eq(mockTask),
+                eq(USER_ID),
+                eq(TaskHistoryActionType.TASK_DELETED),
+                isNull(),
+                any(),
+                isNull(),
+                isNull());
+    }
+
+    @Test
+    void delete_HidesSoftDeletedTaskFromSubsequentLookup() {
+        when(taskRepository.findByIdAndOwnerId(TASK_ID, USER_ID))
+                .thenReturn(Optional.of(mockTask))
+                .thenReturn(Optional.empty());
+
+        taskService.delete(TASK_ID, USER_ID);
+
+        assertThrows(RuntimeException.class, () -> taskService.getById(TASK_ID, USER_ID));
+        assertNotNull(mockTask.getDeletedAt());
+        verify(taskRepository).save(mockTask);
     }
 
     @Test
@@ -332,6 +365,7 @@ class TaskServiceImplTest {
 
         assertEquals(TaskErrorCode.TASK_DELETE_NOT_ALLOWED, exception.getCode());
         verify(taskChangeHistoryService, never()).recordTaskChange(any(), any(), any(), any(), any(), any(), any());
+        verify(taskRepository, never()).save(any(Task.class));
         verify(taskRepository, never()).delete(any(Task.class));
     }
 

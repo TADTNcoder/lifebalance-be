@@ -6,6 +6,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.List;
 import java.util.UUID;
 
+import com.lifebalance.task.dto.request.CreateTaskRequest;
+import com.lifebalance.task.dto.response.TaskResponse;
+import com.lifebalance.task.model.enums.PriorityLevel;
+import com.lifebalance.task.service.TaskService;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.configuration.FluentConfiguration;
 import org.junit.jupiter.api.Test;
@@ -19,6 +25,7 @@ import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -53,6 +60,12 @@ class TaskFlywayMigrationTest {
     @Autowired
     private ResourceLoader resourceLoader;
 
+    @Autowired
+    private TaskService taskService;
+
+    @PersistenceContext
+    private EntityManager entityManager;
+
     @DynamicPropertySource
     static void postgresProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
@@ -69,6 +82,7 @@ class TaskFlywayMigrationTest {
         assertColumnExists("tags", "slug", "character varying");
         assertColumnExists("tags", "color", "character varying");
         assertColumnExists("tags", "is_system", "boolean");
+        assertColumnExists("tags", "description", "text");
         assertColumnExists("tags", "created_at", "timestamp with time zone");
         assertColumnExists("tags", "updated_at", "timestamp with time zone");
         assertColumnExists("tags", "deleted_at", "timestamp with time zone");
@@ -581,6 +595,52 @@ class TaskFlywayMigrationTest {
                 """, Integer.class);
 
         assertThat(foreignKeyCount).isZero();
+    }
+
+    @Test
+    void flywayAddsTaskNoteForEditRoundTrip() {
+        assertColumnExists("tasks", "note", "character varying");
+        assertColumnExists("tasks", "currency", "character varying");
+    }
+
+    @Test
+    void taskSchemaDoesNotCreateCrossServiceIdentityForeignKeys() {
+        Integer foreignKeyCount = jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                FROM pg_constraint source_constraint
+                JOIN pg_class source_table
+                    ON source_table.oid = source_constraint.conrelid
+                JOIN pg_namespace source_namespace
+                    ON source_namespace.oid = source_table.relnamespace
+                WHERE source_constraint.contype = 'f'
+                  AND source_namespace.nspname = 'task'
+                  AND source_constraint.confrelid = to_regclass('identity.users')
+                """, Integer.class);
+
+        assertThat(foreignKeyCount).isZero();
+    }
+
+    @Test
+    @Transactional
+    void tasksAcceptAuthenticatedOwnerWithoutLocalIdentityReplica() {
+        UUID ownerId = UUID.randomUUID();
+        CreateTaskRequest request = new CreateTaskRequest();
+        request.setName("Owner without local identity " + ownerId);
+        request.setPriority(PriorityLevel.LOW);
+
+        TaskResponse response = taskService.create(ownerId, request);
+        entityManager.flush();
+        Long historyCount = jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                FROM task.task_change_histories
+                WHERE task_id = ?
+                  AND owner_id = ?
+                  AND actor_id = ?
+                """, Long.class, response.getId(), ownerId, ownerId);
+
+        assertThat(response.getId()).isNotNull();
+        assertThat(response.getOwnerId()).isEqualTo(ownerId);
+        assertThat(historyCount).isEqualTo(1L);
     }
 
     // =========================================================================

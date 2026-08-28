@@ -166,7 +166,8 @@ services:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
       GATEWAY_PORT: 8080
       EUREKA_DEFAULT_ZONE: ${EUREKA_DEFAULT_ZONE:-http://discovery-server:8080/eureka}
-      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_PUBLIC_ISSUER_URI:-http://localhost:8080/realms/lifebalance}
+      # JWT issuer validation must match Keycloak's public `iss`; use the internal URL only for JWK retrieval.
+      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_PUBLIC_ISSUER_URI:-http://localhost:${KEYCLOAK_HOST_PORT:-8082}/realms/lifebalance}
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: ${KEYCLOAK_JWK_SET_URI_INTERNAL:-http://keycloak:8080/realms/lifebalance/protocol/openid-connect/certs}
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
     ports:
@@ -196,7 +197,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${IDENTITY_DB}
       SPRING_DATASOURCE_USERNAME: ${IDENTITY_DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${IDENTITY_DB_PASSWORD}
-      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_PUBLIC_ISSUER_URI:-http://localhost:8080/realms/lifebalance}
+      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_PUBLIC_ISSUER_URI:-http://localhost:${KEYCLOAK_HOST_PORT:-8082}/realms/lifebalance}
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: ${KEYCLOAK_JWK_SET_URI_INTERNAL:-http://keycloak:8080/realms/lifebalance/protocol/openid-connect/certs}
       LIFEBALANCE_KEYCLOAK_ROLE_SYNC_ENABLED: ${LIFEBALANCE_KEYCLOAK_ROLE_SYNC_ENABLED:-false}
       LIFEBALANCE_IDENTITY_TOKEN_ROLE_SYNC_ENABLED: ${LIFEBALANCE_IDENTITY_TOKEN_ROLE_SYNC_ENABLED:-false}
@@ -209,9 +210,9 @@ services:
       KEYCLOAK_ADMIN_USERNAME: ${KEYCLOAK_ADMIN}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
       KEYCLOAK_JWK_SET_URI: ${KEYCLOAK_JWK_SET_URI_INTERNAL:-http://keycloak:8080/realms/lifebalance/protocol/openid-connect/certs}
-      KEYCLOAK_ALLOWED_ISSUERS: ${KEYCLOAK_ALLOWED_ISSUERS:-http://localhost:8080/realms/lifebalance,http://localhost:8082/realms/lifebalance,http://keycloak:8080/realms/lifebalance}
+      KEYCLOAK_ALLOWED_ISSUERS: ${KEYCLOAK_ALLOWED_ISSUERS:-http://localhost:${KEYCLOAK_HOST_PORT:-8082}/realms/lifebalance,http://keycloak:8080/realms/lifebalance}
       LIFEBALANCE_SECURITY_KEYCLOAK_JWT_JWK_SET_URI: ${KEYCLOAK_JWK_SET_URI_INTERNAL:-http://keycloak:8080/realms/lifebalance/protocol/openid-connect/certs}
-      LIFEBALANCE_SECURITY_KEYCLOAK_JWT_ALLOWED_ISSUERS: ${KEYCLOAK_ALLOWED_ISSUERS:-http://localhost:8080/realms/lifebalance,http://localhost:8082/realms/lifebalance,http://keycloak:8080/realms/lifebalance}
+      LIFEBALANCE_SECURITY_KEYCLOAK_JWT_ALLOWED_ISSUERS: ${KEYCLOAK_ALLOWED_ISSUERS:-http://localhost:${KEYCLOAK_HOST_PORT:-8082}/realms/lifebalance,http://keycloak:8080/realms/lifebalance}
     expose:
       - "8080"
     volumes:
@@ -240,7 +241,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${TASK_DB}
       SPRING_DATASOURCE_USERNAME: ${TASK_DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${TASK_DB_PASSWORD}
-      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_PUBLIC_ISSUER_URI:-http://localhost:8080/realms/lifebalance}
+      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_PUBLIC_ISSUER_URI:-http://localhost:${KEYCLOAK_HOST_PORT:-8082}/realms/lifebalance}
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: ${KEYCLOAK_JWK_SET_URI_INTERNAL:-http://keycloak:8080/realms/lifebalance/protocol/openid-connect/certs}
       LIFEBALANCE_INTERNAL_SERVICE_SECRET: ${LIFEBALANCE_INTERNAL_SERVICE_SECRET:-}
     expose:
@@ -271,7 +272,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${TIMELINE_DB}
       SPRING_DATASOURCE_USERNAME: ${TIMELINE_DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${TIMELINE_DB_PASSWORD}
-      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_PUBLIC_ISSUER_URI:-http://localhost:8080/realms/lifebalance}
+      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_PUBLIC_ISSUER_URI:-http://localhost:${KEYCLOAK_HOST_PORT:-8082}/realms/lifebalance}
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: ${KEYCLOAK_JWK_SET_URI_INTERNAL:-http://keycloak:8080/realms/lifebalance/protocol/openid-connect/certs}
       LIFEBALANCE_INTERNAL_SERVICE_SECRET: ${LIFEBALANCE_INTERNAL_SERVICE_SECRET:-}
     expose:
@@ -302,7 +303,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${RESOURCE_CAPITAL_DB}
       SPRING_DATASOURCE_USERNAME: ${RESOURCE_CAPITAL_DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${RESOURCE_CAPITAL_DB_PASSWORD}
-      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_PUBLIC_ISSUER_URI:-http://localhost:8080/realms/lifebalance}
+      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_PUBLIC_ISSUER_URI:-http://localhost:${KEYCLOAK_HOST_PORT:-8082}/realms/lifebalance}
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: ${KEYCLOAK_JWK_SET_URI_INTERNAL:-http://keycloak:8080/realms/lifebalance/protocol/openid-connect/certs}
     expose:
       - "8080"
@@ -332,7 +333,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${FINANCE_DB}
       SPRING_DATASOURCE_USERNAME: ${FINANCE_DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${FINANCE_DB_PASSWORD}
-      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_PUBLIC_ISSUER_URI:-http://localhost:8080/realms/lifebalance}
+      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_PUBLIC_ISSUER_URI:-http://localhost:${KEYCLOAK_HOST_PORT:-8082}/realms/lifebalance}
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: ${KEYCLOAK_JWK_SET_URI_INTERNAL:-http://keycloak:8080/realms/lifebalance/protocol/openid-connect/certs}
     expose:
       - "8080"
@@ -362,7 +363,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${NOTIFICATION_DB}
       SPRING_DATASOURCE_USERNAME: ${NOTIFICATION_DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${NOTIFICATION_DB_PASSWORD}
-      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_PUBLIC_ISSUER_URI:-http://localhost:8080/realms/lifebalance}
+      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_PUBLIC_ISSUER_URI:-http://localhost:${KEYCLOAK_HOST_PORT:-8082}/realms/lifebalance}
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: ${KEYCLOAK_JWK_SET_URI_INTERNAL:-http://keycloak:8080/realms/lifebalance/protocol/openid-connect/certs}
       LIFEBALANCE_INTERNAL_SERVICE_SECRET: ${LIFEBALANCE_INTERNAL_SERVICE_SECRET:-}
     expose:
@@ -393,7 +394,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${ANALYTICS_DB}
       SPRING_DATASOURCE_USERNAME: ${ANALYTICS_DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${ANALYTICS_DB_PASSWORD}
-      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_PUBLIC_ISSUER_URI:-http://localhost:8080/realms/lifebalance}
+      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_PUBLIC_ISSUER_URI:-http://localhost:${KEYCLOAK_HOST_PORT:-8082}/realms/lifebalance}
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: ${KEYCLOAK_JWK_SET_URI_INTERNAL:-http://keycloak:8080/realms/lifebalance/protocol/openid-connect/certs}
     expose:
       - "8080"
@@ -423,7 +424,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${AI_DB}
       SPRING_DATASOURCE_USERNAME: ${AI_DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${AI_DB_PASSWORD}
-      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_PUBLIC_ISSUER_URI:-http://localhost:8080/realms/lifebalance}
+      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_PUBLIC_ISSUER_URI:-http://localhost:${KEYCLOAK_HOST_PORT:-8082}/realms/lifebalance}
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: ${KEYCLOAK_JWK_SET_URI_INTERNAL:-http://keycloak:8080/realms/lifebalance/protocol/openid-connect/certs}
     expose:
       - "8080"

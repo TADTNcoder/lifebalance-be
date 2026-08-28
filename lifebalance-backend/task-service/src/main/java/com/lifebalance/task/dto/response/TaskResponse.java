@@ -24,6 +24,10 @@ public class TaskResponse {
 
     private String description;
 
+    private String note;
+
+    private String currency;
+
     private TaskStatus status;
 
     private PriorityLevel priority;
