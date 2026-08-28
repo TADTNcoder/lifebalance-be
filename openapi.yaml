@@ -2455,6 +2455,16 @@ components:
           type: string
           nullable: true
           example: Review capacity and scope for Sprint 3.
+        note:
+          type: string
+          nullable: true
+          maxLength: 2000
+          example: Bring the latest capacity report.
+        currency:
+          type: string
+          nullable: true
+          maxLength: 3
+          example: VND
         priority:
           type: string
           nullable: true
@@ -2494,6 +2504,16 @@ components:
           type: string
           nullable: true
           example: Finalize scope and update task estimates.
+        note:
+          type: string
+          nullable: true
+          maxLength: 2000
+          example: Bring the latest capacity report.
+        currency:
+          type: string
+          nullable: true
+          maxLength: 3
+          example: VND
         priority:
           type: string
           nullable: true
@@ -2558,6 +2578,16 @@ components:
           type: string
           nullable: true
           example: Review capacity and scope for Sprint 3.
+        note:
+          type: string
+          nullable: true
+          maxLength: 2000
+          example: Bring the latest capacity report.
+        currency:
+          type: string
+          nullable: true
+          maxLength: 3
+          example: VND
         status:
           $ref: '#/components/schemas/TaskStatus'
         priority:
