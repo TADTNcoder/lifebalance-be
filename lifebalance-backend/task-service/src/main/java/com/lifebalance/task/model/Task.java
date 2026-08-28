@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.math.BigDecimal;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -54,6 +55,8 @@ public class Task extends BaseAuditableEntity {
 
     private static final int NAME_MAX_LENGTH = 255;
     private static final int DESCRIPTION_MAX_LENGTH = 2000;
+    private static final int NOTE_MAX_LENGTH = 2000;
+    private static final int CURRENCY_MAX_LENGTH = 3;
     private static final BigDecimal ZERO_COST = BigDecimal.ZERO;
 
     @Id
@@ -76,6 +79,14 @@ public class Task extends BaseAuditableEntity {
     @Size(max = DESCRIPTION_MAX_LENGTH)
     @Column(length = DESCRIPTION_MAX_LENGTH)
     private String description;
+
+    @Size(max = NOTE_MAX_LENGTH)
+    @Column(length = NOTE_MAX_LENGTH)
+    private String note;
+
+    @Size(max = CURRENCY_MAX_LENGTH)
+    @Column(length = CURRENCY_MAX_LENGTH)
+    private String currency;
 
     @NotNull
     @Enumerated(EnumType.STRING)
@@ -153,6 +164,15 @@ public class Task extends BaseAuditableEntity {
         }
         if (description != null) {
             description = normalizeOptionalText(description);
+        }
+        if (note != null) {
+            note = normalizeOptionalText(note);
+        }
+        if (currency != null) {
+            currency = normalizeOptionalText(currency);
+            if (currency != null) {
+                currency = currency.toUpperCase(Locale.ROOT);
+            }
         }
         if (status == null) {
             status = TaskStatus.DRAFT;
@@ -398,6 +418,15 @@ public class Task extends BaseAuditableEntity {
 
     public void setDescription(String description) {
         this.description = optionalText(description, "description", DESCRIPTION_MAX_LENGTH);
+    }
+
+    public void setNote(String note) {
+        this.note = optionalText(note, "note", NOTE_MAX_LENGTH);
+    }
+
+    public void setCurrency(String currency) {
+        String normalized = optionalText(currency, "currency", CURRENCY_MAX_LENGTH);
+        this.currency = normalized == null ? null : normalized.toUpperCase(Locale.ROOT);
     }
 
     public void setProgress(Integer progress) {

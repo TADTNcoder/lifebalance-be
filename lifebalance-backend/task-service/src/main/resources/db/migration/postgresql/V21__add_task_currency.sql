@@ -1,0 +1,2 @@
+ALTER TABLE task.tasks
+    ADD COLUMN IF NOT EXISTS currency VARCHAR(3);

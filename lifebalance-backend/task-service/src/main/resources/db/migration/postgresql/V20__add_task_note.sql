@@ -1,0 +1,2 @@
+ALTER TABLE task.tasks
+    ADD COLUMN IF NOT EXISTS note VARCHAR(2000);

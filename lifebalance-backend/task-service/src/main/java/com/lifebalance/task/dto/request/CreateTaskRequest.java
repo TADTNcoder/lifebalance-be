@@ -27,6 +27,12 @@ public class CreateTaskRequest implements PlanningWindowRequest {
     @Size(max = 2000)
     private String description;
 
+    @Size(max = 2000)
+    private String note;
+
+    @Size(max = 3)
+    private String currency;
+
     private PriorityLevel priority;
 
     private LocalDate deadline;
