@@ -27,6 +27,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -133,9 +135,10 @@ public class CapitalCycleController {
     public ResponseEntity<CapitalCycleResponse> create(
             @Valid @RequestBody CreateCapitalCycleRequest request,
             @RequestAttribute(value = CURRENT_USER_ATTRIBUTE, required = false)
-            KeycloakUserPrincipal currentUser
+            KeycloakUserPrincipal currentUser,
+            @AuthenticationPrincipal Jwt jwt
     ) {
-        UUID ownerId = resolveOwnerId(currentUser);
+        UUID ownerId = resolveOwnerId(currentUser, jwt);
         CapitalCycleResponse response = capitalCycleService.createCycle(ownerId, request);
         URI location = URI.create("/api/v1/capital-cycles/" + response.getId());
 
@@ -285,9 +288,35 @@ public class CapitalCycleController {
     }
 
     private UUID resolveOwnerId(KeycloakUserPrincipal currentUser) {
-        if (currentUser == null || currentUser.userId() == null) {
-            throw new AuthenticationCredentialsNotFoundException("Authenticated internal user id is required.");
+        return resolveOwnerId(currentUser, null);
+    }
+
+    private UUID resolveOwnerId(KeycloakUserPrincipal currentUser, Jwt jwt) {
+        if (currentUser != null && currentUser.userId() != null) {
+            return currentUser.userId();
         }
-        return currentUser.userId();
+
+        UUID claimUserId = parseUuid(jwt == null ? null : jwt.getClaimAsString("lifebalance_user_id"));
+        if (claimUserId != null) {
+            return claimUserId;
+        }
+
+        UUID subjectUserId = parseUuid(jwt == null ? null : jwt.getSubject());
+        if (subjectUserId != null) {
+            return subjectUserId;
+        }
+
+        throw new AuthenticationCredentialsNotFoundException("Authenticated internal user id is required.");
+    }
+
+    private UUID parseUuid(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(value.trim());
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
     }
 }
