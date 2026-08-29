@@ -43,6 +43,7 @@ class CapitalCyclePostgresConstraintTest {
 
     private static final UUID OWNER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private static final UUID OTHER_OWNER_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
+    private static final String DEFAULT_CURRENCY_CODE = "VND";
 
     @Container
     private static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16.4-alpine")
@@ -283,10 +284,10 @@ class CapitalCyclePostgresConstraintTest {
 
         assertThatThrownBy(() -> jdbcTemplate.update("""
                         INSERT INTO resourcecapital.money_capitals (
-                            id, capital_cycle_id, planned_amount, currency_code, currency, created_at, updated_at, version
+                            id, capital_cycle_id, planned_amount, currency_code, created_at, updated_at, version
                         )
-                        VALUES (gen_random_uuid(), ?, -0.0001, 'VND', 'VND', now(), now(), 0)
-                        """, cycleId))
+                        VALUES (gen_random_uuid(), ?, -0.0001, ?, now(), now(), 0)
+                        """, cycleId, DEFAULT_CURRENCY_CODE))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("chk_money_capitals_planned_amount");
     }
