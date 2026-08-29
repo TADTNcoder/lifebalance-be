@@ -9,6 +9,8 @@ public class CategoryResponse {
 
     private UUID id;
 
+    private UUID ownerId;
+
     private String name;
 
     private String slug;
@@ -20,6 +22,8 @@ public class CategoryResponse {
     private String icon;
 
     private Boolean isSystem;
+
+    private Boolean canModify;
 
     private OffsetDateTime createdAt;
 

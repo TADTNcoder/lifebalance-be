@@ -28,8 +28,8 @@ public interface CapitalCycleRepository extends JpaRepository<CapitalCycle, UUID
             where cycle.ownerId = :ownerId
               and (:type is null or cycle.type = :type)
               and (:status is null or cycle.status = :status)
-              and (:fromDate is null or cycle.endDate >= :fromDate)
-              and (:toDate is null or cycle.startDate <= :toDate)
+              and cycle.endDate >= coalesce(:fromDate, cycle.endDate)
+              and cycle.startDate <= coalesce(:toDate, cycle.startDate)
             """)
     Page<CapitalCycle> searchOwnedCycles(
             @Param("ownerId") UUID ownerId,

@@ -8,13 +8,13 @@ import com.lifebalance.task.dto.request.UpdateCategoryRequest;
 import com.lifebalance.task.dto.response.CategoryResponse;
 
 public interface CategoryService {
-    CategoryResponse create(CreateCategoryRequest request);
+    CategoryResponse create(UUID ownerId, CreateCategoryRequest request);
 
-    List<CategoryResponse> getAll();
+    List<CategoryResponse> getAll(UUID ownerId);
 
-    CategoryResponse getById(UUID id);
+    CategoryResponse getById(UUID ownerId, UUID id);
 
-    CategoryResponse update(UUID id, UpdateCategoryRequest request);
+    CategoryResponse update(UUID ownerId, UUID id, UpdateCategoryRequest request);
 
-    void delete(UUID id);
+    void delete(UUID ownerId, UUID id);
 }

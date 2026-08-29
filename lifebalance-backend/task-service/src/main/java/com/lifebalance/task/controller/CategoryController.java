@@ -4,11 +4,9 @@ import static com.lifebalance.security.keycloak.KeycloakUserMappingFilter.CURREN
 
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
-import java.util.Locale;
-import java.util.Set;
 import java.util.UUID;
 
-import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 
 import com.lifebalance.security.keycloak.KeycloakUserPrincipal;
 import com.lifebalance.task.dto.request.CreateCategoryRequest;
@@ -23,8 +21,6 @@ import lombok.RequiredArgsConstructor;
 @RequestMapping("/api/categories")
 @RequiredArgsConstructor
 public class CategoryController {
-    private static final Set<String> CATEGORY_MANAGER_ROLES = Set.of("admin", "manager");
-
     private final CategoryService categoryService;
 
     @PostMapping
@@ -32,22 +28,22 @@ public class CategoryController {
             @Valid @RequestBody CreateCategoryRequest request,
             @RequestAttribute(value = CURRENT_USER_ATTRIBUTE, required = false)
             KeycloakUserPrincipal currentUser) {
-        requireCategoryManager(currentUser);
-
-        return categoryService.create(request);
+        return categoryService.create(resolveOwnerId(currentUser), request);
     }
 
     @GetMapping
-    public List<CategoryResponse> getAll() {
-
-        return categoryService.getAll();
+    public List<CategoryResponse> getAll(
+            @RequestAttribute(value = CURRENT_USER_ATTRIBUTE, required = false)
+            KeycloakUserPrincipal currentUser) {
+        return categoryService.getAll(resolveOwnerId(currentUser));
     }
 
     @GetMapping("/{id}")
     public CategoryResponse getById(
-            @PathVariable UUID id) {
-
-        return categoryService.getById(id);
+            @PathVariable UUID id,
+            @RequestAttribute(value = CURRENT_USER_ATTRIBUTE, required = false)
+            KeycloakUserPrincipal currentUser) {
+        return categoryService.getById(resolveOwnerId(currentUser), id);
     }
 
     @PutMapping("/{id}")
@@ -56,9 +52,7 @@ public class CategoryController {
             @Valid @RequestBody UpdateCategoryRequest request,
             @RequestAttribute(value = CURRENT_USER_ATTRIBUTE, required = false)
             KeycloakUserPrincipal currentUser) {
-        requireCategoryManager(currentUser);
-
-        return categoryService.update(id, request);
+        return categoryService.update(resolveOwnerId(currentUser), id, request);
     }
 
     @DeleteMapping("/{id}")
@@ -66,31 +60,14 @@ public class CategoryController {
             @PathVariable UUID id,
             @RequestAttribute(value = CURRENT_USER_ATTRIBUTE, required = false)
             KeycloakUserPrincipal currentUser) {
-        requireCategoryManager(currentUser);
-
-        categoryService.delete(id);
+        categoryService.delete(resolveOwnerId(currentUser), id);
     }
 
-    private static void requireCategoryManager(KeycloakUserPrincipal currentUser) {
+    private static UUID resolveOwnerId(KeycloakUserPrincipal currentUser) {
         if (currentUser == null || currentUser.userId() == null) {
-            throw new AccessDeniedException("Category management permission is required.");
+            throw new AuthenticationCredentialsNotFoundException(
+                    "Authenticated internal user id is required.");
         }
-        boolean allowed = currentUser.roles().stream()
-                .map(CategoryController::normalizeRole)
-                .anyMatch(CATEGORY_MANAGER_ROLES::contains);
-        if (!allowed) {
-            throw new AccessDeniedException("Category management permission is required.");
-        }
-    }
-
-    private static String normalizeRole(String role) {
-        if (role == null) {
-            return "";
-        }
-        String normalized = role.trim().toLowerCase(Locale.ROOT);
-        if (normalized.startsWith("role_") || normalized.startsWith("role-")) {
-            return normalized.substring(5);
-        }
-        return normalized;
+        return currentUser.userId();
     }
 }

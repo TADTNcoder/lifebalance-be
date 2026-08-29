@@ -3,6 +3,7 @@ package com.lifebalance.task.service.impl;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,12 +15,16 @@ import com.lifebalance.task.error.TaskExceptions;
 import com.lifebalance.task.model.Tag;
 import com.lifebalance.task.repository.TagRepository;
 import com.lifebalance.task.service.TagService;
+import com.lifebalance.task.util.SlugGenerator;
 
 import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
 public class TagServiceImpl implements TagService {
+
+    private static final Pattern LEADING_HASHES = Pattern.compile("^#+\\s*");
+    private static final Pattern WHITESPACE = Pattern.compile("\\s+");
 
     private final TagRepository tagRepository;
 
@@ -28,13 +33,18 @@ public class TagServiceImpl implements TagService {
     public TagResponse create(UUID userId, CreateTagRequest request) {
         Objects.requireNonNull(userId, "User id is required");
 
-        if (tagRepository.existsByUserIdAndName(userId, request.getName())) {
+        String normalizedName = normalizeName(request.getName());
+        String slug = SlugGenerator.from(normalizedName);
+
+        if (tagRepository.existsByUserIdAndName(userId, normalizedName)
+                || tagRepository.existsByUserIdAndSlug(userId, slug)) {
             throw TaskExceptions.tagNameAlreadyExists();
         }
 
         Tag tag = Tag.builder()
                 .userId(userId)
-                .name(request.getName())
+                .name(normalizedName)
+                .slug(slug)
                 .description(request.getDescription())
                 .build();
 
@@ -69,15 +79,22 @@ public class TagServiceImpl implements TagService {
         Objects.requireNonNull(userId, "User id is required");
 
         Tag tag = getTagOrThrow(userId, id);
+        String normalizedName = normalizeName(request.getName());
+        String slug = SlugGenerator.from(normalizedName);
 
-        tagRepository.findByUserIdAndName(userId, request.getName())
-                .ifPresent(existing -> {
-                    if (!existing.getId().equals(id)) {
-                        throw TaskExceptions.tagNameAlreadyExists();
-                    }
-                });
+        boolean nameBelongsToAnotherTag = tagRepository.findByUserIdAndName(userId, normalizedName)
+                .filter(existing -> !existing.getId().equals(id))
+                .isPresent();
+        boolean slugBelongsToAnotherTag = tagRepository.findByUserIdAndSlug(userId, slug)
+                .filter(existing -> !existing.getId().equals(id))
+                .isPresent();
 
-        tag.setName(request.getName());
+        if (nameBelongsToAnotherTag || slugBelongsToAnotherTag) {
+            throw TaskExceptions.tagNameAlreadyExists();
+        }
+
+        tag.setName(normalizedName);
+        tag.setSlug(slug);
         tag.setDescription(request.getDescription());
 
         return mapToResponse(tagRepository.save(tag));
@@ -97,6 +114,12 @@ public class TagServiceImpl implements TagService {
 
         return tagRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(TaskExceptions::tagNotFound);
+    }
+
+    private String normalizeName(String name) {
+        String normalized = name == null ? "" : name.trim();
+        normalized = LEADING_HASHES.matcher(normalized).replaceFirst("");
+        return WHITESPACE.matcher(normalized.trim()).replaceAll(" ");
     }
 
     private TagResponse mapToResponse(Tag tag) {

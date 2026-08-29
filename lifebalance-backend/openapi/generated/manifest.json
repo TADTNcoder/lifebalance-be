@@ -1,0 +1,42 @@
+[
+  {
+    "service": "identity-service",
+    "paths": 106,
+    "file": "identity-service.json"
+  },
+  {
+    "service": "task-service",
+    "paths": 34,
+    "file": "task-service.json"
+  },
+  {
+    "service": "timeline-service",
+    "paths": 14,
+    "file": "timeline-service.json"
+  },
+  {
+    "service": "resource-capital-service",
+    "paths": 22,
+    "file": "resource-capital-service.json"
+  },
+  {
+    "service": "finance-service",
+    "paths": 21,
+    "file": "finance-service.json"
+  },
+  {
+    "service": "notification-service",
+    "paths": 18,
+    "file": "notification-service.json"
+  },
+  {
+    "service": "analytics-service",
+    "paths": 18,
+    "file": "analytics-service.json"
+  },
+  {
+    "service": "ai-service",
+    "paths": 15,
+    "file": "ai-service.json"
+  }
+]

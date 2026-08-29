@@ -1,6 +1,7 @@
 package com.lifebalance.task.service.impl;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -26,19 +27,22 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     @Transactional
-    public CategoryResponse create(CreateCategoryRequest request) {
+    public CategoryResponse create(UUID ownerId, CreateCategoryRequest request) {
+        Objects.requireNonNull(ownerId, "Owner id is required");
+        String name = request.getName().trim();
 
-        if (categoryRepository.existsByName(request.getName())) {
+        if (categoryRepository.existsVisibleName(ownerId, name)) {
             throw TaskExceptions.categoryNameAlreadyExists();
         }
 
-        String slug = resolveSlug(request.getSlug(), request.getName());
-        if (categoryRepository.existsBySlug(slug)) {
+        String slug = resolveSlug(request.getSlug(), name);
+        if (categoryRepository.existsVisibleSlug(ownerId, slug)) {
             throw TaskExceptions.categorySlugAlreadyExists();
         }
 
         Category category = Category.builder()
-                .name(request.getName())
+                .ownerId(ownerId)
+                .name(name)
                 .slug(slug)
                 .description(request.getDescription())
                 .color(request.getColor())
@@ -47,50 +51,49 @@ public class CategoryServiceImpl implements CategoryService {
 
         category = categoryRepository.save(category);
 
-        return mapToResponse(category);
+        return mapToResponse(category, ownerId);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<CategoryResponse> getAll() {
-        return categoryRepository.findAll()
+    public List<CategoryResponse> getAll(UUID ownerId) {
+        Objects.requireNonNull(ownerId, "Owner id is required");
+
+        return categoryRepository.findVisibleByOwnerId(ownerId)
                 .stream()
-                .map(this::mapToResponse)
+                .map(category -> mapToResponse(category, ownerId))
                 .toList();
     }
 
     @Override
     @Transactional(readOnly = true)
-    public CategoryResponse getById(UUID id) {
+    public CategoryResponse getById(UUID ownerId, UUID id) {
+        Objects.requireNonNull(ownerId, "Owner id is required");
 
-        return mapToResponse(getCategoryOrThrow(id));
+        return mapToResponse(getVisibleCategoryOrThrow(ownerId, id), ownerId);
     }
 
     @Override
     @Transactional
     public CategoryResponse update(
+            UUID ownerId,
             UUID id,
             UpdateCategoryRequest request) {
+        Objects.requireNonNull(ownerId, "Owner id is required");
 
-        Category category = getCategoryOrThrow(id);
-        rejectSystemCategoryMutation(category);
+        Category category = getCategoryForMutation(ownerId, id);
+        String name = request.getName().trim();
 
-        categoryRepository.findByName(request.getName())
-                .ifPresent(existing -> {
-                    if (!existing.getId().equals(id)) {
-                        throw TaskExceptions.categoryNameAlreadyExists();
-                    }
-                });
+        if (categoryRepository.existsVisibleNameExcludingId(ownerId, name, id)) {
+            throw TaskExceptions.categoryNameAlreadyExists();
+        }
 
         String slug = resolveSlug(request.getSlug(), category.getSlug());
-        categoryRepository.findBySlug(slug)
-                .ifPresent(existing -> {
-                    if (!existing.getId().equals(id)) {
-                        throw TaskExceptions.categorySlugAlreadyExists();
-                    }
-                });
+        if (categoryRepository.existsVisibleSlugExcludingId(ownerId, slug, id)) {
+            throw TaskExceptions.categorySlugAlreadyExists();
+        }
 
-        category.setName(request.getName());
+        category.setName(name);
         category.setSlug(slug);
         category.setDescription(request.getDescription());
         category.setColor(request.getColor());
@@ -98,15 +101,15 @@ public class CategoryServiceImpl implements CategoryService {
 
         category = categoryRepository.save(category);
 
-        return mapToResponse(category);
+        return mapToResponse(category, ownerId);
     }
 
     @Override
     @Transactional
-    public void delete(UUID id) {
+    public void delete(UUID ownerId, UUID id) {
+        Objects.requireNonNull(ownerId, "Owner id is required");
 
-        Category category = getCategoryOrThrow(id);
-        rejectSystemCategoryMutation(category);
+        Category category = getCategoryForMutation(ownerId, id);
 
         categoryRepository.delete(category);
     }
@@ -117,22 +120,39 @@ public class CategoryServiceImpl implements CategoryService {
         }
     }
 
-    private Category getCategoryOrThrow(UUID id) {
-        return categoryRepository.findById(id)
+    private Category getVisibleCategoryOrThrow(UUID ownerId, UUID id) {
+        return categoryRepository.findVisibleByIdAndOwnerId(id, ownerId)
                 .orElseThrow(TaskExceptions::categoryNotFound);
     }
 
-    private CategoryResponse mapToResponse(Category category) {
+    private Category getCategoryForMutation(UUID ownerId, UUID id) {
+        Category category = categoryRepository.findById(id)
+                .orElseThrow(TaskExceptions::categoryNotFound);
+        rejectSystemCategoryMutation(category);
+        if (category.getOwnerId() == null) {
+            throw new AccessDeniedException("Only categories created by the current user can be modified.");
+        }
+        if (!ownerId.equals(category.getOwnerId())) {
+            throw TaskExceptions.categoryNotFound();
+        }
+        return category;
+    }
+
+    private CategoryResponse mapToResponse(Category category, UUID ownerId) {
 
         CategoryResponse response = new CategoryResponse();
 
         response.setId(category.getId());
+        response.setOwnerId(category.getOwnerId());
         response.setName(category.getName());
         response.setSlug(category.getSlug());
         response.setDescription(category.getDescription());
         response.setColor(category.getColor());
         response.setIcon(category.getIcon());
         response.setIsSystem(category.getIsSystem());
+        response.setCanModify(
+                !Boolean.TRUE.equals(category.getIsSystem())
+                        && ownerId.equals(category.getOwnerId()));
         response.setCreatedAt(category.getCreatedAt());
         response.setUpdatedAt(category.getUpdatedAt());
 

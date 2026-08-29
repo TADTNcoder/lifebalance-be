@@ -3,6 +3,7 @@ package com.lifebalance.task.dto.response;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.math.BigDecimal;
+import java.util.Set;
 import java.util.UUID;
 
 import com.lifebalance.task.model.enums.PriorityLevel;
@@ -57,6 +58,8 @@ public class TaskResponse {
     private UUID categoryId;
 
     private String categoryName;
+
+    private Set<UUID> tagIds;
 
     private UUID createdBy;
 

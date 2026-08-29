@@ -8,6 +8,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -53,6 +55,9 @@ class CapitalCyclePostgresConstraintTest {
 
     @Autowired
     private DataSource dataSource;
+
+    @Autowired
+    private CapitalCycleRepository capitalCycleRepository;
 
     @DynamicPropertySource
     static void postgresProperties(DynamicPropertyRegistry registry) {
@@ -147,6 +152,67 @@ class CapitalCyclePostgresConstraintTest {
         insertCycle(OWNER_ID, "MONTHLY", LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31), "DRAFT");
 
         assertThat(countCycles()).isEqualTo(3);
+    }
+
+    @Test
+    void searchesOwnedCyclesWhenOptionalDateFiltersAreMissing() {
+        UUID augustCycleId = insertCycle(
+                OWNER_ID,
+                "DAILY",
+                LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 8, 1),
+                "DRAFT"
+        );
+        UUID septemberCycleId = insertCycle(
+                OWNER_ID,
+                "DAILY",
+                LocalDate.of(2026, 9, 1),
+                LocalDate.of(2026, 9, 1),
+                "DRAFT"
+        );
+        insertCycle(
+                OTHER_OWNER_ID,
+                "DAILY",
+                LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 8, 1),
+                "DRAFT"
+        );
+        PageRequest pageable = PageRequest.of(0, 20, Sort.by("startDate").ascending());
+
+        var unfiltered = capitalCycleRepository.searchOwnedCycles(
+                OWNER_ID,
+                null,
+                null,
+                null,
+                null,
+                pageable
+        );
+        var fromSeptember = capitalCycleRepository.searchOwnedCycles(
+                OWNER_ID,
+                null,
+                null,
+                LocalDate.of(2026, 9, 1),
+                null,
+                pageable
+        );
+        var throughAugust = capitalCycleRepository.searchOwnedCycles(
+                OWNER_ID,
+                null,
+                null,
+                null,
+                LocalDate.of(2026, 8, 31),
+                pageable
+        );
+
+        assertThat(unfiltered.getContent())
+                .extracting(cycle -> cycle.getId())
+                .containsExactly(augustCycleId, septemberCycleId);
+        assertThat(fromSeptember.getContent())
+                .extracting(cycle -> cycle.getId())
+                .containsExactly(septemberCycleId);
+        assertThat(throughAugust.getContent())
+                .extracting(cycle -> cycle.getId())
+                .containsExactly(augustCycleId);
     }
 
     @ParameterizedTest

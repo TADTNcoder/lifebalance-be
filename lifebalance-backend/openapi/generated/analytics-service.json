@@ -1,0 +1,2546 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "OpenAPI definition",
+    "version": "v0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Generated server url"
+    }
+  ],
+  "paths": {
+    "/api/analytics/tracking-evaluation/compare-periods": {
+      "post": {
+        "tags": [
+          "tracking-evaluation-controller"
+        ],
+        "operationId": "comparePeriods",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComparePeriodsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePeriodComparisonResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analytics/reports": {
+      "get": {
+        "tags": [
+          "analytics-report-controller"
+        ],
+        "operationId": "search",
+        "parameters": [
+          {
+            "name": "reportType",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "SUMMARY",
+                "TASK",
+                "CATEGORY",
+                "TAG",
+                "PERIOD",
+                "EFFICIENCY",
+                "VARIANCE"
+              ]
+            }
+          },
+          {
+            "name": "dimension",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "TASK",
+                "CATEGORY",
+                "TAG",
+                "PERIOD"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "GENERATED",
+                "ARCHIVED"
+              ]
+            }
+          },
+          {
+            "name": "periodStart",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "periodEnd",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "pageable",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Pageable"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePageResponseAnalyticsReportResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "analytics-report-controller"
+        ],
+        "operationId": "generate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateReportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAnalyticsReportResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analytics/evaluations": {
+      "get": {
+        "tags": [
+          "evaluation-controller"
+        ],
+        "operationId": "search_1",
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "capitalCycleId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ON_TRACK",
+                "UNDER_PLANNED",
+                "OVER_PLANNED",
+                "NO_PLAN",
+                "ARCHIVED"
+              ]
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "pageable",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Pageable"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePageResponseEvaluationResultResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "evaluation-controller"
+        ],
+        "operationId": "evaluateTask",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvaluateTaskRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseEvaluationResultResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analytics/actual-records": {
+      "get": {
+        "tags": [
+          "actual-record-controller"
+        ],
+        "operationId": "search_2",
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "capitalCycleId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "categoryId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "recordType",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "TIME",
+                "MONEY",
+                "TIME_AND_MONEY"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ACTIVE",
+                "ARCHIVED"
+              ]
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "pageable",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Pageable"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePageResponseActualRecordResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "actual-record-controller"
+        ],
+        "operationId": "record",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordActualRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseActualRecordResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analytics/reports/{reportId}/archive": {
+      "patch": {
+        "tags": [
+          "analytics-report-controller"
+        ],
+        "operationId": "archive",
+        "parameters": [
+          {
+            "name": "reportId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAnalyticsReportResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analytics/evaluations/{evaluationId}/archive": {
+      "patch": {
+        "tags": [
+          "evaluation-controller"
+        ],
+        "operationId": "archive_1",
+        "parameters": [
+          {
+            "name": "evaluationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseEvaluationResultResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analytics/actual-records/{actualRecordId}": {
+      "get": {
+        "tags": [
+          "actual-record-controller"
+        ],
+        "operationId": "getById",
+        "parameters": [
+          {
+            "name": "actualRecordId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseActualRecordResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "actual-record-controller"
+        ],
+        "operationId": "update",
+        "parameters": [
+          {
+            "name": "actualRecordId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateActualRecordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseActualRecordResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analytics/actual-records/{actualRecordId}/archive": {
+      "patch": {
+        "tags": [
+          "actual-record-controller"
+        ],
+        "operationId": "archive_2",
+        "parameters": [
+          {
+            "name": "actualRecordId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseActualRecordResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analytics/tracking-evaluation/trends": {
+      "get": {
+        "tags": [
+          "tracking-evaluation-controller"
+        ],
+        "operationId": "trend",
+        "parameters": [
+          {
+            "name": "periodStart",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "periodEnd",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "granularity",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "DAILY",
+                "WEEKLY",
+                "MONTHLY",
+                "YEARLY"
+              ]
+            }
+          },
+          {
+            "name": "currencyCode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListEvaluationTrendPointResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analytics/tracking-evaluation/summary": {
+      "get": {
+        "tags": [
+          "tracking-evaluation-controller"
+        ],
+        "operationId": "summary",
+        "parameters": [
+          {
+            "name": "periodStart",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "periodEnd",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "currencyCode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTrackingEvaluationSummaryResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analytics/tracking-evaluation/resource-utilization": {
+      "get": {
+        "tags": [
+          "tracking-evaluation-controller"
+        ],
+        "operationId": "resourceUtilization",
+        "parameters": [
+          {
+            "name": "periodStart",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "periodEnd",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "currencyCode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListResourceUtilizationResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analytics/tracking-evaluation/planned-vs-actual": {
+      "get": {
+        "tags": [
+          "tracking-evaluation-controller"
+        ],
+        "operationId": "plannedVsActual",
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "capitalCycleId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ON_TRACK",
+                "UNDER_PLANNED",
+                "OVER_PLANNED",
+                "NO_PLAN",
+                "ARCHIVED"
+              ]
+            }
+          },
+          {
+            "name": "periodStart",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "periodEnd",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "pageable",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Pageable"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePageResponsePlannedActualDetailResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analytics/status": {
+      "get": {
+        "tags": [
+          "analytics-status-controller"
+        ],
+        "operationId": "status",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseModuleStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analytics/reports/{reportId}": {
+      "get": {
+        "tags": [
+          "analytics-report-controller"
+        ],
+        "operationId": "getById_1",
+        "parameters": [
+          {
+            "name": "reportId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAnalyticsReportResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analytics/reports/{reportId}/export": {
+      "get": {
+        "tags": [
+          "analytics-report-controller"
+        ],
+        "operationId": "export",
+        "parameters": [
+          {
+            "name": "reportId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string",
+                  "format": "byte"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analytics/history": {
+      "get": {
+        "tags": [
+          "analytics-history-controller"
+        ],
+        "operationId": "search_3",
+        "parameters": [
+          {
+            "name": "actionType",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ACTUAL_RECORDED",
+                "ACTUAL_UPDATED",
+                "ACTUAL_ARCHIVED",
+                "EVALUATION_GENERATED",
+                "EVALUATION_REGENERATED",
+                "EVALUATION_ARCHIVED",
+                "REPORT_GENERATED",
+                "REPORT_ARCHIVED",
+                "REPORT_EXPORTED"
+              ]
+            }
+          },
+          {
+            "name": "actualRecordId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "evaluationResultId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "reportId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "pageable",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Pageable"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePageResponseAnalyticsHistoryResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analytics/evaluations/{evaluationId}": {
+      "get": {
+        "tags": [
+          "evaluation-controller"
+        ],
+        "operationId": "getById_2",
+        "parameters": [
+          {
+            "name": "evaluationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseEvaluationResultResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analytics/dashboard": {
+      "get": {
+        "tags": [
+          "analytics-report-controller"
+        ],
+        "operationId": "dashboard",
+        "parameters": [
+          {
+            "name": "periodStart",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "periodEnd",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "currencyCode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAnalyticsDashboardResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ComparePeriodsRequest": {
+        "type": "object",
+        "properties": {
+          "baselineStart": {
+            "type": "string",
+            "format": "date"
+          },
+          "baselineEnd": {
+            "type": "string",
+            "format": "date"
+          },
+          "comparisonStart": {
+            "type": "string",
+            "format": "date"
+          },
+          "comparisonEnd": {
+            "type": "string",
+            "format": "date"
+          },
+          "currencyCode": {
+            "type": "string",
+            "maxLength": 3,
+            "minLength": 3
+          }
+        },
+        "required": [
+          "baselineEnd",
+          "baselineStart",
+          "comparisonEnd",
+          "comparisonStart"
+        ]
+      },
+      "ApiError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ApiResponsePeriodComparisonResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PeriodComparisonResponse"
+          },
+          "error": {
+            "$ref": "#/components/schemas/ApiError"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "EvaluationDeltaResponse": {
+        "type": "object",
+        "properties": {
+          "evaluatedTaskCountDelta": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "actualRecordCountDelta": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "plannedMinutesDelta": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "actualMinutesDelta": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "minuteVarianceDelta": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "plannedCostDelta": {
+            "type": "number"
+          },
+          "actualCostDelta": {
+            "type": "number"
+          },
+          "costVarianceDelta": {
+            "type": "number"
+          },
+          "averageEfficiencyPercentDelta": {
+            "type": "number"
+          },
+          "planningAccuracyPercentDelta": {
+            "type": "number"
+          },
+          "productivityScoreDelta": {
+            "type": "number"
+          }
+        }
+      },
+      "PeriodComparisonResponse": {
+        "type": "object",
+        "properties": {
+          "ownerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "baseline": {
+            "$ref": "#/components/schemas/TrackingEvaluationSummaryResponse"
+          },
+          "comparison": {
+            "$ref": "#/components/schemas/TrackingEvaluationSummaryResponse"
+          },
+          "delta": {
+            "$ref": "#/components/schemas/EvaluationDeltaResponse"
+          }
+        }
+      },
+      "TrackingEvaluationSummaryResponse": {
+        "type": "object",
+        "properties": {
+          "ownerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "periodStart": {
+            "type": "string",
+            "format": "date"
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date"
+          },
+          "currencyCode": {
+            "type": "string"
+          },
+          "evaluatedTaskCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "comparableEvaluationCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "actualRecordCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "onTrackCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "underPlannedCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "overPlannedCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "noPlanCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "plannedMinutes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "actualMinutes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "minuteVariance": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "plannedCost": {
+            "type": "number"
+          },
+          "actualCost": {
+            "type": "number"
+          },
+          "costVariance": {
+            "type": "number"
+          },
+          "timeEfficiencyPercent": {
+            "type": "number"
+          },
+          "costEfficiencyPercent": {
+            "type": "number"
+          },
+          "overallEfficiencyPercent": {
+            "type": "number"
+          },
+          "planningAccuracyPercent": {
+            "type": "number"
+          },
+          "productivityScore": {
+            "type": "number"
+          },
+          "dataCompletenessPercent": {
+            "type": "number"
+          }
+        }
+      },
+      "GenerateReportRequest": {
+        "type": "object",
+        "properties": {
+          "reportType": {
+            "type": "string",
+            "enum": [
+              "SUMMARY",
+              "TASK",
+              "CATEGORY",
+              "TAG",
+              "PERIOD",
+              "EFFICIENCY",
+              "VARIANCE"
+            ]
+          },
+          "dimension": {
+            "type": "string",
+            "enum": [
+              "TASK",
+              "CATEGORY",
+              "TAG",
+              "PERIOD"
+            ]
+          },
+          "periodStart": {
+            "type": "string",
+            "format": "date"
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date"
+          },
+          "currencyCode": {
+            "type": "string",
+            "maxLength": 3,
+            "minLength": 3
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 0
+          }
+        },
+        "required": [
+          "dimension",
+          "periodEnd",
+          "periodStart",
+          "reportType"
+        ]
+      },
+      "AnalyticsReportResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ownerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reportType": {
+            "type": "string",
+            "enum": [
+              "SUMMARY",
+              "TASK",
+              "CATEGORY",
+              "TAG",
+              "PERIOD",
+              "EFFICIENCY",
+              "VARIANCE"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "GENERATED",
+              "ARCHIVED"
+            ]
+          },
+          "dimension": {
+            "type": "string",
+            "enum": [
+              "TASK",
+              "CATEGORY",
+              "TAG",
+              "PERIOD"
+            ]
+          },
+          "periodStart": {
+            "type": "string",
+            "format": "date"
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date"
+          },
+          "taskCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "actualRecordCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalActualMinutes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalActualCost": {
+            "type": "number"
+          },
+          "currencyCode": {
+            "type": "string"
+          },
+          "averageEfficiencyPercent": {
+            "type": "number"
+          },
+          "varianceSummary": {
+            "type": "string"
+          },
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "archivedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "updatedBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ApiResponseAnalyticsReportResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AnalyticsReportResponse"
+          },
+          "error": {
+            "$ref": "#/components/schemas/ApiError"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "EvaluateTaskRequest": {
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "capitalCycleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "periodStart": {
+            "type": "string",
+            "format": "date"
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date"
+          },
+          "plannedMinutes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "actualMinutes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "plannedCost": {
+            "type": "number",
+            "minimum": 0.0
+          },
+          "actualCost": {
+            "type": "number",
+            "minimum": 0.0
+          },
+          "currencyCode": {
+            "type": "string",
+            "maxLength": 3,
+            "minLength": 3
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 0
+          }
+        },
+        "required": [
+          "taskId"
+        ]
+      },
+      "ApiResponseEvaluationResultResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/EvaluationResultResponse"
+          },
+          "error": {
+            "$ref": "#/components/schemas/ApiError"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "EvaluationResultResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ownerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "taskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "capitalCycleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "periodStart": {
+            "type": "string",
+            "format": "date"
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date"
+          },
+          "plannedMinutes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "actualMinutes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "minuteVariance": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "plannedCost": {
+            "type": "number"
+          },
+          "actualCost": {
+            "type": "number"
+          },
+          "costVariance": {
+            "type": "number"
+          },
+          "currencyCode": {
+            "type": "string"
+          },
+          "efficiencyPercent": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ON_TRACK",
+              "UNDER_PLANNED",
+              "OVER_PLANNED",
+              "NO_PLAN",
+              "ARCHIVED"
+            ]
+          },
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "archivedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "updatedBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "RecordActualRequest": {
+        "type": "object",
+        "properties": {
+          "recordType": {
+            "type": "string",
+            "enum": [
+              "TIME",
+              "MONEY",
+              "TIME_AND_MONEY"
+            ]
+          },
+          "taskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "capitalCycleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tagIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "uniqueItems": true
+          },
+          "actualMinutes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "actualCost": {
+            "type": "number",
+            "minimum": 0.0
+          },
+          "currencyCode": {
+            "type": "string",
+            "maxLength": 3,
+            "minLength": 3
+          },
+          "actualDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 0
+          },
+          "source": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 0
+          }
+        },
+        "required": [
+          "actualDate",
+          "recordType",
+          "taskId"
+        ]
+      },
+      "ActualRecordResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ownerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "taskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "capitalCycleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tagIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "uniqueItems": true
+          },
+          "recordType": {
+            "type": "string",
+            "enum": [
+              "TIME",
+              "MONEY",
+              "TIME_AND_MONEY"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "ARCHIVED"
+            ]
+          },
+          "actualMinutes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "actualCost": {
+            "type": "number"
+          },
+          "currencyCode": {
+            "type": "string"
+          },
+          "actualDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "note": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "archivedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "updatedBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ApiResponseActualRecordResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ActualRecordResponse"
+          },
+          "error": {
+            "$ref": "#/components/schemas/ApiError"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ReasonRequest": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 0
+          }
+        }
+      },
+      "UpdateActualRecordRequest": {
+        "type": "object",
+        "properties": {
+          "recordType": {
+            "type": "string",
+            "enum": [
+              "TIME",
+              "MONEY",
+              "TIME_AND_MONEY"
+            ]
+          },
+          "taskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "capitalCycleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tagIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "uniqueItems": true
+          },
+          "actualMinutes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "actualCost": {
+            "type": "number",
+            "minimum": 0.0
+          },
+          "currencyCode": {
+            "type": "string",
+            "maxLength": 3,
+            "minLength": 3
+          },
+          "actualDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 0
+          },
+          "source": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 0
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 0
+          }
+        }
+      },
+      "ApiResponseListEvaluationTrendPointResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvaluationTrendPointResponse"
+            }
+          },
+          "error": {
+            "$ref": "#/components/schemas/ApiError"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "EvaluationTrendPointResponse": {
+        "type": "object",
+        "properties": {
+          "periodStart": {
+            "type": "string",
+            "format": "date"
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date"
+          },
+          "evaluatedTaskCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "actualRecordCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "plannedMinutes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "actualMinutes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "minuteVariance": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "plannedCost": {
+            "type": "number"
+          },
+          "actualCost": {
+            "type": "number"
+          },
+          "costVariance": {
+            "type": "number"
+          },
+          "averageEfficiencyPercent": {
+            "type": "number"
+          },
+          "planningAccuracyPercent": {
+            "type": "number"
+          },
+          "productivityScore": {
+            "type": "number"
+          }
+        }
+      },
+      "ApiResponseTrackingEvaluationSummaryResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TrackingEvaluationSummaryResponse"
+          },
+          "error": {
+            "$ref": "#/components/schemas/ApiError"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ApiResponseListResourceUtilizationResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ResourceUtilizationResponse"
+            }
+          },
+          "error": {
+            "$ref": "#/components/schemas/ApiError"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ResourceUtilizationResponse": {
+        "type": "object",
+        "properties": {
+          "resourceType": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "plannedAmount": {
+            "type": "number"
+          },
+          "actualAmount": {
+            "type": "number"
+          },
+          "varianceAmount": {
+            "type": "number"
+          },
+          "efficiencyPercent": {
+            "type": "number"
+          },
+          "planningAccuracyPercent": {
+            "type": "number"
+          },
+          "measuredTaskCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "missingPlanCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "missingActualCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "aggregateStatus": {
+            "type": "string",
+            "enum": [
+              "ON_TRACK",
+              "UNDER_PLANNED",
+              "OVER_PLANNED",
+              "NO_PLAN",
+              "ARCHIVED"
+            ]
+          }
+        }
+      },
+      "Pageable": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "size": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1
+          },
+          "sort": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ApiResponsePageResponsePlannedActualDetailResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PageResponsePlannedActualDetailResponse"
+          },
+          "error": {
+            "$ref": "#/components/schemas/ApiError"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PageResponsePlannedActualDetailResponse": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlannedActualDetailResponse"
+            }
+          },
+          "pageNumber": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalElements": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "last": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PlannedActualDetailResponse": {
+        "type": "object",
+        "properties": {
+          "evaluationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "taskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "capitalCycleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "periodStart": {
+            "type": "string",
+            "format": "date"
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date"
+          },
+          "plannedMinutes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "actualMinutes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "minuteVariance": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "plannedCost": {
+            "type": "number"
+          },
+          "actualCost": {
+            "type": "number"
+          },
+          "costVariance": {
+            "type": "number"
+          },
+          "currencyCode": {
+            "type": "string"
+          },
+          "efficiencyPercent": {
+            "type": "number"
+          },
+          "planningAccuracyPercent": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ON_TRACK",
+              "UNDER_PLANNED",
+              "OVER_PLANNED",
+              "NO_PLAN",
+              "ARCHIVED"
+            ]
+          },
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ApiResponseModuleStatusResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ModuleStatusResponse"
+          },
+          "error": {
+            "$ref": "#/components/schemas/ApiError"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ModuleStatusResponse": {
+        "type": "object",
+        "properties": {
+          "module": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "ApiResponsePageResponseAnalyticsReportResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PageResponseAnalyticsReportResponse"
+          },
+          "error": {
+            "$ref": "#/components/schemas/ApiError"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PageResponseAnalyticsReportResponse": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsReportResponse"
+            }
+          },
+          "pageNumber": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalElements": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "last": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AnalyticsHistoryResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ownerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actionType": {
+            "type": "string",
+            "enum": [
+              "ACTUAL_RECORDED",
+              "ACTUAL_UPDATED",
+              "ACTUAL_ARCHIVED",
+              "EVALUATION_GENERATED",
+              "EVALUATION_REGENERATED",
+              "EVALUATION_ARCHIVED",
+              "REPORT_GENERATED",
+              "REPORT_ARCHIVED",
+              "REPORT_EXPORTED"
+            ]
+          },
+          "actualRecordId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "evaluationResultId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reportId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "oldValue": {
+            "type": "string"
+          },
+          "newValue": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ApiResponsePageResponseAnalyticsHistoryResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PageResponseAnalyticsHistoryResponse"
+          },
+          "error": {
+            "$ref": "#/components/schemas/ApiError"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PageResponseAnalyticsHistoryResponse": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsHistoryResponse"
+            }
+          },
+          "pageNumber": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalElements": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "last": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ApiResponsePageResponseEvaluationResultResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PageResponseEvaluationResultResponse"
+          },
+          "error": {
+            "$ref": "#/components/schemas/ApiError"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PageResponseEvaluationResultResponse": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvaluationResultResponse"
+            }
+          },
+          "pageNumber": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalElements": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "last": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AnalyticsDashboardResponse": {
+        "type": "object",
+        "properties": {
+          "ownerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "periodStart": {
+            "type": "string",
+            "format": "date"
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date"
+          },
+          "actualRecordCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "evaluatedTaskCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalActualMinutes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalActualCost": {
+            "type": "number"
+          },
+          "currencyCode": {
+            "type": "string"
+          },
+          "averageEfficiencyPercent": {
+            "type": "number"
+          },
+          "overPlannedCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "underPlannedCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "onTrackCount": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ApiResponseAnalyticsDashboardResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AnalyticsDashboardResponse"
+          },
+          "error": {
+            "$ref": "#/components/schemas/ApiError"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ApiResponsePageResponseActualRecordResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PageResponseActualRecordResponse"
+          },
+          "error": {
+            "$ref": "#/components/schemas/ApiError"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PageResponseActualRecordResponse": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ActualRecordResponse"
+            }
+          },
+          "pageNumber": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalElements": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "last": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  }
+}

@@ -8,6 +8,7 @@ The platform is defined by:
 - `compose.override.yaml`: local debug ports for internal services.
 - `compose.dev.yaml`: optional local tools enabled without profiles.
 - `compose.prod.yaml`: production-oriented baseline with fewer exposed ports.
+- `compose.staging.yaml`: production-profile staging overlay with gateway/Keycloak access and runtime OpenAPI export enabled.
 - `.env.example`: committed environment contract.
 - `.env`: local machine values, ignored by Git.
 
@@ -47,6 +48,21 @@ Or use the helper:
 
 ```powershell
 .\scripts\docker-up.ps1 -WithTools
+```
+
+Validate the production and staging models without starting containers:
+
+```powershell
+docker compose --env-file .env.example -f compose.yaml -f compose.prod.yaml config --quiet
+docker compose --env-file .env.example -f compose.yaml -f compose.prod.yaml -f compose.staging.yaml --profile monitoring config --quiet
+```
+
+Start a production-like staging stack with monitoring:
+
+```powershell
+Copy-Item .env.example .env.staging
+# Replace every placeholder secret and configure the public Keycloak issuer first.
+docker compose --env-file .env.staging -f compose.yaml -f compose.prod.yaml -f compose.staging.yaml --profile monitoring up -d --build
 ```
 
 Tail logs:
@@ -133,6 +149,28 @@ Spring Boot services use Actuator:
 ```
 
 Compose dependency order uses `depends_on.condition: service_healthy` for infrastructure and Spring services.
+
+## OpenAPI release contract
+
+All eight business services include springdoc and infer a complete runtime contract from their controllers. Production keeps `/v3/api-docs` disabled; the staging overlay enables JSON docs without exposing Swagger UI.
+
+Check the static readiness policy:
+
+```powershell
+.\scripts\check-openapi-readiness.ps1
+```
+
+Export and validate every staging contract:
+
+```powershell
+.\scripts\export-openapi.ps1 -EnvFile .env.staging
+```
+
+The export fails if a service is unavailable or returns an OpenAPI document without paths.
+
+## Immutable release images
+
+`IMAGE_REGISTRY` controls the image namespace and `APP_VERSION` controls the immutable tag. Defaults preserve local image names. GitHub release workflows publish to `ghcr.io/<owner>/lifebalance/<service>:<version>`; deploy that registry prefix and the same version across the stack.
 
 ## Optional Profiles
 

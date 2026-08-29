@@ -5,7 +5,9 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -60,6 +62,7 @@ public class TaskServiceImpl implements TaskService {
                 null);
 
         Category category = resolveCategory(
+                ownerId,
                 request.getCategoryId());
 
         validateOptionalPlanningWindow(
@@ -134,6 +137,7 @@ public class TaskServiceImpl implements TaskService {
                 id);
 
         Category category = resolveCategory(
+                ownerId,
                 request.getCategoryId());
 
         if (!isPlanningLocked(oldStatus)) {
@@ -252,7 +256,7 @@ public class TaskServiceImpl implements TaskService {
                 : request.getEstimatedCost();
         Category category = request.getCategoryId() == null
                 ? task.getCategory()
-                : resolveCategory(request.getCategoryId());
+                : resolveCategory(ownerId, request.getCategoryId());
 
         task.updateDetails(
                 task.getName(),
@@ -789,6 +793,7 @@ public class TaskServiceImpl implements TaskService {
     }
 
     private Category resolveCategory(
+            UUID ownerId,
             UUID categoryId) {
 
         if (categoryId == null) {
@@ -796,7 +801,7 @@ public class TaskServiceImpl implements TaskService {
         }
 
         return categoryRepository
-                .findById(categoryId)
+                .findVisibleByIdAndOwnerId(categoryId, ownerId)
                 .orElseThrow(TaskExceptions::categoryNotFound);
     }
 
@@ -911,6 +916,12 @@ public class TaskServiceImpl implements TaskService {
             response.setCategoryName(
                     task.getCategory().getName());
         }
+
+        Set<UUID> tagIds = task.getTaskTags().stream()
+                .map(taskTag -> taskTag.getId() == null ? null : taskTag.getId().getTagId())
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        response.setTagIds(tagIds);
 
         response.setCreatedBy(
                 task.getCreatedBy());

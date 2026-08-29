@@ -72,7 +72,6 @@ public class InternalUserServiceImpl implements InternalUserService {
 
         if (optionalUser.isPresent()) {
             User user = requireActive(optionalUser.get());
-            user = syncIdentityClaims(user, currentUser);
             if (tokenRoleSyncEnabled) {
                 syncRolesFromToken(user, currentUser.getRoles());
             }
@@ -92,10 +91,6 @@ public class InternalUserServiceImpl implements InternalUserService {
         }
 
         User user = new User();
-        UUID keycloakUuid = parseUuid(keycloakId);
-        if (keycloakUuid != null) {
-            user.setId(keycloakUuid);
-        }
         user.setKeycloakId(keycloakId);
         user.setUsername(username);
         user.setEmail(email);
@@ -179,30 +174,6 @@ public class InternalUserServiceImpl implements InternalUserService {
         }
 
         return user;
-    }
-
-    private User syncIdentityClaims(User user, CurrentUser currentUser) {
-        boolean changed = false;
-
-        String email = normalizeEmail(currentUser.getEmail());
-        if (!Objects.equals(user.getEmail(), email)) {
-            if (userRepository.existsByEmailAndIdNot(email, user.getId())) {
-                throw new UserEmailAlreadyExistsException(email);
-            }
-            user.setEmail(email);
-            changed = true;
-        }
-
-        String username = normalizeUsername(currentUser.getUsername());
-        if (!Objects.equals(user.getUsername(), username)) {
-            if (username != null && userRepository.existsByUsernameAndIdNot(username, user.getId())) {
-                throw new UserUsernameAlreadyExistsException(username);
-            }
-            user.setUsername(username);
-            changed = true;
-        }
-
-        return changed ? userRepository.save(user) : user;
     }
 
     private void syncRolesFromToken(User user, Collection<String> tokenRoles) {
@@ -336,14 +307,6 @@ public class InternalUserServiceImpl implements InternalUserService {
 
         String normalized = value.trim();
         return normalized.isEmpty() ? null : normalized;
-    }
-
-    private static UUID parseUuid(String value) {
-        try {
-            return value == null ? null : UUID.fromString(value);
-        } catch (IllegalArgumentException exception) {
-            return null;
-        }
     }
 
 }

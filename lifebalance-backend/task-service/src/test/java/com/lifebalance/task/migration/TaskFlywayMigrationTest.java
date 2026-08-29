@@ -324,14 +324,42 @@ class TaskFlywayMigrationTest {
     @Test
     void flywayExtendsCategoriesTableForDefaultCategoryMetadata() {
         assertTableExists("categories");
+        assertColumnExists("categories", "owner_id", "uuid");
         assertColumnExists("categories", "slug", "character varying");
         assertColumnExists("categories", "color", "character varying");
         assertColumnExists("categories", "icon", "character varying");
         assertColumnExists("categories", "is_system", "boolean");
         assertColumnIsNotNullable("categories", "slug");
         assertColumnIsNotNullable("categories", "is_system");
-        assertIndexExists("uq_categories_slug_active");
-        assertIndexPredicate("uq_categories_slug_active", "(deleted_at IS NULL)");
+        assertIndexDoesNotExist("uq_categories_slug_active");
+        assertIndexExists("uq_categories_owner_name_active");
+        assertIndexExists("uq_categories_owner_slug_active");
+        assertIndexExists("idx_categories_visible_owner_name");
+        assertIndexPredicate("uq_categories_owner_name_active", "(owner_id IS NOT NULL)");
+        assertIndexPredicate("uq_categories_owner_name_active", "(deleted_at IS NULL)");
+        assertIndexPredicate("uq_categories_owner_slug_active", "(owner_id IS NOT NULL)");
+        assertIndexPredicate("uq_categories_owner_slug_active", "(deleted_at IS NULL)");
+    }
+
+    @Test
+    void categoryNamesAndSlugsAreUniquePerOwnerInsteadOfGlobally() {
+        UUID firstOwnerId = UUID.randomUUID();
+        UUID secondOwnerId = UUID.randomUUID();
+
+        jdbcTemplate.update("""
+                INSERT INTO task.categories (owner_id, name, slug, is_system)
+                VALUES (?, 'Dự án', 'du-an', false)
+                """, firstOwnerId);
+        jdbcTemplate.update("""
+                INSERT INTO task.categories (owner_id, name, slug, is_system)
+                VALUES (?, 'Dự án', 'du-an', false)
+                """, secondOwnerId);
+
+        assertThatThrownBy(() -> jdbcTemplate.update("""
+                INSERT INTO task.categories (owner_id, name, slug, is_system)
+                VALUES (?, '  DỰ ÁN  ', 'DU-AN', false)
+                """, firstOwnerId))
+                .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test

@@ -132,7 +132,7 @@ services:
 
   discovery-server:
     <<: *spring-service
-    image: lifebalance/discovery-server:${APP_VERSION:-dev}
+    image: ${IMAGE_REGISTRY:-lifebalance}/discovery-server:${APP_VERSION:-dev}
     container_name: lifebalance-discovery-server
     build:
       context: .
@@ -155,7 +155,7 @@ services:
 
   gateway:
     <<: *spring-service
-    image: lifebalance/gateway:${APP_VERSION:-dev}
+    image: ${IMAGE_REGISTRY:-lifebalance}/gateway:${APP_VERSION:-dev}
     container_name: lifebalance-gateway
     build:
       context: .
@@ -183,7 +183,7 @@ services:
 
   identity-service:
     <<: *spring-service
-    image: lifebalance/identity-service:${APP_VERSION:-dev}
+    image: ${IMAGE_REGISTRY:-lifebalance}/identity-service:${APP_VERSION:-dev}
     container_name: lifebalance-identity-service
     build:
       context: .
@@ -227,7 +227,7 @@ services:
 
   task-service:
     <<: *spring-service
-    image: lifebalance/task-service:${APP_VERSION:-dev}
+    image: ${IMAGE_REGISTRY:-lifebalance}/task-service:${APP_VERSION:-dev}
     container_name: lifebalance-task-service
     build:
       context: .
@@ -258,7 +258,7 @@ services:
 
   timeline-service:
     <<: *spring-service
-    image: lifebalance/timeline-service:${APP_VERSION:-dev}
+    image: ${IMAGE_REGISTRY:-lifebalance}/timeline-service:${APP_VERSION:-dev}
     container_name: lifebalance-timeline-service
     build:
       context: .
@@ -289,7 +289,7 @@ services:
 
   resource-capital-service:
     <<: *spring-service
-    image: lifebalance/resource-capital-service:${APP_VERSION:-dev}
+    image: ${IMAGE_REGISTRY:-lifebalance}/resource-capital-service:${APP_VERSION:-dev}
     container_name: lifebalance-resource-capital-service
     build:
       context: .
@@ -319,7 +319,7 @@ services:
 
   finance-service:
     <<: *spring-service
-    image: lifebalance/finance-service:${APP_VERSION:-dev}
+    image: ${IMAGE_REGISTRY:-lifebalance}/finance-service:${APP_VERSION:-dev}
     container_name: lifebalance-finance-service
     build:
       context: .
@@ -349,7 +349,7 @@ services:
 
   notification-service:
     <<: *spring-service
-    image: lifebalance/notification-service:${APP_VERSION:-dev}
+    image: ${IMAGE_REGISTRY:-lifebalance}/notification-service:${APP_VERSION:-dev}
     container_name: lifebalance-notification-service
     build:
       context: .
@@ -380,7 +380,7 @@ services:
 
   analytics-service:
     <<: *spring-service
-    image: lifebalance/analytics-service:${APP_VERSION:-dev}
+    image: ${IMAGE_REGISTRY:-lifebalance}/analytics-service:${APP_VERSION:-dev}
     container_name: lifebalance-analytics-service
     build:
       context: .
@@ -410,7 +410,7 @@ services:
 
   ai-service:
     <<: *spring-service
-    image: lifebalance/ai-service:${APP_VERSION:-dev}
+    image: ${IMAGE_REGISTRY:-lifebalance}/ai-service:${APP_VERSION:-dev}
     container_name: lifebalance-ai-service
     build:
       context: .

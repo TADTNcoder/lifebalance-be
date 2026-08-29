@@ -7,6 +7,11 @@ lifebalance:
       base-url: ${NOTIFICATION_SERVICE_BASE_URL}
 
 spring:
+  flyway:
+    # Development-only repeatable seed scripts may already exist in a database
+    # promoted from dev/local. They are intentionally not part of production
+    # locations, so missing repeatables must not block a production start.
+    ignore-migration-patterns: repeatable:missing
   security:
     oauth2:
       resourceserver:
