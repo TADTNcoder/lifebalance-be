@@ -6,6 +6,8 @@ public enum AuditAction {
 
     LOGOUT,
 
+    CHANGE_PASSWORD,
+
     CREATE_ROLE,
 
     UPDATE_ROLE,

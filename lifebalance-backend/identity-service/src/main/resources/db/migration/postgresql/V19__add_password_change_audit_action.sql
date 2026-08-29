@@ -1,0 +1,39 @@
+ALTER TABLE identity.audit_logs
+    DROP CONSTRAINT IF EXISTS chk_identity_audit_logs_action;
+
+ALTER TABLE identity.audit_logs
+    ADD CONSTRAINT chk_identity_audit_logs_action
+        CHECK (action IN (
+            'LOGIN',
+            'LOGOUT',
+            'CHANGE_PASSWORD',
+            'CREATE_ROLE',
+            'UPDATE_ROLE',
+            'DELETE_ROLE',
+            'ASSIGN_PERMISSION',
+            'ASSIGN_ROLE_PERMISSIONS',
+            'REVOKE_PERMISSION',
+            'CREATE_PERMISSION',
+            'UPDATE_PERMISSION',
+            'DELETE_PERMISSION',
+            'UPDATE_USER',
+            'ACTIVATE_USER',
+            'DISABLE_USER',
+            'LOCK_USER',
+            'UNLOCK_USER',
+            'DELETE_USER',
+            'ASSIGN_ROLE',
+            'REVOKE_ROLE',
+            'CREATE_USER',
+            'REMOVE_ROLE',
+            'REMOVE_PERMISSION',
+            'CREATE_SUPPORT_TICKET',
+            'UPDATE_SUPPORT_TICKET',
+            'ASSIGN_SUPPORT_TICKET',
+            'RESOLVE_SUPPORT_TICKET',
+            'CLOSE_SUPPORT_TICKET',
+            'REOPEN_SUPPORT_TICKET',
+            'UPDATE_CONFIGURATION',
+            'BROADCAST_ANNOUNCEMENT',
+            'UPDATE_MAINTENANCE_STATUS'
+        ));

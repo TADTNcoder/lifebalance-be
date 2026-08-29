@@ -69,13 +69,14 @@ public class KeycloakRoleSyncConfig {
     }
 
     @Bean
-    @ConditionalOnBean(Keycloak.class)
+    @ConditionalOnBean(name = "roleSyncKeycloakClient")
     @ConditionalOnProperty(
             prefix = "lifebalance.keycloak.session-revocation",
             name = "enabled",
             havingValue = "true"
     )
     UserSessionRevocationService keycloakUserSessionRevocationService(
+            @org.springframework.beans.factory.annotation.Qualifier("roleSyncKeycloakClient")
             Keycloak roleSyncKeycloakClient,
             KeycloakRoleSyncProperties properties
     ) {
