@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
-ARG MAVEN_IMAGE=maven:3.9.9-eclipse-temurin-21
-ARG RUNTIME_IMAGE=eclipse-temurin:21-jre-alpine
+ARG MAVEN_IMAGE=maven:3.9.9-eclipse-temurin-25
+ARG RUNTIME_IMAGE=eclipse-temurin:25-jre-alpine
 ARG MODULE_NAME
 
 FROM ${MAVEN_IMAGE} AS dependencies
