@@ -130,6 +130,14 @@ public class CapitalCycleServiceImpl implements CapitalCycleService {
         Objects.requireNonNull(ownerId, "Owner id is required.");
         Objects.requireNonNull(pageable, "Pageable is required.");
 
+        // The overview/list request commonly sends no optional filters. Avoid the
+        // nullable-parameter JPQL query in that case because PostgreSQL may reject
+        // untyped NULL bind parameters ("could not determine data type of parameter").
+        if (type == null && status == null && fromDate == null && toDate == null) {
+            return capitalCycleRepository.findByOwnerId(ownerId, pageable)
+                    .map(capitalCycleMapper::toResponse);
+        }
+
         return capitalCycleRepository.searchOwnedCycles(ownerId, type, status, fromDate, toDate, pageable)
                 .map(capitalCycleMapper::toResponse);
     }

@@ -20,6 +20,8 @@ public interface CapitalCycleRepository extends JpaRepository<CapitalCycle, UUID
 
     Optional<CapitalCycle> findByIdAndOwnerId(UUID id, UUID ownerId);
 
+    Page<CapitalCycle> findByOwnerId(UUID ownerId, Pageable pageable);
+
     @Query("""
             select cycle
             from CapitalCycle cycle
@@ -88,6 +90,26 @@ public interface CapitalCycleRepository extends JpaRepository<CapitalCycle, UUID
             @Param("type") CapitalCycleType type
     );
 
+    /**
+     * Checks overlap without sending a nullable UUID parameter to PostgreSQL.
+     *
+     * Hibernate/PostgreSQL can fail to infer the SQL type of a parameter used in
+     * an expression such as "? is null". Create always has no excluded cycle,
+     * so dispatch to a query that does not bind an excluded id at all.
+     */
+    default boolean existsOverlappingCycle(
+            UUID ownerId,
+            CapitalCycleType type,
+            LocalDate startDate,
+            LocalDate endDate,
+            UUID excludedCycleId
+    ) {
+        if (excludedCycleId == null) {
+            return existsOverlappingCycleForCreate(ownerId, type, startDate, endDate);
+        }
+        return existsOverlappingCycleForUpdate(ownerId, type, startDate, endDate, excludedCycleId);
+    }
+
     @Query("""
             select case when count(cycle) > 0 then true else false end
             from CapitalCycle cycle
@@ -95,12 +117,24 @@ public interface CapitalCycleRepository extends JpaRepository<CapitalCycle, UUID
               and cycle.type = :type
               and cycle.startDate <= :endDate
               and cycle.endDate >= :startDate
-              and (
-                  :excludedCycleId is null
-                  or cycle.id <> :excludedCycleId
-              )
             """)
-    boolean existsOverlappingCycle(
+    boolean existsOverlappingCycleForCreate(
+            @Param("ownerId") UUID ownerId,
+            @Param("type") CapitalCycleType type,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate
+    );
+
+    @Query("""
+            select case when count(cycle) > 0 then true else false end
+            from CapitalCycle cycle
+            where cycle.ownerId = :ownerId
+              and cycle.type = :type
+              and cycle.startDate <= :endDate
+              and cycle.endDate >= :startDate
+              and cycle.id <> :excludedCycleId
+            """)
+    boolean existsOverlappingCycleForUpdate(
             @Param("ownerId") UUID ownerId,
             @Param("type") CapitalCycleType type,
             @Param("startDate") LocalDate startDate,
