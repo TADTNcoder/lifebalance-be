@@ -91,6 +91,11 @@ class IdentityFlywayMigrationTest {
         assertCheckConstraintExists("chk_identity_audit_logs_action");
         assertCheckConstraintExists("chk_identity_audit_logs_status");
 
+        jdbcTemplate.update("""
+                INSERT INTO identity.audit_logs (entity_name, action, status)
+                VALUES ('AUTHENTICATION', 'CHANGE_PASSWORD', 'SUCCESS')
+                """);
+
         assertThatThrownBy(() -> jdbcTemplate.update("""
                 INSERT INTO identity.audit_logs (entity_name, action, status)
                 VALUES ('INVALID_ENTITY', 'LOGIN', 'SUCCESS')

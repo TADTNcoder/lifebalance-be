@@ -60,6 +60,20 @@ lifebalance:
       client-id: ${KEYCLOAK_CLIENT_ID:lifebalance-api}
 
   keycloak:
+    password-change:
+      enabled: ${LIFEBALANCE_KEYCLOAK_PASSWORD_CHANGE_ENABLED:false}
+      server-url: ${KEYCLOAK_SERVER_URL:http://localhost:8082}
+      realm: ${KEYCLOAK_REALM:lifebalance}
+      verifier-client-id: ${KEYCLOAK_PASSWORD_VERIFIER_CLIENT_ID:lifebalance-password-verifier}
+      verifier-client-secret: ${KEYCLOAK_PASSWORD_VERIFIER_CLIENT_SECRET:}
+      admin-auth-realm: ${KEYCLOAK_PASSWORD_ADMIN_AUTH_REALM:lifebalance}
+      admin-client-id: ${KEYCLOAK_PASSWORD_ADMIN_CLIENT_ID:lifebalance-password-admin}
+      admin-client-secret: ${KEYCLOAK_PASSWORD_ADMIN_CLIENT_SECRET:}
+      maximum-attempts: ${LIFEBALANCE_PASSWORD_CHANGE_MAXIMUM_ATTEMPTS:5}
+      attempt-window: ${LIFEBALANCE_PASSWORD_CHANGE_ATTEMPT_WINDOW:15m}
+      minimum-length: 12
+      maximum-length: 128
+
     role-sync:
       enabled: ${LIFEBALANCE_KEYCLOAK_ROLE_SYNC_ENABLED:false}
       server-url: ${KEYCLOAK_SERVER_URL:http://localhost:8082}

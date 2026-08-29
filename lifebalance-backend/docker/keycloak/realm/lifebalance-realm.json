@@ -1047,6 +1047,70 @@
       "optionalClientScopes": [
         "offline_access"
       ]
+    },
+    {
+      "id": "d4630f7b-ea7d-4a36-8f1b-c6c6f4749df1",
+      "clientId": "lifebalance-password-verifier",
+      "name": "LifeBalance Password Verifier",
+      "description": "Confidential backend-only client used to verify the current user password.",
+      "enabled": true,
+      "alwaysDisplayInConsole": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${KEYCLOAK_PASSWORD_VERIFIER_CLIENT_SECRET}",
+      "redirectUris": [],
+      "webOrigins": [],
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "publicClient": false,
+      "frontchannelLogout": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "realm_client": "false"
+      },
+      "authenticationFlowBindingOverrides": {},
+      "fullScopeAllowed": false,
+      "nodeReRegistrationTimeout": -1,
+      "defaultClientScopes": [
+        "profile",
+        "email"
+      ],
+      "optionalClientScopes": []
+    },
+    {
+      "id": "8f946936-2217-41c3-9867-f28e94095936",
+      "clientId": "lifebalance-password-admin",
+      "name": "LifeBalance Password Administration",
+      "description": "Least-privilege service account used only to update user credentials and revoke sessions.",
+      "enabled": true,
+      "alwaysDisplayInConsole": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${KEYCLOAK_PASSWORD_ADMIN_CLIENT_SECRET}",
+      "redirectUris": [],
+      "webOrigins": [],
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "publicClient": false,
+      "frontchannelLogout": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "realm_client": "false"
+      },
+      "authenticationFlowBindingOverrides": {},
+      "fullScopeAllowed": false,
+      "nodeReRegistrationTimeout": -1,
+      "defaultClientScopes": [
+        "service_account",
+        "roles"
+      ],
+      "optionalClientScopes": []
     }
   ],
   "clientScopes": [
@@ -2717,5 +2781,16 @@
   "clientPolicies": {
     "policies": []
   },
-  "users": []
+  "users": [
+    {
+      "username": "service-account-lifebalance-password-admin",
+      "enabled": true,
+      "serviceAccountClientId": "lifebalance-password-admin",
+      "clientRoles": {
+        "realm-management": [
+          "manage-users"
+        ]
+      }
+    }
+  ]
 }
