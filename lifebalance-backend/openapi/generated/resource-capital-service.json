@@ -1,0 +1,3305 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "OpenAPI definition",
+    "version": "v0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Generated server url"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Capital Allocations",
+      "description": "Capital allocation, reallocation, and release APIs"
+    },
+    {
+      "name": "Time Capital",
+      "description": "Time Capital APIs"
+    },
+    {
+      "name": "Capital",
+      "description": "Capital history and summary APIs"
+    },
+    {
+      "name": "Available Capital",
+      "description": "Available Capital APIs"
+    },
+    {
+      "name": "Capital Cycles",
+      "description": "Capital Cycle APIs"
+    },
+    {
+      "name": "Capital Adjustments",
+      "description": "Capital adjustment APIs"
+    },
+    {
+      "name": "Money Capital",
+      "description": "Money Capital APIs"
+    },
+    {
+      "name": "Remaining Capital",
+      "description": "Remaining Capital APIs"
+    }
+  ],
+  "paths": {
+    "/api/v1/capital-cycles/{id}": {
+      "get": {
+        "tags": [
+          "Capital Cycles"
+        ],
+        "summary": "Get capital cycle detail",
+        "description": "Get a single authenticated user-owned capital cycle by id.",
+        "operationId": "get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Capital cycle returned",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapitalCycleResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapitalCycleResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Capital cycle not found",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapitalCycleResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Capital Cycles"
+        ],
+        "summary": "Update capital cycle",
+        "description": "Update editable information for an authenticated user's draft capital cycle.",
+        "operationId": "update",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCapitalCycleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Capital cycle updated",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapitalCycleResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request validation failed or cycle is not draft",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapitalCycleResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapitalCycleResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Capital cycle not found",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapitalCycleResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Capital Cycles"
+        ],
+        "summary": "Delete capital cycle",
+        "description": "Delete an authenticated user's draft capital cycle only when no dependent capital records exist.",
+        "operationId": "delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Capital cycle deleted"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Capital cycle not found"
+          },
+          "409": {
+            "description": "Capital cycle cannot be deleted"
+          }
+        }
+      }
+    },
+    "/api/v1/capital-cycles": {
+      "get": {
+        "tags": [
+          "Capital Cycles"
+        ],
+        "summary": "List capital cycles",
+        "description": "List authenticated user's capital cycles with optional type, status, period, pagination, and sorting filters.",
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "DAILY",
+                "WEEKLY",
+                "MONTHLY"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "DRAFT",
+                "ACTIVE",
+                "CLOSED",
+                "REOPENED"
+              ]
+            }
+          },
+          {
+            "name": "fromDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "toDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "pageable",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Pageable"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Capital cycles returned",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageCapitalCycleResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageCapitalCycleResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Capital Cycles"
+        ],
+        "summary": "Create capital cycle",
+        "description": "Create a new user-owned capital cycle in draft status.",
+        "operationId": "create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCapitalCycleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Capital cycle created",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapitalCycleResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request validation failed",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapitalCycleResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapitalCycleResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/capital-cycles/{id}/transfer-remaining": {
+      "post": {
+        "tags": [
+          "Capital Cycles"
+        ],
+        "summary": "Transfer remaining capital",
+        "description": "Transfer positive remaining capital from a closed source cycle to a valid future target cycle after explicit confirmation.",
+        "operationId": "transferRemaining",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransferRemainingCapitalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Remaining capital transferred",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferRemainingCapitalResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request validation failed",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferRemainingCapitalResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferRemainingCapitalResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Source or target capital cycle not found",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferRemainingCapitalResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Transfer policy or balance validation failed",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferRemainingCapitalResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/capital-cycles/{id}/reopen": {
+      "post": {
+        "tags": [
+          "Capital Cycles"
+        ],
+        "summary": "Reopen capital cycle",
+        "description": "Reopen an authenticated user's closed capital cycle with a business reason.",
+        "operationId": "reopen",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReopenCapitalCycleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Capital cycle reopened",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapitalCycleResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request validation failed or cycle status transition is not allowed",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapitalCycleResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapitalCycleResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Capital cycle not found",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapitalCycleResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/capital-cycles/{id}/close": {
+      "post": {
+        "tags": [
+          "Capital Cycles"
+        ],
+        "summary": "Close capital cycle",
+        "description": "Close an authenticated user's active or reopened capital cycle with a business reason.",
+        "operationId": "close",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloseCapitalCycleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Capital cycle closed",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapitalCycleResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request validation failed or cycle status transition is not allowed",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapitalCycleResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapitalCycleResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Capital cycle not found",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapitalCycleResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/capital-cycles/{id}/activate": {
+      "post": {
+        "tags": [
+          "Capital Cycles"
+        ],
+        "summary": "Activate capital cycle",
+        "description": "Activate an authenticated user's capital cycle after validating ownership, status transition, and one-active-cycle rule.",
+        "operationId": "activate",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Capital cycle activated",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapitalCycleResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Cycle status transition is not allowed",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapitalCycleResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapitalCycleResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Capital cycle not found",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapitalCycleResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "An active capital cycle already exists for the same cycle type",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapitalCycleResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/capital-cycles/{cycleId}/time-capital": {
+      "post": {
+        "tags": [
+          "Time Capital"
+        ],
+        "summary": "Setup time capital",
+        "description": "Initialize the authenticated user's time capital for an editable capital cycle.",
+        "operationId": "setup",
+        "parameters": [
+          {
+            "name": "cycleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetupTimeCapitalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Time capital initialized",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimeCapitalResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request validation failed or cycle status is invalid",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimeCapitalResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimeCapitalResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimeCapitalResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Capital cycle not found",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimeCapitalResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Time capital already exists",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimeCapitalResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/capital-cycles/{cycleId}/money-capital": {
+      "post": {
+        "tags": [
+          "Money Capital"
+        ],
+        "summary": "Setup money capital",
+        "description": "Initialize the authenticated user's money capital for an editable capital cycle.",
+        "operationId": "setup_1",
+        "parameters": [
+          {
+            "name": "cycleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetupMoneyCapitalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Money capital initialized",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoneyCapitalResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request validation failed or cycle status is invalid",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoneyCapitalResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoneyCapitalResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoneyCapitalResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Capital cycle not found",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoneyCapitalResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Money capital already exists",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoneyCapitalResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/capital-cycles/{cycleId}/money-capital/adjustments": {
+      "post": {
+        "tags": [
+          "Money Capital"
+        ],
+        "summary": "Adjust money capital",
+        "description": "Increase or decrease money capital for an adjustable cycle using the cycle currency.",
+        "operationId": "adjust",
+        "parameters": [
+          {
+            "name": "cycleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdjustMoneyCapitalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Money capital adjusted",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoneyCapitalAdjustmentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request validation failed or cycle status is invalid",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoneyCapitalAdjustmentResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoneyCapitalAdjustmentResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoneyCapitalAdjustmentResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Capital cycle or money capital not found",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoneyCapitalAdjustmentResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Over-allocation confirmation is required or not allowed",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoneyCapitalAdjustmentResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/capital-allocations": {
+      "get": {
+        "tags": [
+          "Capital Allocations"
+        ],
+        "summary": "List capital allocations",
+        "description": "Get paginated capital allocations filtered by cycle, task, capital type, or status.",
+        "operationId": "getAllocations",
+        "parameters": [
+          {
+            "name": "capitalCycleId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "taskId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "capitalType",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "TIME",
+                "MONEY"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ACTIVE",
+                "REALLOCATED",
+                "RELEASED",
+                "CLOSED"
+              ]
+            }
+          },
+          {
+            "name": "pageable",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Pageable"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePageResponseDTOCapitalAllocationResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Capital Allocations"
+        ],
+        "summary": "Allocate capital",
+        "description": "Allocate time or money capital from an active cycle to a task, task catalog, or project target.",
+        "operationId": "allocate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCapitalAllocationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAllocationResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/capital-allocations/{id}/release": {
+      "post": {
+        "tags": [
+          "Capital Allocations"
+        ],
+        "summary": "Release capital",
+        "description": "Release allocated capital from an existing allocation back to the active cycle pool.",
+        "operationId": "release",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CapitalAllocationReleaseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAllocationResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/capital-allocations/reallocate": {
+      "post": {
+        "tags": [
+          "Capital Allocations"
+        ],
+        "summary": "Reallocate capital",
+        "description": "Move allocated capital between task targets or existing allocations in the same active cycle.",
+        "operationId": "reallocate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CapitalReallocationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAllocationResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/capital-allocations/over-allocation-confirmation": {
+      "post": {
+        "tags": [
+          "Capital Allocations"
+        ],
+        "summary": "Prepare over-allocation confirmation",
+        "description": "Calculate whether an allocation would over-allocate capital and return the confirmation key required for a confirmed allocation retry.",
+        "operationId": "prepareOverAllocationConfirmation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCapitalAllocationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOverAllocationConfirmationResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/capital-adjustments": {
+      "get": {
+        "tags": [
+          "Capital Adjustments"
+        ],
+        "summary": "List capital adjustments",
+        "description": "Get paginated adjustment history for the authenticated user by cycle and optional capital type.",
+        "operationId": "getAdjustments",
+        "parameters": [
+          {
+            "name": "capitalCycleId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "capitalType",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "TIME",
+                "MONEY"
+              ]
+            }
+          },
+          {
+            "name": "pageable",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Pageable"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePageResponseDTOCapitalAdjustmentResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Capital Adjustments"
+        ],
+        "summary": "Create capital adjustment",
+        "description": "Create an increase, decrease, or override adjustment for an active capital cycle.",
+        "operationId": "create_1",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CapitalAdjustmentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCapitalAdjustmentResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/capital-adjustments/time": {
+      "post": {
+        "tags": [
+          "Capital Adjustments"
+        ],
+        "summary": "Adjust time capital",
+        "description": "Increase or decrease the planned time capital of a capital cycle.",
+        "operationId": "adjustTimeCapital",
+        "parameters": [
+          {
+            "name": "cycleId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdjustTimeCapitalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTimeCapitalAdjustmentResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/capital-adjustments/money": {
+      "post": {
+        "tags": [
+          "Capital Adjustments"
+        ],
+        "summary": "Adjust money capital",
+        "description": "Increase or decrease money capital of a capital cycle using the cycle currency.",
+        "operationId": "adjustMoneyCapital",
+        "parameters": [
+          {
+            "name": "cycleId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdjustMoneyCapitalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseMoneyCapitalAdjustmentResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/capital-allocations/{id}": {
+      "patch": {
+        "tags": [
+          "Capital Allocations"
+        ],
+        "summary": "Change allocation amount",
+        "description": "Change an existing active allocation amount without overwriting its previous history.",
+        "operationId": "changeAllocation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CapitalAllocationChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAllocationResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/capital/summary": {
+      "get": {
+        "tags": [
+          "Capital"
+        ],
+        "summary": "Get capital summary",
+        "description": "Get the current active capital cycle summary for the authenticated user.",
+        "operationId": "getSummary",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCapitalSummaryResponseDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/capital/history": {
+      "get": {
+        "tags": [
+          "Capital"
+        ],
+        "summary": "Get capital history",
+        "description": "Get paginated capital movement history for the authenticated user.",
+        "operationId": "getHistory",
+        "parameters": [
+          {
+            "name": "capitalCycleId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "capitalType",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "TIME",
+                "MONEY"
+              ]
+            }
+          },
+          {
+            "name": "fromDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "toDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "pageable",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Pageable"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePageResponseDTOCapitalHistoryResponseDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/capital-cycles/{cycleId}/remaining-capital": {
+      "get": {
+        "tags": [
+          "Remaining Capital"
+        ],
+        "summary": "Get remaining capital",
+        "description": "Get remaining time and money capital after current allocations for an authenticated user's capital cycle.",
+        "operationId": "getRemainingCapital",
+        "parameters": [
+          {
+            "name": "cycleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "TIME",
+                "MONEY"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Remaining capital returned",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemainingCapitalResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request parameter has invalid format",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemainingCapitalResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemainingCapitalResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemainingCapitalResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Capital cycle not found",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemainingCapitalResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/capital-cycles/{cycleId}/available-capital": {
+      "get": {
+        "tags": [
+          "Available Capital"
+        ],
+        "summary": "Get available capital",
+        "description": "Get available time and money capital for an authenticated user's capital cycle.",
+        "operationId": "getAvailableCapital",
+        "parameters": [
+          {
+            "name": "cycleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "TIME",
+                "MONEY"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Available capital returned",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AvailableCapitalResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request parameter has invalid format",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AvailableCapitalResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AvailableCapitalResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AvailableCapitalResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Capital cycle not found",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AvailableCapitalResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/capital-cycles/active": {
+      "get": {
+        "tags": [
+          "Capital Cycles"
+        ],
+        "summary": "Get active capital cycle",
+        "description": "Get the authenticated user's active capital cycle, optionally filtered by cycle type.",
+        "operationId": "active",
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "DAILY",
+                "WEEKLY",
+                "MONTHLY"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Active capital cycle returned",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapitalCycleResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapitalCycleResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Active capital cycle not found",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapitalCycleResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "UpdateCapitalCycleRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 0
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 0
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "DAILY",
+              "WEEKLY",
+              "MONTHLY"
+            ]
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "endDate",
+          "name",
+          "startDate",
+          "type"
+        ]
+      },
+      "CapitalCycleResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "DAILY",
+              "WEEKLY",
+              "MONTHLY"
+            ]
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "ACTIVE",
+              "CLOSED",
+              "REOPENED"
+            ]
+          },
+          "overAllocationAllowed": {
+            "type": "boolean"
+          },
+          "activatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "closedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reopenedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "closeReason": {
+            "type": "string"
+          },
+          "reopenReason": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateCapitalCycleRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 0
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 0
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "DAILY",
+              "WEEKLY",
+              "MONTHLY"
+            ]
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "endDate",
+          "name",
+          "startDate",
+          "type"
+        ]
+      },
+      "TransferRemainingCapitalRequest": {
+        "type": "object",
+        "properties": {
+          "targetCycleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "capitalType": {
+            "type": "string",
+            "enum": [
+              "TIME",
+              "MONEY"
+            ]
+          },
+          "amount": {
+            "type": "number"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 0
+          },
+          "transferConfirmed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "amount",
+          "capitalType",
+          "reason",
+          "targetCycleId"
+        ]
+      },
+      "TransferRemainingCapitalResponse": {
+        "type": "object",
+        "properties": {
+          "sourceCycleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "targetCycleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "capitalType": {
+            "type": "string",
+            "enum": [
+              "TIME",
+              "MONEY"
+            ]
+          },
+          "amount": {
+            "type": "number"
+          },
+          "sourceBeforeAmount": {
+            "type": "number"
+          },
+          "sourceAfterAmount": {
+            "type": "number"
+          },
+          "targetBeforeAmount": {
+            "type": "number"
+          },
+          "targetAfterAmount": {
+            "type": "number"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "sourceHistoryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "targetHistoryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "transferredAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ReopenCapitalCycleRequest": {
+        "type": "object",
+        "description": "Payload used to reopen a closed capital cycle",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "description": "Business reason required by the current API contract for reopening a capital cycle.",
+            "example": "Need correction",
+            "maxLength": 1000,
+            "minLength": 0
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "CloseCapitalCycleRequest": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 0
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "SetupTimeCapitalRequest": {
+        "type": "object",
+        "properties": {
+          "plannedMinutes": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "plannedMinutes"
+        ]
+      },
+      "TimeCapitalResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "cycleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "plannedMinutes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "allocatedMinutes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "availableMinutes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "remainingMinutes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "initialized": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SetupMoneyCapitalRequest": {
+        "type": "object",
+        "properties": {
+          "plannedAmount": {
+            "type": "number"
+          },
+          "currencyCode": {
+            "type": "string",
+            "maxLength": 3,
+            "minLength": 3,
+            "pattern": "[A-Za-z]{3}"
+          }
+        },
+        "required": [
+          "currencyCode",
+          "plannedAmount"
+        ]
+      },
+      "MoneyCapitalResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "cycleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "plannedAmount": {
+            "type": "number"
+          },
+          "allocatedAmount": {
+            "type": "number"
+          },
+          "availableAmount": {
+            "type": "number"
+          },
+          "remainingAmount": {
+            "type": "number"
+          },
+          "currencyCode": {
+            "type": "string"
+          },
+          "initialized": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AdjustMoneyCapitalRequest": {
+        "type": "object",
+        "properties": {
+          "adjustmentType": {
+            "type": "string",
+            "enum": [
+              "INCREASE",
+              "DECREASE",
+              "OVERRIDE"
+            ]
+          },
+          "amount": {
+            "type": "number"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 0
+          },
+          "currencyCode": {
+            "type": "string",
+            "maxLength": 3,
+            "minLength": 3,
+            "pattern": "[A-Za-z]{3}"
+          },
+          "allowOverAllocation": {
+            "type": "boolean"
+          },
+          "overAllocationConfirmationKey": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 0
+          }
+        },
+        "required": [
+          "adjustmentType",
+          "amount",
+          "reason"
+        ]
+      },
+      "MoneyCapitalAdjustmentResponse": {
+        "type": "object",
+        "properties": {
+          "capitalCycleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actionType": {
+            "type": "string",
+            "enum": [
+              "CYCLE_CREATED",
+              "CYCLE_UPDATED",
+              "CYCLE_ACTIVATED",
+              "CYCLE_CLOSED",
+              "CYCLE_REOPENED",
+              "CAPITAL_SET",
+              "ADJUSTMENT_INCREASE",
+              "ADJUSTMENT_DECREASE",
+              "ALLOCATE",
+              "REALLOCATE",
+              "RELEASE",
+              "OVER_ALLOCATION_APPROVED",
+              "TRANSFER_REMAINING"
+            ]
+          },
+          "amount": {
+            "type": "number"
+          },
+          "beforeAmount": {
+            "type": "number"
+          },
+          "afterAmount": {
+            "type": "number"
+          },
+          "currencyCode": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "historyId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "CreateCapitalAllocationRequest": {
+        "type": "object",
+        "properties": {
+          "capitalCycleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "capitalType": {
+            "type": "string",
+            "enum": [
+              "TIME",
+              "MONEY"
+            ]
+          },
+          "targetType": {
+            "type": "string",
+            "enum": [
+              "TASK",
+              "TASK_CATALOG",
+              "PROJECT"
+            ]
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "taskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "taskCatalogId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "allowOverAllocation": {
+            "type": "boolean"
+          },
+          "overAllocationConfirmationKey": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 0
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 0
+          }
+        },
+        "required": [
+          "amount",
+          "capitalCycleId",
+          "capitalType",
+          "targetType"
+        ]
+      },
+      "AllocationResponse": {
+        "type": "object",
+        "properties": {
+          "cycleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "capitalType": {
+            "type": "string",
+            "enum": [
+              "TIME",
+              "MONEY"
+            ]
+          },
+          "targetType": {
+            "type": "string",
+            "enum": [
+              "TASK",
+              "TASK_CATALOG",
+              "PROJECT"
+            ]
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "targetAllocatedAmount": {
+            "type": "number"
+          },
+          "plannedAmount": {
+            "type": "number"
+          },
+          "totalAllocatedAmount": {
+            "type": "number"
+          },
+          "remainingAmount": {
+            "type": "number"
+          },
+          "overAllocated": {
+            "type": "boolean"
+          },
+          "historyIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "ApiError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ApiResponseAllocationResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AllocationResponse"
+          },
+          "error": {
+            "$ref": "#/components/schemas/ApiError"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CapitalAllocationReleaseRequest": {
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "number"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 0
+          }
+        },
+        "required": [
+          "amount"
+        ]
+      },
+      "CapitalReallocationRequest": {
+        "type": "object",
+        "properties": {
+          "capitalCycleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "capitalType": {
+            "type": "string",
+            "enum": [
+              "TIME",
+              "MONEY"
+            ]
+          },
+          "sourceAllocationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourceTargetType": {
+            "type": "string",
+            "enum": [
+              "TASK",
+              "TASK_CATALOG",
+              "PROJECT"
+            ]
+          },
+          "sourceTargetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourceTaskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "destinationAllocationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "destinationTargetType": {
+            "type": "string",
+            "enum": [
+              "TASK",
+              "TASK_CATALOG",
+              "PROJECT"
+            ]
+          },
+          "destinationTargetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "destinationTaskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 0
+          }
+        },
+        "required": [
+          "amount",
+          "capitalCycleId",
+          "capitalType"
+        ]
+      },
+      "ApiResponseOverAllocationConfirmationResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/OverAllocationConfirmationResponse"
+          },
+          "error": {
+            "$ref": "#/components/schemas/ApiError"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "OverAllocationConfirmationResponse": {
+        "type": "object",
+        "properties": {
+          "confirmationRequired": {
+            "type": "boolean"
+          },
+          "confirmationField": {
+            "type": "string"
+          },
+          "confirmationKey": {
+            "type": "string"
+          },
+          "operationType": {
+            "type": "string"
+          },
+          "operationReference": {
+            "type": "string"
+          },
+          "capitalCycleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "capitalType": {
+            "type": "string",
+            "enum": [
+              "TIME",
+              "MONEY"
+            ]
+          },
+          "availableAmount": {
+            "type": "number"
+          },
+          "requestedAmount": {
+            "type": "number"
+          },
+          "shortageAmount": {
+            "type": "number"
+          },
+          "projectedRemainingAmount": {
+            "type": "number"
+          },
+          "remainingState": {
+            "type": "string"
+          },
+          "remainingExplanation": {
+            "type": "string"
+          }
+        }
+      },
+      "CapitalAdjustmentRequest": {
+        "type": "object",
+        "properties": {
+          "capitalCycleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "capitalType": {
+            "type": "string",
+            "enum": [
+              "TIME",
+              "MONEY"
+            ]
+          },
+          "adjustmentType": {
+            "type": "string",
+            "enum": [
+              "INCREASE",
+              "DECREASE",
+              "OVERRIDE"
+            ]
+          },
+          "amount": {
+            "type": "number"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 0
+          },
+          "allowOverAllocation": {
+            "type": "boolean"
+          },
+          "overAllocationConfirmationKey": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 0
+          }
+        },
+        "required": [
+          "adjustmentType",
+          "amount",
+          "capitalCycleId",
+          "capitalType",
+          "reason"
+        ]
+      },
+      "ApiResponseCapitalAdjustmentResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CapitalAdjustmentResponse"
+          },
+          "error": {
+            "$ref": "#/components/schemas/ApiError"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CapitalAdjustmentResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "capitalCycleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "capitalType": {
+            "type": "string",
+            "enum": [
+              "TIME",
+              "MONEY"
+            ]
+          },
+          "adjustmentType": {
+            "type": "string",
+            "enum": [
+              "INCREASE",
+              "DECREASE",
+              "OVERRIDE"
+            ]
+          },
+          "historyActionType": {
+            "type": "string",
+            "enum": [
+              "CYCLE_CREATED",
+              "CYCLE_UPDATED",
+              "CYCLE_ACTIVATED",
+              "CYCLE_CLOSED",
+              "CYCLE_REOPENED",
+              "CAPITAL_SET",
+              "ADJUSTMENT_INCREASE",
+              "ADJUSTMENT_DECREASE",
+              "ALLOCATE",
+              "REALLOCATE",
+              "RELEASE",
+              "OVER_ALLOCATION_APPROVED",
+              "TRANSFER_REMAINING"
+            ]
+          },
+          "amount": {
+            "type": "number"
+          },
+          "beforeAmount": {
+            "type": "number"
+          },
+          "afterAmount": {
+            "type": "number"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "historyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AdjustTimeCapitalRequest": {
+        "type": "object",
+        "properties": {
+          "adjustmentType": {
+            "type": "string",
+            "enum": [
+              "INCREASE",
+              "DECREASE",
+              "OVERRIDE"
+            ]
+          },
+          "amountInMinutes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 0
+          },
+          "allowOverAllocation": {
+            "type": "boolean"
+          },
+          "overAllocationConfirmationKey": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 0
+          }
+        },
+        "required": [
+          "adjustmentType",
+          "amountInMinutes",
+          "reason"
+        ]
+      },
+      "ApiResponseTimeCapitalAdjustmentResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TimeCapitalAdjustmentResponse"
+          },
+          "error": {
+            "$ref": "#/components/schemas/ApiError"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "TimeCapitalAdjustmentResponse": {
+        "type": "object",
+        "properties": {
+          "capitalCycleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actionType": {
+            "type": "string",
+            "enum": [
+              "CYCLE_CREATED",
+              "CYCLE_UPDATED",
+              "CYCLE_ACTIVATED",
+              "CYCLE_CLOSED",
+              "CYCLE_REOPENED",
+              "CAPITAL_SET",
+              "ADJUSTMENT_INCREASE",
+              "ADJUSTMENT_DECREASE",
+              "ALLOCATE",
+              "REALLOCATE",
+              "RELEASE",
+              "OVER_ALLOCATION_APPROVED",
+              "TRANSFER_REMAINING"
+            ]
+          },
+          "amountInMinutes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "beforeMinutes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "afterMinutes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "historyId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "ApiResponseMoneyCapitalAdjustmentResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/MoneyCapitalAdjustmentResponse"
+          },
+          "error": {
+            "$ref": "#/components/schemas/ApiError"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CapitalAllocationChangeRequest": {
+        "type": "object",
+        "properties": {
+          "newAmount": {
+            "type": "number"
+          },
+          "overAllocationConfirmed": {
+            "type": "boolean"
+          },
+          "overAllocationConfirmationKey": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 0
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 0
+          }
+        },
+        "required": [
+          "newAmount"
+        ]
+      },
+      "ApiResponseCapitalSummaryResponseDTO": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CapitalSummaryResponseDTO"
+          },
+          "error": {
+            "$ref": "#/components/schemas/ApiError"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CapitalSummaryResponseDTO": {
+        "type": "object",
+        "properties": {
+          "activeCyclePresent": {
+            "type": "boolean"
+          },
+          "activeCycleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "activeCycleType": {
+            "type": "string",
+            "enum": [
+              "DAILY",
+              "WEEKLY",
+              "MONTHLY"
+            ]
+          },
+          "activeCycleStatus": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "ACTIVE",
+              "CLOSED",
+              "REOPENED"
+            ]
+          },
+          "activeCycleStartDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "activeCycleEndDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "timeCapital": {
+            "$ref": "#/components/schemas/TimeCapitalSummaryDTO"
+          },
+          "moneyCapital": {
+            "$ref": "#/components/schemas/MoneyCapitalSummaryDTO"
+          }
+        }
+      },
+      "MoneyCapitalSummaryDTO": {
+        "type": "object",
+        "properties": {
+          "allocatedAmount": {
+            "type": "number"
+          },
+          "spentAmount": {
+            "type": "number"
+          },
+          "remainingAmount": {
+            "type": "number"
+          },
+          "currencyCode": {
+            "type": "string"
+          },
+          "initialized": {
+            "type": "boolean"
+          },
+          "overAllocated": {
+            "type": "boolean"
+          }
+        }
+      },
+      "TimeCapitalSummaryDTO": {
+        "type": "object",
+        "properties": {
+          "allocatedHours": {
+            "type": "number"
+          },
+          "spentHours": {
+            "type": "number"
+          },
+          "remainingHours": {
+            "type": "number"
+          },
+          "allocatedMinutes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "spentMinutes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "remainingMinutes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "initialized": {
+            "type": "boolean"
+          },
+          "overAllocated": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Pageable": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "size": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1
+          },
+          "sort": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ApiResponsePageResponseDTOCapitalHistoryResponseDTO": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PageResponseDTOCapitalHistoryResponseDTO"
+          },
+          "error": {
+            "$ref": "#/components/schemas/ApiError"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CapitalHistoryResponseDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "capitalCycleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "capitalType": {
+            "type": "string",
+            "enum": [
+              "TIME",
+              "MONEY"
+            ]
+          },
+          "actionType": {
+            "type": "string",
+            "enum": [
+              "CYCLE_CREATED",
+              "CYCLE_UPDATED",
+              "CYCLE_ACTIVATED",
+              "CYCLE_CLOSED",
+              "CYCLE_REOPENED",
+              "CAPITAL_SET",
+              "ADJUSTMENT_INCREASE",
+              "ADJUSTMENT_DECREASE",
+              "ALLOCATE",
+              "REALLOCATE",
+              "RELEASE",
+              "OVER_ALLOCATION_APPROVED",
+              "TRANSFER_REMAINING"
+            ]
+          },
+          "amount": {
+            "type": "number"
+          },
+          "beforeAmount": {
+            "type": "number"
+          },
+          "afterAmount": {
+            "type": "number"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "referenceType": {
+            "type": "string",
+            "enum": [
+              "MANUAL",
+              "TASK",
+              "ALLOCATION",
+              "TARGET_CAPITAL_CYCLE"
+            ]
+          },
+          "referenceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actorType": {
+            "type": "string",
+            "enum": [
+              "USER",
+              "SYSTEM"
+            ]
+          },
+          "actorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PageResponseDTOCapitalHistoryResponseDTO": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CapitalHistoryResponseDTO"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalElements": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "first": {
+            "type": "boolean"
+          },
+          "last": {
+            "type": "boolean"
+          },
+          "empty": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PageCapitalCycleResponse": {
+        "type": "object",
+        "properties": {
+          "totalElements": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageable": {
+            "$ref": "#/components/schemas/PageableObject"
+          },
+          "numberOfElements": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "first": {
+            "type": "boolean"
+          },
+          "last": {
+            "type": "boolean"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CapitalCycleResponse"
+            }
+          },
+          "number": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sort": {
+            "$ref": "#/components/schemas/SortObject"
+          },
+          "empty": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PageableObject": {
+        "type": "object",
+        "properties": {
+          "unpaged": {
+            "type": "boolean"
+          },
+          "pageNumber": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "paged": {
+            "type": "boolean"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "offset": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "sort": {
+            "$ref": "#/components/schemas/SortObject"
+          }
+        }
+      },
+      "SortObject": {
+        "type": "object",
+        "properties": {
+          "unsorted": {
+            "type": "boolean"
+          },
+          "sorted": {
+            "type": "boolean"
+          },
+          "empty": {
+            "type": "boolean"
+          }
+        }
+      },
+      "RemainingCapitalResponse": {
+        "type": "object",
+        "properties": {
+          "cycleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "timeCapital": {
+            "$ref": "#/components/schemas/RemainingTimeCapitalResponse"
+          },
+          "moneyCapital": {
+            "$ref": "#/components/schemas/RemainingMoneyCapitalResponse"
+          }
+        }
+      },
+      "RemainingMoneyCapitalResponse": {
+        "type": "object",
+        "properties": {
+          "plannedAmount": {
+            "type": "number"
+          },
+          "allocatedAmount": {
+            "type": "number"
+          },
+          "remainingAmount": {
+            "type": "number"
+          },
+          "currencyCode": {
+            "type": "string"
+          },
+          "overAllocated": {
+            "type": "boolean"
+          },
+          "initialized": {
+            "type": "boolean"
+          }
+        }
+      },
+      "RemainingTimeCapitalResponse": {
+        "type": "object",
+        "properties": {
+          "plannedMinutes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "allocatedMinutes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "remainingMinutes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "overAllocated": {
+            "type": "boolean"
+          },
+          "initialized": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AvailableCapitalResponse": {
+        "type": "object",
+        "properties": {
+          "cycleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "timeCapital": {
+            "$ref": "#/components/schemas/AvailableTimeCapitalResponse"
+          },
+          "moneyCapital": {
+            "$ref": "#/components/schemas/AvailableMoneyCapitalResponse"
+          }
+        }
+      },
+      "AvailableMoneyCapitalResponse": {
+        "type": "object",
+        "properties": {
+          "availableAmount": {
+            "type": "number"
+          },
+          "currencyCode": {
+            "type": "string"
+          },
+          "initialized": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AvailableTimeCapitalResponse": {
+        "type": "object",
+        "properties": {
+          "availableMinutes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "initialized": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ApiResponsePageResponseDTOCapitalAllocationResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PageResponseDTOCapitalAllocationResponse"
+          },
+          "error": {
+            "$ref": "#/components/schemas/ApiError"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CapitalAllocationResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "capitalCycleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "capitalType": {
+            "type": "string",
+            "enum": [
+              "TIME",
+              "MONEY"
+            ]
+          },
+          "targetType": {
+            "type": "string",
+            "enum": [
+              "TASK",
+              "TASK_CATALOG",
+              "PROJECT"
+            ]
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "taskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "allocatedAmount": {
+            "type": "number"
+          },
+          "spentAmount": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "REALLOCATED",
+              "RELEASED",
+              "CLOSED"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PageResponseDTOCapitalAllocationResponse": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CapitalAllocationResponse"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalElements": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "first": {
+            "type": "boolean"
+          },
+          "last": {
+            "type": "boolean"
+          },
+          "empty": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ApiResponsePageResponseDTOCapitalAdjustmentResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PageResponseDTOCapitalAdjustmentResponse"
+          },
+          "error": {
+            "$ref": "#/components/schemas/ApiError"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PageResponseDTOCapitalAdjustmentResponse": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CapitalAdjustmentResponse"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalElements": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "first": {
+            "type": "boolean"
+          },
+          "last": {
+            "type": "boolean"
+          },
+          "empty": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  }
+}
