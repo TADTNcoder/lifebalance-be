@@ -1,0 +1,49 @@
+services:
+  keycloak:
+    ports:
+      - "${KEYCLOAK_HOST_PORT:-8082}:8080"
+      - "${KEYCLOAK_MGMT_HOST_PORT:-9000}:9000"
+
+  gateway:
+    ports:
+      - "${GATEWAY_HOST_PORT:-8080}:8080"
+
+  identity-service:
+    environment:
+      SPRINGDOC_API_DOCS_ENABLED: "true"
+      SPRINGDOC_SWAGGER_UI_ENABLED: "false"
+
+  task-service:
+    environment:
+      SPRINGDOC_API_DOCS_ENABLED: "true"
+      SPRINGDOC_SWAGGER_UI_ENABLED: "false"
+
+  timeline-service:
+    environment:
+      SPRINGDOC_API_DOCS_ENABLED: "true"
+      SPRINGDOC_SWAGGER_UI_ENABLED: "false"
+
+  resource-capital-service:
+    environment:
+      SPRINGDOC_API_DOCS_ENABLED: "true"
+      SPRINGDOC_SWAGGER_UI_ENABLED: "false"
+
+  finance-service:
+    environment:
+      SPRINGDOC_API_DOCS_ENABLED: "true"
+      SPRINGDOC_SWAGGER_UI_ENABLED: "false"
+
+  notification-service:
+    environment:
+      SPRINGDOC_API_DOCS_ENABLED: "true"
+      SPRINGDOC_SWAGGER_UI_ENABLED: "false"
+
+  analytics-service:
+    environment:
+      SPRINGDOC_API_DOCS_ENABLED: "true"
+      SPRINGDOC_SWAGGER_UI_ENABLED: "false"
+
+  ai-service:
+    environment:
+      SPRINGDOC_API_DOCS_ENABLED: "true"
+      SPRINGDOC_SWAGGER_UI_ENABLED: "false"
