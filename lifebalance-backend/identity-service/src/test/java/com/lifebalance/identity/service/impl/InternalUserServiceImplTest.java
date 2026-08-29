@@ -72,14 +72,20 @@ class InternalUserServiceImplTest {
     }
 
     @Test
-    void shouldCreateUserFromKeycloakClaimsWhenMissing() {
-        CurrentUser currentUser = createCurrentUser("kc-user-1", " Alice ", " Alice@Example.COM ");
+    void shouldCreateUserWithGeneratedInternalIdWhenUuidKeycloakSubjectIsMissing() {
+        String keycloakSubject = "5d79e9ef-043f-46b3-af48-60f63cc12e90";
+        CurrentUser currentUser = createCurrentUser(keycloakSubject, " Alice ", " Alice@Example.COM ");
 
-        when(userRepository.findByKeycloakId("kc-user-1")).thenReturn(Optional.empty());
-        when(userRepository.existsDeletedByKeycloakId("kc-user-1")).thenReturn(false);
+        when(userRepository.findByKeycloakId(keycloakSubject)).thenReturn(Optional.empty());
+        when(userRepository.existsDeletedByKeycloakId(keycloakSubject)).thenReturn(false);
         when(userRepository.existsByEmail("alice@example.com")).thenReturn(false);
         when(userRepository.existsByUsername("alice")).thenReturn(false);
-        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+            User newUser = invocation.getArgument(0);
+            assertThat(newUser.getId()).isNull();
+            newUser.setId(UUID.randomUUID());
+            return newUser;
+        });
 
         InternalUserServiceImpl service = createService();
 
@@ -88,31 +94,27 @@ class InternalUserServiceImplTest {
         ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(userCaptor.capture());
         assertThat(user).isSameAs(userCaptor.getValue());
-        assertThat(user.getKeycloakId()).isEqualTo("kc-user-1");
+        assertThat(user.getKeycloakId()).isEqualTo(keycloakSubject);
+        assertThat(user.getId()).isNotEqualTo(UUID.fromString(keycloakSubject));
         assertThat(user.getEmail()).isEqualTo("alice@example.com");
         assertThat(user.getUsername()).isEqualTo("alice");
     }
 
     @Test
-    void shouldSyncChangedKeycloakClaimsForExistingActiveUser() {
+    void shouldPreserveUpdatedProfileWhenTokenStillContainsOldClaims() {
         CurrentUser currentUser = createCurrentUser("kc-user-1", " Alice.Updated ", " Alice.Updated@Example.COM ");
         User user = createUser(AccountStatus.ACTIVE);
 
         when(userRepository.findByKeycloakId("kc-user-1")).thenReturn(Optional.of(user));
-        when(userRepository.existsByEmailAndIdNot("alice.updated@example.com", user.getId()))
-                .thenReturn(false);
-        when(userRepository.existsByUsernameAndIdNot("alice.updated", user.getId()))
-                .thenReturn(false);
-        when(userRepository.save(user)).thenReturn(user);
 
         InternalUserServiceImpl service = createService();
 
         User result = service.findOrCreate(currentUser);
 
         assertThat(result).isSameAs(user);
-        assertThat(user.getEmail()).isEqualTo("alice.updated@example.com");
-        assertThat(user.getUsername()).isEqualTo("alice.updated");
-        verify(userRepository).save(user);
+        assertThat(user.getEmail()).isEqualTo("alice@example.com");
+        assertThat(user.getUsername()).isEqualTo("alice");
+        verify(userRepository, never()).save(any());
     }
 
     @Test
@@ -132,19 +134,16 @@ class InternalUserServiceImplTest {
     }
 
     @Test
-    void shouldRejectDuplicateUsernameWhenSyncingKeycloakClaims() {
+    void shouldNotValidateStaleTokenClaimsForExistingUser() {
         CurrentUser currentUser = createCurrentUser("kc-user-1", "taken", "alice@example.com");
         User user = createUser(AccountStatus.ACTIVE);
 
         when(userRepository.findByKeycloakId("kc-user-1")).thenReturn(Optional.of(user));
-        when(userRepository.existsByUsernameAndIdNot("taken", user.getId()))
-                .thenReturn(true);
 
         InternalUserServiceImpl service = createService();
 
-        assertThatThrownBy(() -> service.findOrCreate(currentUser))
-                .isInstanceOf(UserUsernameAlreadyExistsException.class)
-                .hasMessage("Username already exists: taken");
+        assertThat(service.findOrCreate(currentUser)).isSameAs(user);
+        assertThat(user.getUsername()).isEqualTo("alice");
         verify(userRepository, never()).save(any());
     }
 
