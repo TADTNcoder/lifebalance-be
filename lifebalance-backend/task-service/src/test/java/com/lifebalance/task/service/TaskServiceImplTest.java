@@ -12,6 +12,7 @@ import com.lifebalance.task.error.TaskExceptions;
 import com.lifebalance.task.history.TaskChangeHistoryService;
 import com.lifebalance.task.integration.TaskIntegrationPublisher;
 import com.lifebalance.task.model.Category;
+import com.lifebalance.task.model.Tag;
 import com.lifebalance.task.model.Task;
 import com.lifebalance.task.model.TimelinePlacement;
 import com.lifebalance.task.model.enums.PriorityLevel;
@@ -134,6 +135,27 @@ class TaskServiceImplTest {
     }
 
     @Test
+    void createRejectsCategoryOutsideOwnerVisibility() {
+        UUID categoryId = UUID.randomUUID();
+        CreateTaskRequest request = new CreateTaskRequest();
+        request.setName("Công việc riêng");
+        request.setPriority(PriorityLevel.MEDIUM);
+        request.setCategoryId(categoryId);
+
+        when(taskRepository.findByNameAndOwnerId(request.getName(), USER_ID))
+                .thenReturn(Optional.empty());
+        when(categoryRepository.findVisibleByIdAndOwnerId(categoryId, USER_ID))
+                .thenReturn(Optional.empty());
+
+        AppException exception = assertThrows(
+                AppException.class,
+                () -> taskService.create(USER_ID, request));
+
+        assertEquals(TaskErrorCode.CATEGORY_NOT_FOUND, exception.getCode());
+        verify(taskRepository, never()).save(any(Task.class));
+    }
+
+    @Test
     void create_DuplicateName_ThrowsException() {
         CreateTaskRequest request = new CreateTaskRequest();
         request.setName("Học Spring Boot");
@@ -185,6 +207,24 @@ class TaskServiceImplTest {
         assertEquals(USER_ID, response.getOwnerId());
         assertEquals("Học Spring Boot", response.getName());
         assertEquals("Ôn lại dependency injection", response.getNote());
+    }
+
+    @Test
+    void getByIdIncludesAssignedTagIds() {
+        UUID tagId = UUID.randomUUID();
+        Tag tag = Tag.builder()
+                .id(tagId)
+                .userId(USER_ID)
+                .name("Thường dùng")
+                .slug("thuong-dung")
+                .build();
+        mockTask.assignTag(tag);
+        when(taskRepository.findByIdAndOwnerId(TASK_ID, USER_ID)).thenReturn(Optional.of(mockTask));
+
+        TaskResponse response = taskService.getById(TASK_ID, USER_ID);
+
+        assertNotNull(response.getTagIds());
+        assertTrue(response.getTagIds().contains(tagId));
     }
 
     @Test
