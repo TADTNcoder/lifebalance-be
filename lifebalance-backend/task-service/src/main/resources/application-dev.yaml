@@ -11,6 +11,8 @@ lifebalance:
     analytics-service:
       base-url: ${ANALYTICS_SERVICE_BASE_URL:http://analytics-service:8080}
       actual-seed-enabled: ${ANALYTICS_ACTUAL_SEED_ENABLED:false}
+    finance-service:
+      base-url: ${FINANCE_SERVICE_BASE_URL:http://finance-service:8080}
 
 spring:
   security:

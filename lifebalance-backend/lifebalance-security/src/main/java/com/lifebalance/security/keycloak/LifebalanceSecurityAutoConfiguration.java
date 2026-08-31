@@ -138,7 +138,6 @@ public class LifebalanceSecurityAutoConfiguration {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 publicPath("/actuator/health/**"),
-                                publicPath("/actuator/info"),
                                 publicPath("/actuator/prometheus"),
                                 publicPath("/v3/api-docs/**"),
                                 publicPath("/swagger-ui/**"),

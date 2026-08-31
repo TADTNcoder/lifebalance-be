@@ -1,6 +1,7 @@
 package com.lifebalance.finance.error;
 
 import com.lifebalance.common.error.AppException;
+import com.lifebalance.finance.domain.FinanceAccount;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Map;
@@ -25,6 +26,11 @@ public final class FinanceExceptions {
     public static AppException accountNotActive(UUID accountId) {
         return conflict(FinanceErrorCode.FINANCE_ACCOUNT_NOT_ACTIVE, "Finance account is not active",
                 Map.of("accountId", String.valueOf(accountId)));
+    }
+
+    public static AppException invalidAccount(String reason) {
+        return conflict(FinanceErrorCode.FINANCE_ACCOUNT_INVALID, "Finance account is invalid",
+                Map.of("reason", reason));
     }
 
     public static AppException categoryNotFound(UUID categoryId) {
@@ -59,6 +65,29 @@ public final class FinanceExceptions {
     public static AppException transactionNotPosted(UUID transactionId) {
         return conflict(FinanceErrorCode.FINANCE_TRANSACTION_NOT_POSTED, "Financial transaction is not posted",
                 Map.of("transactionId", String.valueOf(transactionId)));
+    }
+
+    public static AppException insufficientBalance(FinanceAccount account, BigDecimal amount) {
+        return conflict(
+                FinanceErrorCode.FINANCE_INSUFFICIENT_BALANCE,
+                "Finance account balance is insufficient",
+                Map.of(
+                        "accountId", String.valueOf(account == null ? null : account.getId()),
+                        "accountName", String.valueOf(account == null ? null : account.getName()),
+                        "availableBalance", String.valueOf(account == null ? null : account.getCurrentBalance()),
+                        "requestedAmount", String.valueOf(amount),
+                        "currencyCode", String.valueOf(account == null ? null : account.getCurrencyCode())
+                ));
+    }
+
+    public static AppException monthlySalaryAlreadyExists(UUID taskId, String salaryPeriod) {
+        return conflict(
+                FinanceErrorCode.FINANCE_MONTHLY_SALARY_ALREADY_EXISTS,
+                "Monthly salary already exists for task and period",
+                Map.of(
+                        "taskId", String.valueOf(taskId),
+                        "salaryPeriod", String.valueOf(salaryPeriod)
+                ));
     }
 
     public static AppException budgetNotFound(UUID budgetId) {

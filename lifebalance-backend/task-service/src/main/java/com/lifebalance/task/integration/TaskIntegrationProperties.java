@@ -11,11 +11,21 @@ public class TaskIntegrationProperties {
 
     private String internalSecret;
 
+    private int maxAttempts = 3;
+
+    private long retryBackoffMillis = 200;
+
+    private long connectTimeoutMillis = 3_000;
+
+    private long readTimeoutMillis = 5_000;
+
     private ServiceEndpoint timelineService = new ServiceEndpoint("http://timeline-service:8080", true);
 
     private NotificationEndpoint notificationService = new NotificationEndpoint();
 
     private AnalyticsEndpoint analyticsService = new AnalyticsEndpoint();
+
+    private ServiceEndpoint financeService = new ServiceEndpoint("http://finance-service:8080", true);
 
     public boolean isEnabled() {
         return enabled;
@@ -35,6 +45,38 @@ public class TaskIntegrationProperties {
 
     public boolean hasInternalSecret() {
         return internalSecret != null && !internalSecret.isBlank();
+    }
+
+    public int getMaxAttempts() {
+        return maxAttempts;
+    }
+
+    public void setMaxAttempts(int maxAttempts) {
+        this.maxAttempts = Math.max(1, maxAttempts);
+    }
+
+    public long getRetryBackoffMillis() {
+        return retryBackoffMillis;
+    }
+
+    public void setRetryBackoffMillis(long retryBackoffMillis) {
+        this.retryBackoffMillis = Math.max(0, retryBackoffMillis);
+    }
+
+    public long getConnectTimeoutMillis() {
+        return connectTimeoutMillis;
+    }
+
+    public void setConnectTimeoutMillis(long connectTimeoutMillis) {
+        this.connectTimeoutMillis = Math.max(1, connectTimeoutMillis);
+    }
+
+    public long getReadTimeoutMillis() {
+        return readTimeoutMillis;
+    }
+
+    public void setReadTimeoutMillis(long readTimeoutMillis) {
+        this.readTimeoutMillis = Math.max(1, readTimeoutMillis);
     }
 
     public ServiceEndpoint getTimelineService() {
@@ -67,6 +109,16 @@ public class TaskIntegrationProperties {
                 : analyticsService;
     }
 
+    public ServiceEndpoint getFinanceService() {
+        return financeService;
+    }
+
+    public void setFinanceService(ServiceEndpoint financeService) {
+        this.financeService = financeService == null
+                ? new ServiceEndpoint("http://finance-service:8080", true)
+                : financeService;
+    }
+
     public boolean isTimelineSyncEnabled() {
         return enabled && timelineService != null && timelineService.isEnabled();
     }
@@ -83,6 +135,10 @@ public class TaskIntegrationProperties {
                 && analyticsService != null
                 && analyticsService.isEnabled()
                 && analyticsService.isActualSeedEnabled();
+    }
+
+    public boolean isFinanceIncomeSyncEnabled() {
+        return enabled && financeService != null && financeService.isEnabled();
     }
 
     public static class ServiceEndpoint {

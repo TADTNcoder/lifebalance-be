@@ -1,6 +1,7 @@
 package com.lifebalance.task.service.impl;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -59,7 +60,13 @@ public class TaskServiceImpl implements TaskService {
         ensureNameAvailable(
                 request.getName(),
                 ownerId,
-                null);
+                null,
+                TaskTimeKey.of(
+                        request.getDeadline(),
+                        request.getPlannedStartAt(),
+                        request.getPlannedEndAt(),
+                        null,
+                        null));
 
         Category category = resolveCategory(
                 ownerId,
@@ -82,6 +89,14 @@ public class TaskServiceImpl implements TaskService {
                 .plannedEndAt(request.getPlannedEndAt())
                 .estimatedMinutes(request.getEstimatedMinutes())
                 .estimatedCost(request.getEstimatedCost())
+                .financeAccountId(request.getFinanceAccountId())
+                .monthlyIncomeGroupId(request.getMonthlyIncomeGroupId())
+                .monthlyIncomeAccountId(request.getMonthlyIncomeAccountId())
+                .monthlyIncomeCurrency(request.getMonthlyIncomeCurrency())
+                .monthlyIncomePeriod(request.getMonthlyIncomePeriod())
+                .monthlyIncomeBase(request.getMonthlyIncomeBase())
+                .monthlyIncomeBonus(request.getMonthlyIncomeBonus())
+                .monthlyIncomeDeduction(request.getMonthlyIncomeDeduction())
                 .category(category)
                 .status(TaskStatus.DRAFT)
                 .createdBy(ownerId)
@@ -113,6 +128,11 @@ public class TaskServiceImpl implements TaskService {
             UUID ownerId,
             UpdateTaskRequest request) {
 
+        lockMonthlyIncomeGroup(id, ownerId);
+        if (request.getStatus() == TaskStatus.COMPLETED
+                && request.getMonthlyIncomeGroupId() != null) {
+            taskRepository.lockMonthlyIncomeGroup(ownerId, request.getMonthlyIncomeGroupId());
+        }
         Task task = taskRepository
                 .findByIdAndOwnerId(id, ownerId)
                 .orElseThrow(TaskExceptions::taskNotFound);
@@ -131,10 +151,19 @@ public class TaskServiceImpl implements TaskService {
             taskLifecyclePolicy.validatePlanningEditable(task);
         }
 
+        TaskTimeKey candidateTime = isPlanningLocked(oldStatus)
+                ? TaskTimeKey.from(task)
+                : TaskTimeKey.of(
+                        request.getDeadline(),
+                        request.getPlannedStartAt(),
+                        request.getPlannedEndAt(),
+                        task.getScheduledStartAt(),
+                        task.getScheduledEndAt());
         ensureNameAvailable(
                 request.getName(),
                 ownerId,
-                id);
+                id,
+                candidateTime);
 
         Category category = resolveCategory(
                 ownerId,
@@ -158,6 +187,16 @@ public class TaskServiceImpl implements TaskService {
             if (request.getCurrency() != null) {
                 task.setCurrency(request.getCurrency());
             }
+            task.setFinanceAccountId(request.getFinanceAccountId());
+            applyMonthlyIncomeFields(
+                    task,
+                    request.getMonthlyIncomeGroupId(),
+                    request.getMonthlyIncomeAccountId(),
+                    request.getMonthlyIncomeCurrency(),
+                    request.getMonthlyIncomePeriod(),
+                    request.getMonthlyIncomeBase(),
+                    request.getMonthlyIncomeBonus(),
+                    request.getMonthlyIncomeDeduction());
             task.planWindow(
                     request.getPlannedStartAt(),
                     request.getPlannedEndAt());
@@ -211,6 +250,10 @@ public class TaskServiceImpl implements TaskService {
                     String.valueOf(task.getStatus()),
                     null);
         }
+        if (oldStatus != TaskStatus.COMPLETED
+                && task.getStatus() == TaskStatus.COMPLETED) {
+            publishMonthlyIncomeIfReady(task, ownerId, null);
+        }
         if (!Objects.equals(oldSnapshot, newSnapshot) || oldStatus != task.getStatus()) {
             taskIntegrationPublisher.publishTaskChanged(
                     task,
@@ -258,6 +301,17 @@ public class TaskServiceImpl implements TaskService {
                 ? task.getCategory()
                 : resolveCategory(ownerId, request.getCategoryId());
 
+        ensureNameAvailable(
+                task.getName(),
+                ownerId,
+                id,
+                TaskTimeKey.of(
+                        deadline,
+                        request.getPlannedStartAt(),
+                        request.getPlannedEndAt(),
+                        task.getScheduledStartAt(),
+                        task.getScheduledEndAt()));
+
         task.updateDetails(
                 task.getName(),
                 task.getDescription(),
@@ -266,6 +320,21 @@ public class TaskServiceImpl implements TaskService {
                 estimatedMinutes,
                 estimatedCost,
                 category);
+        if (request.getCurrency() != null) {
+            task.setCurrency(request.getCurrency());
+        }
+        if (request.hasFinanceAccountId()) {
+            task.setFinanceAccountId(request.getFinanceAccountId());
+        }
+        applyMonthlyIncomeFields(
+                task,
+                request.getMonthlyIncomeGroupId(),
+                request.getMonthlyIncomeAccountId(),
+                request.getMonthlyIncomeCurrency(),
+                request.getMonthlyIncomePeriod(),
+                request.getMonthlyIncomeBase(),
+                request.getMonthlyIncomeBonus(),
+                request.getMonthlyIncomeDeduction());
         task.planWindow(
                 request.getPlannedStartAt(),
                 request.getPlannedEndAt());
@@ -475,6 +544,7 @@ public class TaskServiceImpl implements TaskService {
             UUID ownerId,
             TaskLifecycleActionRequest request) {
 
+        lockMonthlyIncomeGroup(id, ownerId);
         Task task = findTask(id, ownerId);
         TaskStatus oldStatus = task.getStatus();
         String reason = reasonOf(request);
@@ -508,6 +578,7 @@ public class TaskServiceImpl implements TaskService {
                 ownerId,
                 TaskIntegrationAction.TASK_COMPLETED,
                 reason);
+        publishMonthlyIncomeIfReady(task, ownerId, reason);
 
         return mapToResponse(task);
     }
@@ -575,6 +646,29 @@ public class TaskServiceImpl implements TaskService {
                 .orElseThrow(TaskExceptions::taskNotFound);
 
         taskLifecyclePolicy.validateDeleteAllowed(task);
+        softDelete(task, ownerId, null);
+    }
+
+    @Override
+    @Transactional
+    public void deleteFinanceLinkedTask(
+            UUID id,
+            UUID ownerId) {
+
+        Task task = taskRepository
+                .findByIdAndOwnerId(id, ownerId)
+                .orElseThrow(TaskExceptions::taskNotFound);
+
+        String reason = "Linked finance transaction was voided";
+        cancelActiveTimelinePlacements(task, ownerId, reason);
+        softDelete(task, ownerId, reason);
+    }
+
+    private void softDelete(
+            Task task,
+            UUID ownerId,
+            String reason) {
+
         taskChangeHistoryService.recordTaskChange(
                 task,
                 ownerId,
@@ -582,12 +676,12 @@ public class TaskServiceImpl implements TaskService {
                 null,
                 taskSnapshot(task),
                 null,
-                null);
+                reason);
         taskIntegrationPublisher.publishTaskChanged(
                 task,
                 ownerId,
                 TaskIntegrationAction.TASK_DELETED,
-                null);
+                reason);
         OffsetDateTime deletedAt = OffsetDateTime.now();
         task.setDeletedAt(deletedAt);
         task.setUpdatedAt(deletedAt);
@@ -606,11 +700,6 @@ public class TaskServiceImpl implements TaskService {
 
         String copyName = source.getName() + " (Copy)";
 
-        ensureNameAvailable(
-                copyName,
-                ownerId,
-                null);
-
         Task copy = Task.builder()
                 .ownerId(ownerId)
                 .userId(ownerId)
@@ -622,11 +711,18 @@ public class TaskServiceImpl implements TaskService {
                 .deadline(source.getDeadline())
                 .estimatedMinutes(source.getEstimatedMinutes())
                 .estimatedCost(source.getEstimatedCost())
+                .financeAccountId(source.getFinanceAccountId())
                 .category(source.getCategory())
                 .status(TaskStatus.DRAFT)
                 .createdBy(ownerId)
                 .updatedBy(ownerId)
                 .build();
+
+        ensureNameAvailable(
+                copyName,
+                ownerId,
+                null,
+                TaskTimeKey.from(copy));
 
         copy = taskRepository.save(copy);
         taskChangeHistoryService.recordTaskChange(
@@ -777,19 +873,63 @@ public class TaskServiceImpl implements TaskService {
     private void ensureNameAvailable(
             String name,
             UUID ownerId,
-            UUID currentTaskId) {
+            UUID currentTaskId,
+            TaskTimeKey candidateTime) {
 
-        taskRepository
-                .findByNameAndOwnerId(name, ownerId)
-                .ifPresent(existingTask -> {
+        List<Task> tasksWithSameName = taskRepository
+                .findAllByNameAndOwnerId(name, ownerId);
 
-                    if (currentTaskId == null
-                            || !existingTask.getId()
-                                    .equals(currentTaskId)) {
+        for (Task existingTask : tasksWithSameName) {
+            if (currentTaskId != null
+                    && Objects.equals(existingTask.getId(), currentTaskId)) {
+                continue;
+            }
 
-                        throw TaskExceptions.taskNameAlreadyExists();
-                    }
-                });
+            if (candidateTime.equals(TaskTimeKey.from(existingTask))) {
+                throw TaskExceptions.taskNameAlreadyExists();
+            }
+        }
+    }
+
+    /**
+     * Time identity used by the task-name uniqueness rule. A duplicate name is
+     * valid when any of the deadline, planned window, or scheduled window is
+     * different. Null values are compared intentionally, so two untimed tasks
+     * with the same name still conflict.
+     */
+    private record TaskTimeKey(
+            LocalDate deadline,
+            Instant plannedStartAt,
+            Instant plannedEndAt,
+            Instant scheduledStartAt,
+            Instant scheduledEndAt) {
+
+        private static TaskTimeKey of(
+                LocalDate deadline,
+                OffsetDateTime plannedStartAt,
+                OffsetDateTime plannedEndAt,
+                OffsetDateTime scheduledStartAt,
+                OffsetDateTime scheduledEndAt) {
+            return new TaskTimeKey(
+                    deadline,
+                    toInstant(plannedStartAt),
+                    toInstant(plannedEndAt),
+                    toInstant(scheduledStartAt),
+                    toInstant(scheduledEndAt));
+        }
+
+        private static TaskTimeKey from(Task task) {
+            return of(
+                    task.getDeadline(),
+                    task.getPlannedStartAt(),
+                    task.getPlannedEndAt(),
+                    task.getScheduledStartAt(),
+                    task.getScheduledEndAt());
+        }
+
+        private static Instant toInstant(OffsetDateTime value) {
+            return value == null ? null : value.toInstant();
+        }
     }
 
     private Category resolveCategory(
@@ -816,9 +956,61 @@ public class TaskServiceImpl implements TaskService {
                 || !Objects.equals(task.getDeadline(), request.getDeadline())
                 || !Objects.equals(task.getEstimatedMinutes(), request.getEstimatedMinutes())
                 || !Objects.equals(task.getEstimatedCost(), request.getEstimatedCost())
+                || !Objects.equals(task.getFinanceAccountId(), request.getFinanceAccountId())
                 || !Objects.equals(currentCategoryId, request.getCategoryId())
                 || !Objects.equals(task.getPlannedStartAt(), request.getPlannedStartAt())
                 || !Objects.equals(task.getPlannedEndAt(), request.getPlannedEndAt());
+    }
+
+    private void applyMonthlyIncomeFields(
+            Task task,
+            UUID groupId,
+            UUID accountId,
+            String currency,
+            String period,
+            BigDecimal base,
+            BigDecimal bonus,
+            BigDecimal deduction) {
+
+        // Null means that the caller is updating an unrelated task area. Do
+        // not erase an existing salary plan during a normal task edit.
+        if (groupId == null) {
+            return;
+        }
+        task.setMonthlyIncomeGroupId(groupId);
+        task.setMonthlyIncomeAccountId(accountId);
+        task.setMonthlyIncomeCurrency(currency);
+        task.setMonthlyIncomePeriod(period);
+        task.setMonthlyIncomeBase(base);
+        task.setMonthlyIncomeBonus(bonus);
+        task.setMonthlyIncomeDeduction(deduction);
+    }
+
+    private void publishMonthlyIncomeIfReady(
+            Task task,
+            UUID ownerId,
+            String reason) {
+
+        if (!task.hasMonthlyIncomePlan()) {
+            return;
+        }
+        // Make the just-completed occurrence visible to the aggregate count
+        // before deciding whether this is the final task in the group.
+        taskRepository.flush();
+        long totalTasks = taskRepository.countByOwnerIdAndMonthlyIncomeGroupId(
+                ownerId,
+                task.getMonthlyIncomeGroupId());
+        long completedTasks = taskRepository.countByOwnerIdAndMonthlyIncomeGroupIdAndStatus(
+                ownerId,
+                task.getMonthlyIncomeGroupId(),
+                TaskStatus.COMPLETED);
+        if (totalTasks > 0 && totalTasks == completedTasks) {
+            taskIntegrationPublisher.publishMonthlyIncomeReady(task, ownerId, reason);
+        }
+    }
+
+    private void lockMonthlyIncomeGroup(UUID taskId, UUID ownerId) {
+        taskRepository.lockMonthlyIncomeGroupForTask(taskId, ownerId);
     }
 
     private void validateOptionalPlanningWindow(
@@ -855,6 +1047,14 @@ public class TaskServiceImpl implements TaskService {
                 + ";progress=" + task.getProgress()
                 + ";estimatedMinutes=" + task.getEstimatedMinutes()
                 + ";estimatedCost=" + task.getEstimatedCost()
+                + ";financeAccountId=" + task.getFinanceAccountId()
+                + ";monthlyIncomeGroupId=" + task.getMonthlyIncomeGroupId()
+                + ";monthlyIncomeAccountId=" + task.getMonthlyIncomeAccountId()
+                + ";monthlyIncomeCurrency=" + task.getMonthlyIncomeCurrency()
+                + ";monthlyIncomePeriod=" + task.getMonthlyIncomePeriod()
+                + ";monthlyIncomeBase=" + task.getMonthlyIncomeBase()
+                + ";monthlyIncomeBonus=" + task.getMonthlyIncomeBonus()
+                + ";monthlyIncomeDeduction=" + task.getMonthlyIncomeDeduction()
                 + ";categoryId=" + categoryId;
     }
 
@@ -907,6 +1107,22 @@ public class TaskServiceImpl implements TaskService {
                 task.getEstimatedMinutes());
         response.setEstimatedCost(
                 task.getEstimatedCost());
+        response.setFinanceAccountId(
+                task.getFinanceAccountId());
+        response.setMonthlyIncomeGroupId(
+                task.getMonthlyIncomeGroupId());
+        response.setMonthlyIncomeAccountId(
+                task.getMonthlyIncomeAccountId());
+        response.setMonthlyIncomeCurrency(
+                task.getMonthlyIncomeCurrency());
+        response.setMonthlyIncomePeriod(
+                task.getMonthlyIncomePeriod());
+        response.setMonthlyIncomeBase(
+                task.getMonthlyIncomeBase());
+        response.setMonthlyIncomeBonus(
+                task.getMonthlyIncomeBonus());
+        response.setMonthlyIncomeDeduction(
+                task.getMonthlyIncomeDeduction());
 
         if (task.getCategory() != null) {
 

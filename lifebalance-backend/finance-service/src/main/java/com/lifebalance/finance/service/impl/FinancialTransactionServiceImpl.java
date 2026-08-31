@@ -5,6 +5,7 @@ import com.lifebalance.finance.domain.FinanceCategory;
 import com.lifebalance.finance.domain.FinanceCategoryStatus;
 import com.lifebalance.finance.domain.FinanceCategoryType;
 import com.lifebalance.finance.domain.FinanceHistoryActionType;
+import com.lifebalance.finance.domain.FinanceIncomeSourceType;
 import com.lifebalance.finance.domain.FinanceReferenceType;
 import com.lifebalance.finance.domain.FinanceTransactionStatus;
 import com.lifebalance.finance.domain.FinanceTransactionType;
@@ -20,6 +21,8 @@ import com.lifebalance.finance.repository.FinancialTransactionRepository;
 import com.lifebalance.finance.service.FinancialTransactionService;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.time.YearMonth;
+import java.time.format.DateTimeParseException;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
@@ -27,11 +30,17 @@ import java.util.Objects;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class FinancialTransactionServiceImpl implements FinancialTransactionService {
+
+    private static final OffsetDateTime EARLIEST_TRANSACTION_DATE =
+            OffsetDateTime.parse("0001-01-01T00:00:00Z");
+    private static final OffsetDateTime LATEST_TRANSACTION_DATE =
+            OffsetDateTime.parse("9999-12-31T23:59:59.999999999Z");
 
     private final FinancialTransactionRepository transactionRepository;
     private final FinanceAccountRepository accountRepository;
@@ -61,7 +70,20 @@ public class FinancialTransactionServiceImpl implements FinancialTransactionServ
                 request.categoryId(),
                 request.amount(),
                 request.currencyCode(),
+                request.transactionDate(),
                 true
+        );
+        SalaryMetadata salaryMetadata = resolveSalaryMetadata(
+                ownerId,
+                null,
+                parts.transactionType(),
+                request.taskId(),
+                request.incomeSourceType(),
+                request.salaryPeriod(),
+                request.baseSalary(),
+                request.bonusAmount(),
+                request.deductionAmount(),
+                parts.amount()
         );
 
         applyImpact(parts.transactionType(), parts.sourceAccount(), parts.destinationAccount(), parts.amount());
@@ -76,12 +98,18 @@ public class FinancialTransactionServiceImpl implements FinancialTransactionServ
                 parts.amount(),
                 parts.currencyCode(),
                 request.transactionDate(),
+                request.transactionName(),
                 request.description(),
+                salaryMetadata.incomeSourceType(),
+                salaryMetadata.salaryPeriod(),
+                salaryMetadata.baseSalary(),
+                salaryMetadata.bonusAmount(),
+                salaryMetadata.deductionAmount(),
                 request.taskId(),
                 request.capitalCycleId(),
                 request.capitalAllocationId()
         );
-        transaction = transactionRepository.save(transaction);
+        transaction = saveTransaction(transaction, salaryMetadata, request.taskId());
 
         historyRecorder.record(
                 ownerId,
@@ -123,7 +151,20 @@ public class FinancialTransactionServiceImpl implements FinancialTransactionServ
                 request.categoryId(),
                 request.amount(),
                 request.currencyCode(),
+                request.transactionDate(),
                 true
+        );
+        SalaryMetadata salaryMetadata = resolveSalaryMetadata(
+                ownerId,
+                transactionId,
+                parts.transactionType(),
+                request.taskId(),
+                request.incomeSourceType(),
+                request.salaryPeriod(),
+                request.baseSalary(),
+                request.bonusAmount(),
+                request.deductionAmount(),
+                parts.amount()
         );
         applyImpact(parts.transactionType(), parts.sourceAccount(), parts.destinationAccount(), parts.amount());
 
@@ -136,12 +177,18 @@ public class FinancialTransactionServiceImpl implements FinancialTransactionServ
                 parts.amount(),
                 parts.currencyCode(),
                 request.transactionDate(),
+                request.transactionName(),
                 request.description(),
+                salaryMetadata.incomeSourceType(),
+                salaryMetadata.salaryPeriod(),
+                salaryMetadata.baseSalary(),
+                salaryMetadata.bonusAmount(),
+                salaryMetadata.deductionAmount(),
                 request.taskId(),
                 request.capitalCycleId(),
                 request.capitalAllocationId()
         );
-        transaction = transactionRepository.save(transaction);
+        transaction = saveTransaction(transaction, salaryMetadata, request.taskId());
 
         historyRecorder.record(
                 ownerId,
@@ -214,8 +261,22 @@ public class FinancialTransactionServiceImpl implements FinancialTransactionServ
             OffsetDateTime toDate,
             Pageable pageable
     ) {
+        OffsetDateTime normalizedFromDate = fromDate == null ? EARLIEST_TRANSACTION_DATE : fromDate;
+        OffsetDateTime normalizedToDate = toDate == null ? LATEST_TRANSACTION_DATE : toDate;
+
         return transactionRepository
-                .search(ownerId, type, status, accountId, categoryId, taskId, capitalCycleId, fromDate, toDate, pageable)
+                .search(
+                        ownerId,
+                        type,
+                        status,
+                        accountId,
+                        categoryId,
+                        taskId,
+                        capitalCycleId,
+                        normalizedFromDate,
+                        normalizedToDate,
+                        pageable
+                )
                 .map(FinanceMapper::toTransactionResponse);
     }
 
@@ -226,6 +287,11 @@ public class FinancialTransactionServiceImpl implements FinancialTransactionServ
 
         if (!transaction.isPosted()) {
             throw FinanceExceptions.transactionNotPosted(transactionId);
+        }
+        if (transaction.isSystemGenerated()) {
+            throw FinanceExceptions.invalidTransaction(
+                    "System-generated month-end settlement transactions cannot be changed"
+            );
         }
 
         return transaction;
@@ -239,6 +305,7 @@ public class FinancialTransactionServiceImpl implements FinancialTransactionServ
             UUID categoryId,
             BigDecimal amount,
             String requestedCurrency,
+            OffsetDateTime transactionDate,
             boolean requireActiveAccounts
     ) {
         FinanceSupport.validateTransactionShape(transactionType, sourceAccountId, destinationAccountId);
@@ -256,6 +323,14 @@ public class FinancialTransactionServiceImpl implements FinancialTransactionServ
             if (destinationAccount != null) {
                 FinanceSupport.ensureAccountActive(destinationAccount);
             }
+        }
+        if (sourceAccount != null
+                && !FinanceAccountMonthPolicy.isEffectiveAt(sourceAccount, transactionDate)) {
+            throw FinanceExceptions.invalidAccount("Ví/Hũ chỉ có hiệu lực trong tháng được tạo");
+        }
+        if (destinationAccount != null
+                && !FinanceAccountMonthPolicy.isEffectiveAt(destinationAccount, transactionDate)) {
+            throw FinanceExceptions.invalidAccount("Ví/Hũ chỉ có hiệu lực trong tháng được tạo");
         }
         if (sourceAccount != null) {
             FinanceSupport.ensureAccountCurrency(sourceAccount, currencyCode);
@@ -313,6 +388,120 @@ public class FinancialTransactionServiceImpl implements FinancialTransactionServ
         return accounts;
     }
 
+    private SalaryMetadata resolveSalaryMetadata(
+            UUID ownerId,
+            UUID excludedTransactionId,
+            FinanceTransactionType transactionType,
+            UUID taskId,
+            FinanceIncomeSourceType requestedIncomeSourceType,
+            String salaryPeriod,
+            BigDecimal baseSalary,
+            BigDecimal bonusAmount,
+            BigDecimal deductionAmount,
+            BigDecimal transactionAmount
+    ) {
+        FinanceIncomeSourceType incomeSourceType = requestedIncomeSourceType == null
+                ? FinanceIncomeSourceType.ONE_OFF
+                : requestedIncomeSourceType;
+
+        if (incomeSourceType == FinanceIncomeSourceType.ONE_OFF) {
+            return SalaryMetadata.oneOff();
+        }
+        if (transactionType != FinanceTransactionType.INCOME) {
+            throw FinanceExceptions.invalidTransaction("Monthly salary must be an income transaction");
+        }
+        if (taskId == null) {
+            throw FinanceExceptions.invalidTransaction("Monthly salary requires a linked task");
+        }
+
+        String normalizedPeriod = normalizeSalaryPeriod(salaryPeriod);
+        BigDecimal normalizedBaseSalary = normalizeSalaryAmount(baseSalary, "Base salary", true);
+        BigDecimal normalizedBonus = normalizeSalaryAmount(bonusAmount, "Bonus amount", false);
+        BigDecimal normalizedDeduction = normalizeSalaryAmount(
+                deductionAmount,
+                "Deduction amount",
+                false
+        );
+        BigDecimal expectedAmount = normalizedBaseSalary
+                .add(normalizedBonus)
+                .subtract(normalizedDeduction);
+
+        if (expectedAmount.signum() <= 0) {
+            throw FinanceExceptions.invalidTransaction("Monthly salary net amount must be greater than 0");
+        }
+        if (expectedAmount.compareTo(transactionAmount) != 0) {
+            throw FinanceExceptions.invalidTransaction(
+                    "Monthly salary amount must equal base salary plus bonus minus deduction"
+            );
+        }
+        if (transactionRepository.existsPostedMonthlySalary(
+                ownerId,
+                taskId,
+                normalizedPeriod,
+                excludedTransactionId
+        )) {
+            throw FinanceExceptions.monthlySalaryAlreadyExists(taskId, normalizedPeriod);
+        }
+
+        return new SalaryMetadata(
+                FinanceIncomeSourceType.MONTHLY_SALARY,
+                normalizedPeriod,
+                normalizedBaseSalary,
+                normalizedBonus,
+                normalizedDeduction
+        );
+    }
+
+    private static String normalizeSalaryPeriod(String salaryPeriod) {
+        try {
+            return YearMonth.parse(salaryPeriod).toString();
+        } catch (DateTimeParseException | NullPointerException exception) {
+            throw FinanceExceptions.invalidTransaction("Monthly salary period must use YYYY-MM format");
+        }
+    }
+
+    private static BigDecimal normalizeSalaryAmount(
+            BigDecimal value,
+            String fieldName,
+            boolean requiredPositive
+    ) {
+        if (value == null) {
+            if (requiredPositive) {
+                throw FinanceExceptions.invalidTransaction(fieldName + " is required");
+            }
+            return BigDecimal.ZERO.setScale(FinanceSupport.AMOUNT_SCALE);
+        }
+
+        BigDecimal normalized = FinanceSupport.normalizeAmount(value);
+        if (normalized.signum() < 0 || (requiredPositive && normalized.signum() == 0)) {
+            throw FinanceExceptions.invalidTransaction(
+                    fieldName + (requiredPositive ? " must be greater than 0" : " must not be negative")
+            );
+        }
+        return normalized;
+    }
+
+    private FinancialTransaction saveTransaction(
+            FinancialTransaction transaction,
+            SalaryMetadata salaryMetadata,
+            UUID taskId
+    ) {
+        try {
+            FinancialTransaction saved = transactionRepository.save(transaction);
+            if (salaryMetadata.incomeSourceType() == FinanceIncomeSourceType.MONTHLY_SALARY) {
+                // Check the database idempotency constraint before leaving this
+                // service method so a concurrent duplicate becomes a domain error.
+                transactionRepository.flush();
+            }
+            return saved;
+        } catch (DataIntegrityViolationException exception) {
+            if (salaryMetadata.incomeSourceType() == FinanceIncomeSourceType.MONTHLY_SALARY) {
+                throw FinanceExceptions.monthlySalaryAlreadyExists(taskId, salaryMetadata.salaryPeriod());
+            }
+            throw exception;
+        }
+    }
+
     private void applyImpact(
             FinanceTransactionType type,
             FinanceAccount sourceAccount,
@@ -324,7 +513,7 @@ public class FinancialTransactionServiceImpl implements FinancialTransactionServ
             case EXPENSE -> sourceAccount.debit(amount);
             case TRANSFER -> {
                 sourceAccount.debit(amount);
-                destinationAccount.credit(amount);
+                destinationAccount.receiveTransfer(amount);
             }
         }
     }
@@ -340,7 +529,7 @@ public class FinancialTransactionServiceImpl implements FinancialTransactionServ
             case EXPENSE -> sourceAccount.credit(amount);
             case TRANSFER -> {
                 sourceAccount.credit(amount);
-                destinationAccount.debit(amount);
+                destinationAccount.reverseReceivedTransfer(amount);
             }
         }
     }
@@ -362,6 +551,13 @@ public class FinancialTransactionServiceImpl implements FinancialTransactionServ
                 + ";amount=" + transaction.getAmount()
                 + ";currency=" + transaction.getCurrencyCode()
                 + ";transactionDate=" + transaction.getTransactionDate()
+                + ";transactionName=" + transaction.getTransactionName()
+                + ";description=" + transaction.getDescription()
+                + ";incomeSourceType=" + transaction.getIncomeSourceType()
+                + ";salaryPeriod=" + transaction.getSalaryPeriod()
+                + ";baseSalary=" + transaction.getBaseSalary()
+                + ";bonusAmount=" + transaction.getBonusAmount()
+                + ";deductionAmount=" + transaction.getDeductionAmount()
                 + ";taskId=" + transaction.getTaskId()
                 + ";capitalCycleId=" + transaction.getCapitalCycleId()
                 + ";capitalAllocationId=" + transaction.getCapitalAllocationId();
@@ -375,5 +571,17 @@ public class FinancialTransactionServiceImpl implements FinancialTransactionServ
             BigDecimal amount,
             String currencyCode
     ) {
+    }
+
+    private record SalaryMetadata(
+            FinanceIncomeSourceType incomeSourceType,
+            String salaryPeriod,
+            BigDecimal baseSalary,
+            BigDecimal bonusAmount,
+            BigDecimal deductionAmount
+    ) {
+        private static SalaryMetadata oneOff() {
+            return new SalaryMetadata(FinanceIncomeSourceType.ONE_OFF, null, null, null, null);
+        }
     }
 }

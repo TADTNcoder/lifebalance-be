@@ -12,6 +12,7 @@ import com.lifebalance.task.validation.ValidPlanningWindow;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
@@ -52,6 +53,27 @@ public class UpdateTaskRequest implements PlanningWindowRequest {
 
     @PositiveOrZero
     private BigDecimal estimatedCost;
+
+    private UUID financeAccountId;
+
+    private UUID monthlyIncomeGroupId;
+
+    private UUID monthlyIncomeAccountId;
+
+    @Pattern(regexp = "^[A-Z]{3}$")
+    private String monthlyIncomeCurrency;
+
+    @Pattern(regexp = "^\\d{4}-(0[1-9]|1[0-2])$")
+    private String monthlyIncomePeriod;
+
+    @jakarta.validation.constraints.Positive
+    private BigDecimal monthlyIncomeBase;
+
+    @PositiveOrZero
+    private BigDecimal monthlyIncomeBonus;
+
+    @PositiveOrZero
+    private BigDecimal monthlyIncomeDeduction;
 
     private UUID categoryId;
 

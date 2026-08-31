@@ -72,6 +72,8 @@ class TaskServiceImplTest {
     private Task mockTask;
     private final UUID TASK_ID = UUID.randomUUID();
     private final UUID USER_ID = UUID.randomUUID();
+    private final UUID FINANCE_ACCOUNT_ID = UUID.randomUUID();
+    private final UUID UPDATED_FINANCE_ACCOUNT_ID = UUID.randomUUID();
 
     @BeforeEach
     void setUp() {
@@ -84,6 +86,7 @@ class TaskServiceImplTest {
                 .currency("USD")
                 .estimatedMinutes(120)
                 .estimatedCost(new BigDecimal("500000"))
+                .financeAccountId(FINANCE_ACCOUNT_ID)
                 .status(TaskStatus.DRAFT)
                 .build();
         try {
@@ -106,9 +109,10 @@ class TaskServiceImplTest {
         request.setDeadline(LocalDate.now().plusDays(3));
         request.setEstimatedMinutes(120);
         request.setEstimatedCost(new BigDecimal("500000"));
+        request.setFinanceAccountId(FINANCE_ACCOUNT_ID);
 
-        when(taskRepository.findByNameAndOwnerId(request.getName(), USER_ID))
-                .thenReturn(Optional.empty());
+        when(taskRepository.findAllByNameAndOwnerId(request.getName(), USER_ID))
+                .thenReturn(List.of());
         when(taskRepository.save(any(Task.class))).thenAnswer(i -> {
             Task saved = i.getArgument(0);
             try {
@@ -131,6 +135,7 @@ class TaskServiceImplTest {
         assertEquals(PriorityLevel.HIGH, response.getPriority());
         assertEquals(120, response.getEstimatedMinutes());
         assertEquals(new BigDecimal("500000"), response.getEstimatedCost());
+        assertEquals(FINANCE_ACCOUNT_ID, response.getFinanceAccountId());
         verify(taskRepository).save(any(Task.class));
     }
 
@@ -142,8 +147,8 @@ class TaskServiceImplTest {
         request.setPriority(PriorityLevel.MEDIUM);
         request.setCategoryId(categoryId);
 
-        when(taskRepository.findByNameAndOwnerId(request.getName(), USER_ID))
-                .thenReturn(Optional.empty());
+        when(taskRepository.findAllByNameAndOwnerId(request.getName(), USER_ID))
+                .thenReturn(List.of());
         when(categoryRepository.findVisibleByIdAndOwnerId(categoryId, USER_ID))
                 .thenReturn(Optional.empty());
 
@@ -160,11 +165,59 @@ class TaskServiceImplTest {
         CreateTaskRequest request = new CreateTaskRequest();
         request.setName("Học Spring Boot");
 
-        when(taskRepository.findByNameAndOwnerId(request.getName(), USER_ID))
-                .thenReturn(Optional.of(mockTask));
+        when(taskRepository.findAllByNameAndOwnerId(request.getName(), USER_ID))
+                .thenReturn(List.of(mockTask));
 
         assertThrows(RuntimeException.class, () -> taskService.create(USER_ID, request));
         verify(taskRepository, never()).save(any(Task.class));
+    }
+
+    @Test
+    void create_AllowsDuplicateNameWhenDeadlineDiffers() {
+        CreateTaskRequest request = new CreateTaskRequest();
+        request.setName("Học Spring Boot");
+        request.setDeadline(LocalDate.of(2026, 9, 2));
+        mockTask.setDeadline(LocalDate.of(2026, 9, 1));
+
+        when(taskRepository.findAllByNameAndOwnerId(request.getName(), USER_ID))
+                .thenReturn(List.of(mockTask));
+        when(taskRepository.save(any(Task.class))).thenAnswer(i -> {
+            Task saved = i.getArgument(0);
+            try {
+                java.lang.reflect.Field idField = saved.getClass().getDeclaredField("id");
+                idField.setAccessible(true);
+                idField.set(saved, UUID.randomUUID());
+            } catch (Exception ignored) {}
+            return saved;
+        });
+
+        TaskResponse response = taskService.create(USER_ID, request);
+
+        assertEquals("Học Spring Boot", response.getName());
+        assertEquals(LocalDate.of(2026, 9, 2), response.getDeadline());
+        verify(taskRepository).save(any(Task.class));
+    }
+
+    @Test
+    void create_AllowsDuplicateNameWhenPlannedWindowDiffers() {
+        CreateTaskRequest request = new CreateTaskRequest();
+        request.setName("Học Spring Boot");
+        request.setDeadline(LocalDate.of(2026, 9, 1));
+        request.setPlannedStartAt(OffsetDateTime.parse("2026-09-01T09:00:00+07:00"));
+        request.setPlannedEndAt(OffsetDateTime.parse("2026-09-01T10:00:00+07:00"));
+        mockTask.setDeadline(request.getDeadline());
+        mockTask.setPlannedStartAt(OffsetDateTime.parse("2026-09-01T11:00:00+07:00"));
+        mockTask.setPlannedEndAt(OffsetDateTime.parse("2026-09-01T12:00:00+07:00"));
+
+        when(taskRepository.findAllByNameAndOwnerId(request.getName(), USER_ID))
+                .thenReturn(List.of(mockTask));
+        when(taskRepository.save(any(Task.class))).thenAnswer(i -> i.getArgument(0));
+
+        TaskResponse response = taskService.create(USER_ID, request);
+
+        assertEquals(request.getPlannedStartAt(), response.getPlannedStartAt());
+        assertEquals(request.getPlannedEndAt(), response.getPlannedEndAt());
+        verify(taskRepository).save(any(Task.class));
     }
 
     @Test
@@ -178,10 +231,11 @@ class TaskServiceImplTest {
         request.setProgress(50);
         request.setEstimatedMinutes(180);
         request.setEstimatedCost(new BigDecimal("600000"));
+        request.setFinanceAccountId(UPDATED_FINANCE_ACCOUNT_ID);
         request.setStatus(TaskStatus.PLANNED);
 
         when(taskRepository.findByIdAndOwnerId(TASK_ID, USER_ID)).thenReturn(Optional.of(mockTask));
-        when(taskRepository.findByNameAndOwnerId(request.getName(), USER_ID)).thenReturn(Optional.empty());
+        when(taskRepository.findAllByNameAndOwnerId(request.getName(), USER_ID)).thenReturn(List.of());
         when(taskRepository.save(any(Task.class))).thenAnswer(i -> i.getArgument(0));
 
         TaskResponse response = taskService.update(TASK_ID, USER_ID, request);
@@ -193,6 +247,7 @@ class TaskServiceImplTest {
         assertEquals(50, response.getProgress());
         assertEquals(TaskStatus.PLANNED, response.getStatus());
         assertEquals(180, response.getEstimatedMinutes());
+        assertEquals(UPDATED_FINANCE_ACCOUNT_ID, response.getFinanceAccountId());
         verify(taskRepository).save(mockTask);
     }
 
@@ -282,12 +337,40 @@ class TaskServiceImplTest {
     }
 
     @Test
+    void deleteFinanceLinkedTask_AllowsCompletedTaskWithoutChangingRegularDeletePolicy() {
+        mockTask.setStatus(TaskStatus.COMPLETED);
+        when(taskRepository.findByIdAndOwnerId(TASK_ID, USER_ID)).thenReturn(Optional.of(mockTask));
+
+        taskService.deleteFinanceLinkedTask(TASK_ID, USER_ID);
+
+        assertNotNull(mockTask.getDeletedAt());
+        assertEquals(mockTask.getDeletedAt(), mockTask.getUpdatedAt());
+        verify(taskLifecyclePolicy, never()).validateDeleteAllowed(mockTask);
+        verify(taskRepository).save(mockTask);
+        verify(taskChangeHistoryService).recordTaskChange(
+                eq(mockTask),
+                eq(USER_ID),
+                eq(TaskHistoryActionType.TASK_DELETED),
+                isNull(),
+                any(),
+                isNull(),
+                eq("Linked finance transaction was voided"));
+        verify(taskIntegrationPublisher).publishTaskChanged(
+                eq(mockTask),
+                eq(USER_ID),
+                eq(com.lifebalance.task.integration.TaskIntegrationAction.TASK_DELETED),
+                eq("Linked finance transaction was voided"));
+    }
+
+    @Test
     void planUpdatesPlanningFieldsAndWritesHistory() {
         TaskPlanningRequest request = new TaskPlanningRequest();
         request.setPriority(PriorityLevel.CRITICAL);
         request.setDeadline(LocalDate.now().plusDays(7));
         request.setEstimatedMinutes(180);
         request.setEstimatedCost(new BigDecimal("800000"));
+        request.setCurrency("VND");
+        request.setFinanceAccountId(UPDATED_FINANCE_ACCOUNT_ID);
         request.setReason("Sprint planning");
 
         when(taskRepository.findByIdAndOwnerId(TASK_ID, USER_ID)).thenReturn(Optional.of(mockTask));
@@ -298,6 +381,8 @@ class TaskServiceImplTest {
         assertEquals(TaskStatus.PLANNED, response.getStatus());
         assertEquals(PriorityLevel.CRITICAL, response.getPriority());
         assertEquals(180, response.getEstimatedMinutes());
+        assertEquals("VND", response.getCurrency());
+        assertEquals(UPDATED_FINANCE_ACCOUNT_ID, response.getFinanceAccountId());
         verify(taskChangeHistoryService).recordTaskChange(
                 eq(mockTask),
                 eq(USER_ID),
@@ -306,6 +391,20 @@ class TaskServiceImplTest {
                 any(),
                 any(),
                 eq("Sprint planning"));
+    }
+
+    @Test
+    void planPreservesFinanceAccountWhenFieldIsOmitted() {
+        TaskPlanningRequest request = new TaskPlanningRequest();
+        request.setPriority(PriorityLevel.HIGH);
+        request.setEstimatedMinutes(120);
+
+        when(taskRepository.findByIdAndOwnerId(TASK_ID, USER_ID)).thenReturn(Optional.of(mockTask));
+        when(taskRepository.save(mockTask)).thenReturn(mockTask);
+
+        TaskResponse response = taskService.plan(TASK_ID, USER_ID, request);
+
+        assertEquals(FINANCE_ACCOUNT_ID, response.getFinanceAccountId());
     }
 
     @Test
@@ -349,6 +448,57 @@ class TaskServiceImplTest {
                 eq(String.valueOf(TaskStatus.IN_PROGRESS)),
                 eq(String.valueOf(TaskStatus.COMPLETED)),
                 eq("Done"));
+    }
+
+    @Test
+    void completeDoesNotSettleMonthlyIncomeUntilEveryOccurrenceIsCompleted() {
+        mockTask.setStatus(TaskStatus.IN_PROGRESS);
+        mockTask.setMonthlyIncomeGroupId(UUID.randomUUID());
+        mockTask.setMonthlyIncomeAccountId(UUID.randomUUID());
+        mockTask.setMonthlyIncomeCurrency("VND");
+        mockTask.setMonthlyIncomePeriod("2026-08");
+        mockTask.setMonthlyIncomeBase(new BigDecimal("12000000"));
+        mockTask.setMonthlyIncomeBonus(BigDecimal.ZERO);
+        mockTask.setMonthlyIncomeDeduction(BigDecimal.ZERO);
+
+        when(taskRepository.findByIdAndOwnerId(TASK_ID, USER_ID)).thenReturn(Optional.of(mockTask));
+        when(taskRepository.save(mockTask)).thenReturn(mockTask);
+        when(taskRepository.countByOwnerIdAndMonthlyIncomeGroupId(
+                eq(USER_ID), eq(mockTask.getMonthlyIncomeGroupId()))).thenReturn(3L);
+        when(taskRepository.countByOwnerIdAndMonthlyIncomeGroupIdAndStatus(
+                eq(USER_ID), eq(mockTask.getMonthlyIncomeGroupId()), eq(TaskStatus.COMPLETED)))
+                .thenReturn(2L);
+
+        taskService.complete(TASK_ID, USER_ID, new TaskLifecycleActionRequest());
+
+        verify(taskRepository).lockMonthlyIncomeGroupForTask(TASK_ID, USER_ID);
+        verify(taskIntegrationPublisher, never()).publishMonthlyIncomeReady(any(), any(), any());
+    }
+
+    @Test
+    void completeSettlesMonthlyIncomeWhenItIsTheFinalOccurrence() {
+        mockTask.setStatus(TaskStatus.IN_PROGRESS);
+        mockTask.setMonthlyIncomeGroupId(UUID.randomUUID());
+        mockTask.setMonthlyIncomeAccountId(UUID.randomUUID());
+        mockTask.setMonthlyIncomeCurrency("VND");
+        mockTask.setMonthlyIncomePeriod("2026-08");
+        mockTask.setMonthlyIncomeBase(new BigDecimal("12000000"));
+        mockTask.setMonthlyIncomeBonus(BigDecimal.ZERO);
+        mockTask.setMonthlyIncomeDeduction(BigDecimal.ZERO);
+
+        when(taskRepository.findByIdAndOwnerId(TASK_ID, USER_ID)).thenReturn(Optional.of(mockTask));
+        when(taskRepository.save(mockTask)).thenReturn(mockTask);
+        when(taskRepository.countByOwnerIdAndMonthlyIncomeGroupId(
+                eq(USER_ID), eq(mockTask.getMonthlyIncomeGroupId()))).thenReturn(3L);
+        when(taskRepository.countByOwnerIdAndMonthlyIncomeGroupIdAndStatus(
+                eq(USER_ID), eq(mockTask.getMonthlyIncomeGroupId()), eq(TaskStatus.COMPLETED)))
+                .thenReturn(3L);
+
+        taskService.complete(TASK_ID, USER_ID, new TaskLifecycleActionRequest());
+
+        verify(taskRepository).lockMonthlyIncomeGroupForTask(TASK_ID, USER_ID);
+        verify(taskIntegrationPublisher).publishMonthlyIncomeReady(
+                eq(mockTask), eq(USER_ID), isNull());
     }
 
     @Test
@@ -413,8 +563,8 @@ class TaskServiceImplTest {
     @Test
     void duplicate_Success() {
         when(taskRepository.findByIdAndOwnerId(TASK_ID, USER_ID)).thenReturn(Optional.of(mockTask));
-        when(taskRepository.findByNameAndOwnerId("Học Spring Boot (Copy)", USER_ID))
-                .thenReturn(Optional.empty());
+        when(taskRepository.findAllByNameAndOwnerId("Học Spring Boot (Copy)", USER_ID))
+                .thenReturn(List.of());
         when(taskRepository.save(any(Task.class))).thenAnswer(i -> i.getArgument(0));
 
         TaskResponse response = taskService.duplicate(TASK_ID, USER_ID);
@@ -423,6 +573,7 @@ class TaskServiceImplTest {
         assertEquals("Học Spring Boot (Copy)", response.getName());
         assertEquals(120, response.getEstimatedMinutes());
         assertEquals(new BigDecimal("500000"), response.getEstimatedCost());
+        assertEquals(FINANCE_ACCOUNT_ID, response.getFinanceAccountId());
         assertEquals(TaskStatus.DRAFT, response.getStatus());
         verify(taskRepository, times(1)).save(any(Task.class));
     }

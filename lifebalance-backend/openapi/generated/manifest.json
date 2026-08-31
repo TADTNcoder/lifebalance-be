@@ -1,12 +1,12 @@
 [
   {
     "service": "identity-service",
-    "paths": 106,
+    "paths": 108,
     "file": "identity-service.json"
   },
   {
     "service": "task-service",
-    "paths": 34,
+    "paths": 35,
     "file": "task-service.json"
   },
   {
@@ -21,7 +21,7 @@
   },
   {
     "service": "finance-service",
-    "paths": 21,
+    "paths": 12,
     "file": "finance-service.json"
   },
   {

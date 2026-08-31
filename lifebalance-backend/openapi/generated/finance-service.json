@@ -189,209 +189,6 @@
         }
       }
     },
-    "/api/finance/recurring-transactions": {
-      "get": {
-        "tags": [
-          "recurring-transaction-controller"
-        ],
-        "operationId": "getRules",
-        "parameters": [
-          {
-            "name": "status",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "ACTIVE",
-                "PAUSED",
-                "ENDED"
-              ]
-            }
-          },
-          {
-            "name": "dueOnOrBefore",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "format": "date"
-            }
-          },
-          {
-            "name": "pageable",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/Pageable"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponsePageResponseRecurringTransactionResponse"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "recurring-transaction-controller"
-        ],
-        "operationId": "create_1",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateRecurringTransactionRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseRecurringTransactionResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/finance/recurring-transactions/{id}/resume": {
-      "post": {
-        "tags": [
-          "recurring-transaction-controller"
-        ],
-        "operationId": "resume",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ReasonRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseRecurringTransactionResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/finance/recurring-transactions/{id}/pause": {
-      "post": {
-        "tags": [
-          "recurring-transaction-controller"
-        ],
-        "operationId": "pause",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ReasonRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseRecurringTransactionResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/finance/recurring-transactions/{id}/end": {
-      "post": {
-        "tags": [
-          "recurring-transaction-controller"
-        ],
-        "operationId": "end",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ReasonRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseRecurringTransactionResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/finance/categories": {
       "get": {
         "tags": [
@@ -449,7 +246,7 @@
         "tags": [
           "finance-category-controller"
         ],
-        "operationId": "create_2",
+        "operationId": "create_1",
         "requestBody": {
           "content": {
             "application/json": {
@@ -568,7 +365,7 @@
         "tags": [
           "finance-account-controller"
         ],
-        "operationId": "create_3",
+        "operationId": "create_2",
         "requestBody": {
           "content": {
             "application/json": {
@@ -627,152 +424,6 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseFinanceAccountResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/budgets": {
-      "get": {
-        "tags": [
-          "finance-budget-controller"
-        ],
-        "operationId": "getBudgets",
-        "parameters": [
-          {
-            "name": "status",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "ACTIVE",
-                "ARCHIVED"
-              ]
-            }
-          },
-          {
-            "name": "currencyCode",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "categoryId",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "fromDate",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "format": "date"
-            }
-          },
-          {
-            "name": "toDate",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "format": "date"
-            }
-          },
-          {
-            "name": "pageable",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/Pageable"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponsePageResponseBudgetResponse"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "finance-budget-controller"
-        ],
-        "operationId": "create_4",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateBudgetRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseBudgetResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/budgets/{id}/archive": {
-      "post": {
-        "tags": [
-          "finance-budget-controller"
-        ],
-        "operationId": "archive_2",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ReasonRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseBudgetResponse"
                 }
               }
             }
@@ -850,47 +501,6 @@
         }
       }
     },
-    "/api/finance/recurring-transactions/{id}": {
-      "patch": {
-        "tags": [
-          "recurring-transaction-controller"
-        ],
-        "operationId": "update_1",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateRecurringTransactionRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseRecurringTransactionResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/finance/categories/{id}": {
       "get": {
         "tags": [
@@ -925,7 +535,7 @@
         "tags": [
           "finance-category-controller"
         ],
-        "operationId": "update_2",
+        "operationId": "update_1",
         "parameters": [
           {
             "name": "id",
@@ -995,7 +605,7 @@
         "tags": [
           "finance-account-controller"
         ],
-        "operationId": "update_3",
+        "operationId": "update_2",
         "parameters": [
           {
             "name": "id",
@@ -1024,76 +634,6 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseFinanceAccountResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/budgets/{id}": {
-      "get": {
-        "tags": [
-          "finance-budget-controller"
-        ],
-        "operationId": "getById_3",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseBudgetResponse"
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "tags": [
-          "finance-budget-controller"
-        ],
-        "operationId": "update_4",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateBudgetRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseBudgetResponse"
                 }
               }
             }
@@ -1222,37 +762,6 @@
           }
         }
       }
-    },
-    "/api/budgets/{id}/status": {
-      "get": {
-        "tags": [
-          "finance-budget-controller"
-        ],
-        "operationId": "getBudgetStatus",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseBudgetStatusResponse"
-                }
-              }
-            }
-          }
-        }
-      }
     }
   },
   "components": {
@@ -1292,6 +801,11 @@
             "type": "string",
             "format": "date-time"
           },
+          "transactionName": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 0
+          },
           "description": {
             "type": "string",
             "maxLength": 1000,
@@ -1308,6 +822,26 @@
           "capitalAllocationId": {
             "type": "string",
             "format": "uuid"
+          },
+          "incomeSourceType": {
+            "type": "string",
+            "enum": [
+              "ONE_OFF",
+              "MONTHLY_SALARY"
+            ]
+          },
+          "salaryPeriod": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+          },
+          "baseSalary": {
+            "type": "number"
+          },
+          "bonusAmount": {
+            "type": "number"
+          },
+          "deductionAmount": {
+            "type": "number"
           },
           "reason": {
             "type": "string",
@@ -1414,6 +948,9 @@
             "type": "string",
             "format": "date-time"
           },
+          "transactionName": {
+            "type": "string"
+          },
           "description": {
             "type": "string"
           },
@@ -1451,217 +988,32 @@
           "updatedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "incomeSourceType": {
+            "type": "string",
+            "enum": [
+              "ONE_OFF",
+              "MONTHLY_SALARY"
+            ]
+          },
+          "salaryPeriod": {
+            "type": "string"
+          },
+          "baseSalary": {
+            "type": "number"
+          },
+          "bonusAmount": {
+            "type": "number"
+          },
+          "deductionAmount": {
+            "type": "number"
+          },
+          "systemGenerated": {
+            "type": "boolean"
           }
         }
       },
       "VoidTransactionRequest": {
-        "type": "object",
-        "properties": {
-          "reason": {
-            "type": "string",
-            "maxLength": 1000,
-            "minLength": 0
-          }
-        },
-        "required": [
-          "reason"
-        ]
-      },
-      "CreateRecurringTransactionRequest": {
-        "type": "object",
-        "properties": {
-          "transactionType": {
-            "type": "string",
-            "enum": [
-              "INCOME",
-              "EXPENSE",
-              "TRANSFER"
-            ]
-          },
-          "sourceAccountId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "destinationAccountId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "categoryId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "amount": {
-            "type": "number"
-          },
-          "currencyCode": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[A-Z]{3}$"
-          },
-          "frequency": {
-            "type": "string",
-            "enum": [
-              "DAILY",
-              "WEEKLY",
-              "MONTHLY",
-              "YEARLY"
-            ]
-          },
-          "intervalCount": {
-            "type": "integer",
-            "format": "int32",
-            "minimum": 1
-          },
-          "startsOn": {
-            "type": "string",
-            "format": "date"
-          },
-          "nextRunDate": {
-            "type": "string",
-            "format": "date"
-          },
-          "endsOn": {
-            "type": "string",
-            "format": "date"
-          },
-          "description": {
-            "type": "string",
-            "maxLength": 1000,
-            "minLength": 0
-          },
-          "reason": {
-            "type": "string",
-            "maxLength": 1000,
-            "minLength": 0
-          }
-        },
-        "required": [
-          "amount",
-          "currencyCode",
-          "frequency",
-          "startsOn",
-          "transactionType"
-        ]
-      },
-      "ApiResponseRecurringTransactionResponse": {
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean"
-          },
-          "data": {
-            "$ref": "#/components/schemas/RecurringTransactionResponse"
-          },
-          "error": {
-            "$ref": "#/components/schemas/ApiError"
-          },
-          "timestamp": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
-      "RecurringTransactionResponse": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "ownerId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "transactionType": {
-            "type": "string",
-            "enum": [
-              "INCOME",
-              "EXPENSE",
-              "TRANSFER"
-            ]
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "ACTIVE",
-              "PAUSED",
-              "ENDED"
-            ]
-          },
-          "sourceAccountId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "sourceAccountName": {
-            "type": "string"
-          },
-          "destinationAccountId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "destinationAccountName": {
-            "type": "string"
-          },
-          "categoryId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "categoryName": {
-            "type": "string"
-          },
-          "amount": {
-            "type": "number"
-          },
-          "currencyCode": {
-            "type": "string"
-          },
-          "frequency": {
-            "type": "string",
-            "enum": [
-              "DAILY",
-              "WEEKLY",
-              "MONTHLY",
-              "YEARLY"
-            ]
-          },
-          "intervalCount": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "startsOn": {
-            "type": "string",
-            "format": "date"
-          },
-          "nextRunDate": {
-            "type": "string",
-            "format": "date"
-          },
-          "endsOn": {
-            "type": "string",
-            "format": "date"
-          },
-          "description": {
-            "type": "string"
-          },
-          "createdBy": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "updatedBy": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
-      "ReasonRequest": {
         "type": "object",
         "properties": {
           "reason": {
@@ -1775,6 +1127,19 @@
           }
         }
       },
+      "ReasonRequest": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 0
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
       "CreateFinanceAccountRequest": {
         "type": "object",
         "properties": {
@@ -1786,13 +1151,8 @@
           "accountType": {
             "type": "string",
             "enum": [
-              "CASH",
-              "BANK_ACCOUNT",
-              "CREDIT_CARD",
-              "DIGITAL_WALLET",
-              "SAVINGS",
-              "INVESTMENT",
-              "OTHER"
+              "MAIN_POOL",
+              "JAR"
             ]
           },
           "currencyCode": {
@@ -1846,13 +1206,8 @@
           "accountType": {
             "type": "string",
             "enum": [
-              "CASH",
-              "BANK_ACCOUNT",
-              "CREDIT_CARD",
-              "DIGITAL_WALLET",
-              "SAVINGS",
-              "INVESTMENT",
-              "OTHER"
+              "MAIN_POOL",
+              "JAR"
             ]
           },
           "currencyCode": {
@@ -1862,135 +1217,6 @@
             "type": "number"
           },
           "currentBalance": {
-            "type": "number"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "ACTIVE",
-              "ARCHIVED"
-            ]
-          },
-          "createdBy": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "updatedBy": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
-      "CreateBudgetRequest": {
-        "type": "object",
-        "properties": {
-          "categoryId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "name": {
-            "type": "string",
-            "maxLength": 120,
-            "minLength": 0
-          },
-          "periodStart": {
-            "type": "string",
-            "format": "date"
-          },
-          "periodEnd": {
-            "type": "string",
-            "format": "date"
-          },
-          "amountLimit": {
-            "type": "number"
-          },
-          "currencyCode": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[A-Z]{3}$"
-          },
-          "alertThresholdPercent": {
-            "type": "number",
-            "maximum": 100.0,
-            "minimum": 0.0
-          },
-          "reason": {
-            "type": "string",
-            "maxLength": 1000,
-            "minLength": 0
-          }
-        },
-        "required": [
-          "alertThresholdPercent",
-          "amountLimit",
-          "currencyCode",
-          "name",
-          "periodEnd",
-          "periodStart"
-        ]
-      },
-      "ApiResponseBudgetResponse": {
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean"
-          },
-          "data": {
-            "$ref": "#/components/schemas/BudgetResponse"
-          },
-          "error": {
-            "$ref": "#/components/schemas/ApiError"
-          },
-          "timestamp": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
-      "BudgetResponse": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "ownerId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "categoryId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "categoryName": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "periodStart": {
-            "type": "string",
-            "format": "date"
-          },
-          "periodEnd": {
-            "type": "string",
-            "format": "date"
-          },
-          "amountLimit": {
-            "type": "number"
-          },
-          "currencyCode": {
-            "type": "string"
-          },
-          "alertThresholdPercent": {
             "type": "number"
           },
           "status": {
@@ -2053,6 +1279,11 @@
             "type": "string",
             "format": "date-time"
           },
+          "transactionName": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 0
+          },
           "description": {
             "type": "string",
             "maxLength": 1000,
@@ -2070,6 +1301,26 @@
             "type": "string",
             "format": "uuid"
           },
+          "incomeSourceType": {
+            "type": "string",
+            "enum": [
+              "ONE_OFF",
+              "MONTHLY_SALARY"
+            ]
+          },
+          "salaryPeriod": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+          },
+          "baseSalary": {
+            "type": "number"
+          },
+          "bonusAmount": {
+            "type": "number"
+          },
+          "deductionAmount": {
+            "type": "number"
+          },
           "reason": {
             "type": "string",
             "maxLength": 1000,
@@ -2081,84 +1332,6 @@
           "currencyCode",
           "reason",
           "transactionDate",
-          "transactionType"
-        ]
-      },
-      "UpdateRecurringTransactionRequest": {
-        "type": "object",
-        "properties": {
-          "transactionType": {
-            "type": "string",
-            "enum": [
-              "INCOME",
-              "EXPENSE",
-              "TRANSFER"
-            ]
-          },
-          "sourceAccountId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "destinationAccountId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "categoryId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "amount": {
-            "type": "number"
-          },
-          "currencyCode": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[A-Z]{3}$"
-          },
-          "frequency": {
-            "type": "string",
-            "enum": [
-              "DAILY",
-              "WEEKLY",
-              "MONTHLY",
-              "YEARLY"
-            ]
-          },
-          "intervalCount": {
-            "type": "integer",
-            "format": "int32",
-            "minimum": 1
-          },
-          "startsOn": {
-            "type": "string",
-            "format": "date"
-          },
-          "nextRunDate": {
-            "type": "string",
-            "format": "date"
-          },
-          "endsOn": {
-            "type": "string",
-            "format": "date"
-          },
-          "description": {
-            "type": "string",
-            "maxLength": 1000,
-            "minLength": 0
-          },
-          "reason": {
-            "type": "string",
-            "maxLength": 1000,
-            "minLength": 0
-          }
-        },
-        "required": [
-          "amount",
-          "currencyCode",
-          "frequency",
-          "nextRunDate",
-          "reason",
-          "startsOn",
           "transactionType"
         ]
       },
@@ -2198,18 +1371,6 @@
             "maxLength": 120,
             "minLength": 0
           },
-          "accountType": {
-            "type": "string",
-            "enum": [
-              "CASH",
-              "BANK_ACCOUNT",
-              "CREDIT_CARD",
-              "DIGITAL_WALLET",
-              "SAVINGS",
-              "INVESTMENT",
-              "OTHER"
-            ]
-          },
           "reason": {
             "type": "string",
             "maxLength": 1000,
@@ -2217,57 +1378,7 @@
           }
         },
         "required": [
-          "accountType",
           "name"
-        ]
-      },
-      "UpdateBudgetRequest": {
-        "type": "object",
-        "properties": {
-          "categoryId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "name": {
-            "type": "string",
-            "maxLength": 120,
-            "minLength": 0
-          },
-          "periodStart": {
-            "type": "string",
-            "format": "date"
-          },
-          "periodEnd": {
-            "type": "string",
-            "format": "date"
-          },
-          "amountLimit": {
-            "type": "number"
-          },
-          "currencyCode": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[A-Z]{3}$"
-          },
-          "alertThresholdPercent": {
-            "type": "number",
-            "maximum": 100.0,
-            "minimum": 0.0
-          },
-          "reason": {
-            "type": "string",
-            "maxLength": 1000,
-            "minLength": 0
-          }
-        },
-        "required": [
-          "alertThresholdPercent",
-          "amountLimit",
-          "currencyCode",
-          "name",
-          "periodEnd",
-          "periodStart",
-          "reason"
         ]
       },
       "Pageable": {
@@ -2386,6 +1497,36 @@
           }
         }
       },
+      "FinanceMonthlyJarSettlementSummaryResponse": {
+        "type": "object",
+        "properties": {
+          "period": {
+            "type": "string"
+          },
+          "allocatedAmount": {
+            "type": "number"
+          },
+          "actualExpenseAmount": {
+            "type": "number"
+          },
+          "closingBalance": {
+            "type": "number"
+          },
+          "returnedAmount": {
+            "type": "number"
+          },
+          "coveredDeficitAmount": {
+            "type": "number"
+          },
+          "varianceAmount": {
+            "type": "number"
+          },
+          "settledJarCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "FinanceSummaryResponse": {
         "type": "object",
         "properties": {
@@ -2413,56 +1554,23 @@
           "netCashflow": {
             "type": "number"
           },
+          "mainPoolBalance": {
+            "type": "number"
+          },
+          "totalJarBalance": {
+            "type": "number"
+          },
           "totalAccountBalance": {
             "type": "number"
-          }
-        }
-      },
-      "ApiResponsePageResponseRecurringTransactionResponse": {
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean"
           },
-          "data": {
-            "$ref": "#/components/schemas/PageResponseRecurringTransactionResponse"
+          "openingAccountBalance": {
+            "type": "number"
           },
-          "error": {
-            "$ref": "#/components/schemas/ApiError"
-          },
-          "timestamp": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
-      "PageResponseRecurringTransactionResponse": {
-        "type": "object",
-        "properties": {
-          "content": {
+          "monthlyJarSettlements": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/RecurringTransactionResponse"
+              "$ref": "#/components/schemas/FinanceMonthlyJarSettlementSummaryResponse"
             }
-          },
-          "pageNumber": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "pageSize": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "totalElements": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "totalPages": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "last": {
-            "type": "boolean"
           }
         }
       },
@@ -2673,96 +1781,6 @@
           },
           "last": {
             "type": "boolean"
-          }
-        }
-      },
-      "ApiResponsePageResponseBudgetResponse": {
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean"
-          },
-          "data": {
-            "$ref": "#/components/schemas/PageResponseBudgetResponse"
-          },
-          "error": {
-            "$ref": "#/components/schemas/ApiError"
-          },
-          "timestamp": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
-      "PageResponseBudgetResponse": {
-        "type": "object",
-        "properties": {
-          "content": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/BudgetResponse"
-            }
-          },
-          "pageNumber": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "pageSize": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "totalElements": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "totalPages": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "last": {
-            "type": "boolean"
-          }
-        }
-      },
-      "ApiResponseBudgetStatusResponse": {
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean"
-          },
-          "data": {
-            "$ref": "#/components/schemas/BudgetStatusResponse"
-          },
-          "error": {
-            "$ref": "#/components/schemas/ApiError"
-          },
-          "timestamp": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
-      "BudgetStatusResponse": {
-        "type": "object",
-        "properties": {
-          "budget": {
-            "$ref": "#/components/schemas/BudgetResponse"
-          },
-          "spentAmount": {
-            "type": "number"
-          },
-          "remainingAmount": {
-            "type": "number"
-          },
-          "usagePercent": {
-            "type": "number"
-          },
-          "thresholdReached": {
-            "type": "boolean"
-          },
-          "historyReferenceId": {
-            "type": "string",
-            "format": "uuid"
           }
         }
       }

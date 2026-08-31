@@ -30,6 +30,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
@@ -143,6 +144,40 @@ public class Task extends BaseAuditableEntity {
     @Column(name = "estimated_cost", precision = 19, scale = 4)
     private BigDecimal estimatedCost;
 
+    @Column(name = "finance_account_id")
+    private UUID financeAccountId;
+
+    /**
+     * Monthly-income settlement metadata. Every occurrence of one monthly job
+     * shares the same group id for a salary period; the finance service is only
+     * notified after all occurrences in that group are completed.
+     */
+    @Column(name = "monthly_income_group_id")
+    private UUID monthlyIncomeGroupId;
+
+    @Column(name = "monthly_income_account_id")
+    private UUID monthlyIncomeAccountId;
+
+    @Size(max = CURRENCY_MAX_LENGTH)
+    @Column(name = "monthly_income_currency", length = CURRENCY_MAX_LENGTH)
+    private String monthlyIncomeCurrency;
+
+    @Size(max = 7)
+    @Column(name = "monthly_income_period", length = 7)
+    private String monthlyIncomePeriod;
+
+    @Positive
+    @Column(name = "monthly_income_base", precision = 19, scale = 4)
+    private BigDecimal monthlyIncomeBase;
+
+    @PositiveOrZero
+    @Column(name = "monthly_income_bonus", precision = 19, scale = 4)
+    private BigDecimal monthlyIncomeBonus;
+
+    @PositiveOrZero
+    @Column(name = "monthly_income_deduction", precision = 19, scale = 4)
+    private BigDecimal monthlyIncomeDeduction;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id")
     private Category category;
@@ -172,6 +207,12 @@ public class Task extends BaseAuditableEntity {
             currency = normalizeOptionalText(currency);
             if (currency != null) {
                 currency = currency.toUpperCase(Locale.ROOT);
+            }
+        }
+        if (monthlyIncomeCurrency != null) {
+            monthlyIncomeCurrency = normalizeOptionalText(monthlyIncomeCurrency);
+            if (monthlyIncomeCurrency != null) {
+                monthlyIncomeCurrency = monthlyIncomeCurrency.toUpperCase(Locale.ROOT);
             }
         }
         if (status == null) {
@@ -369,6 +410,17 @@ public class Task extends BaseAuditableEntity {
         return deadline.isBefore(today)
                 && status != TaskStatus.COMPLETED
                 && status != TaskStatus.CANCELLED;
+    }
+
+    public boolean hasMonthlyIncomePlan() {
+        return monthlyIncomeGroupId != null
+                && monthlyIncomeAccountId != null
+                && monthlyIncomePeriod != null
+                && !monthlyIncomePeriod.isBlank()
+                && monthlyIncomeBase != null
+                && monthlyIncomeBase.signum() > 0
+                && monthlyIncomeCurrency != null
+                && !monthlyIncomeCurrency.isBlank();
     }
 
     public boolean belongsTo(UUID userId) {

@@ -9,6 +9,7 @@ import com.lifebalance.task.model.enums.PriorityLevel;
 import com.lifebalance.task.validation.ValidPlanningWindow;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
@@ -46,6 +47,27 @@ public class CreateTaskRequest implements PlanningWindowRequest {
 
     @PositiveOrZero
     private BigDecimal estimatedCost;
+
+    private UUID financeAccountId;
+
+    private UUID monthlyIncomeGroupId;
+
+    private UUID monthlyIncomeAccountId;
+
+    @Pattern(regexp = "^[A-Z]{3}$")
+    private String monthlyIncomeCurrency;
+
+    @Pattern(regexp = "^\\d{4}-(0[1-9]|1[0-2])$")
+    private String monthlyIncomePeriod;
+
+    @Positive
+    private BigDecimal monthlyIncomeBase;
+
+    @PositiveOrZero
+    private BigDecimal monthlyIncomeBonus;
+
+    @PositiveOrZero
+    private BigDecimal monthlyIncomeDeduction;
 
     private UUID categoryId;
 }

@@ -15,6 +15,7 @@ import com.lifebalance.common.LifebalanceCommonAutoConfiguration;
 import com.lifebalance.common.error.AuthErrorCode;
 import com.lifebalance.common.error.CommonErrorCode;
 import com.lifebalance.finance.domain.FinanceTransactionStatus;
+import com.lifebalance.finance.domain.FinanceIncomeSourceType;
 import com.lifebalance.finance.domain.FinanceTransactionType;
 import com.lifebalance.finance.dto.CreateTransactionRequest;
 import com.lifebalance.finance.dto.TransactionResponse;
@@ -49,6 +50,7 @@ class FinancialTransactionControllerTest {
     private static final UUID SOURCE_ACCOUNT_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
     private static final UUID CATEGORY_ID = UUID.fromString("33333333-3333-3333-3333-333333333333");
     private static final UUID TRANSACTION_ID = UUID.fromString("44444444-4444-4444-4444-444444444444");
+    private static final UUID TASK_ID = UUID.fromString("55555555-5555-5555-5555-555555555555");
     private static final OffsetDateTime TRANSACTION_DATE = OffsetDateTime.parse("2026-08-21T08:30:00Z");
 
     @Autowired
@@ -74,6 +76,7 @@ class FinancialTransactionControllerTest {
                         new BigDecimal("125.5000"),
                         "USD",
                         TRANSACTION_DATE,
+                        "Bữa trưa nhóm",
                         "Team lunch",
                         null,
                         null,
@@ -97,6 +100,7 @@ class FinancialTransactionControllerTest {
                                   "amount": 125.5000,
                                   "currencyCode": "USD",
                                   "transactionDate": "2026-08-21T08:30:00Z",
+                                  "transactionName": "Bữa trưa nhóm",
                                   "description": "Team lunch",
                                   "reason": "Lunch budget"
                                 }
@@ -117,6 +121,7 @@ class FinancialTransactionControllerTest {
         assertThat(requestCaptor.getValue().transactionType()).isEqualTo(FinanceTransactionType.EXPENSE);
         assertThat(requestCaptor.getValue().sourceAccountId()).isEqualTo(SOURCE_ACCOUNT_ID);
         assertThat(requestCaptor.getValue().categoryId()).isEqualTo(CATEGORY_ID);
+        assertThat(requestCaptor.getValue().transactionName()).isEqualTo("Bữa trưa nhóm");
         assertThat(requestCaptor.getValue().amount()).isEqualByComparingTo("125.5000");
         assertThat(requestCaptor.getValue().reason()).isEqualTo("Lunch budget");
     }
@@ -141,6 +146,77 @@ class FinancialTransactionControllerTest {
                 .andExpect(jsonPath("$.error.details.amount").exists());
 
         verify(transactionService, never()).create(any(), any());
+    }
+
+    @Test
+    void createTransactionAcceptsMonthlySalaryMetadata() throws Exception {
+        when(transactionService.create(eq(OWNER_ID), any(CreateTransactionRequest.class)))
+                .thenReturn(new TransactionResponse(
+                        TRANSACTION_ID,
+                        OWNER_ID,
+                        FinanceTransactionType.INCOME,
+                        FinanceTransactionStatus.POSTED,
+                        null,
+                        null,
+                        SOURCE_ACCOUNT_ID,
+                        "Salary wallet",
+                        CATEGORY_ID,
+                        "Salary",
+                        new BigDecimal("1050.0000"),
+                        "USD",
+                        TRANSACTION_DATE,
+                        "Salary August 2026",
+                        null,
+                        TASK_ID,
+                        null,
+                        null,
+                        null,
+                        null,
+                        OWNER_ID,
+                        OWNER_ID,
+                        TRANSACTION_DATE,
+                        TRANSACTION_DATE,
+                        FinanceIncomeSourceType.MONTHLY_SALARY,
+                        "2026-08",
+                        new BigDecimal("1000.0000"),
+                        new BigDecimal("100.0000"),
+                        new BigDecimal("50.0000")
+                ));
+
+        mockMvc.perform(post("/api/transactions")
+                        .with(authenticatedUser())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "transactionType": "INCOME",
+                                  "destinationAccountId": "%s",
+                                  "categoryId": "%s",
+                                  "amount": 1050.0000,
+                                  "currencyCode": "USD",
+                                  "transactionDate": "2026-08-21T08:30:00Z",
+                                  "transactionName": "Salary August 2026",
+                                  "taskId": "%s",
+                                  "incomeSourceType": "MONTHLY_SALARY",
+                                  "salaryPeriod": "2026-08",
+                                  "baseSalary": 1000.0000,
+                                  "bonusAmount": 100.0000,
+                                  "deductionAmount": 50.0000
+                                }
+                                """.formatted(SOURCE_ACCOUNT_ID, CATEGORY_ID, TASK_ID)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.incomeSourceType").value("MONTHLY_SALARY"))
+                .andExpect(jsonPath("$.data.salaryPeriod").value("2026-08"))
+                .andExpect(jsonPath("$.data.baseSalary").value(1000.0000))
+                .andExpect(jsonPath("$.data.bonusAmount").value(100.0000))
+                .andExpect(jsonPath("$.data.deductionAmount").value(50.0000));
+
+        ArgumentCaptor<CreateTransactionRequest> requestCaptor =
+                ArgumentCaptor.forClass(CreateTransactionRequest.class);
+        verify(transactionService).create(eq(OWNER_ID), requestCaptor.capture());
+        assertThat(requestCaptor.getValue().incomeSourceType())
+                .isEqualTo(FinanceIncomeSourceType.MONTHLY_SALARY);
+        assertThat(requestCaptor.getValue().salaryPeriod()).isEqualTo("2026-08");
+        assertThat(requestCaptor.getValue().taskId()).isEqualTo(TASK_ID);
     }
 
     @Test

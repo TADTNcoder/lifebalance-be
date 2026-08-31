@@ -18,6 +18,22 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
     Optional<FinancialTransaction> findByIdAndOwnerId(UUID id, UUID ownerId);
 
     @Query("""
+            select (count(transaction) > 0)
+            from FinancialTransaction transaction
+            where transaction.ownerId = :ownerId
+              and transaction.taskId = :taskId
+              and transaction.incomeSourceType = com.lifebalance.finance.domain.FinanceIncomeSourceType.MONTHLY_SALARY
+              and transaction.salaryPeriod = :salaryPeriod
+              and transaction.status = com.lifebalance.finance.domain.FinanceTransactionStatus.POSTED
+              and (:excludedId is null or transaction.id <> :excludedId)
+            """)
+    boolean existsPostedMonthlySalary(
+            @Param("ownerId") UUID ownerId,
+            @Param("taskId") UUID taskId,
+            @Param("salaryPeriod") String salaryPeriod,
+            @Param("excludedId") UUID excludedId);
+
+    @Query("""
             select transaction
             from FinancialTransaction transaction
             left join fetch transaction.sourceAccount
@@ -42,8 +58,8 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
               and (:categoryId is null or transaction.category.id = :categoryId)
               and (:taskId is null or transaction.taskId = :taskId)
               and (:capitalCycleId is null or transaction.capitalCycleId = :capitalCycleId)
-              and (:fromDate is null or transaction.transactionDate >= :fromDate)
-              and (:toDate is null or transaction.transactionDate <= :toDate)
+              and transaction.transactionDate >= :fromDate
+              and transaction.transactionDate <= :toDate
             """)
     Page<FinancialTransaction> search(
             @Param("ownerId") UUID ownerId,
@@ -87,4 +103,23 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
             @Param("fromDate") OffsetDateTime fromDate,
             @Param("toDate") OffsetDateTime toDate,
             @Param("categoryId") UUID categoryId);
+
+    @Query("""
+            select coalesce(sum(transaction.amount), 0)
+            from FinancialTransaction transaction
+            where transaction.ownerId = :ownerId
+              and transaction.status = com.lifebalance.finance.domain.FinanceTransactionStatus.POSTED
+              and transaction.transactionType = com.lifebalance.finance.domain.FinanceTransactionType.EXPENSE
+              and transaction.sourceAccount.id = :sourceAccountId
+              and transaction.currencyCode = :currencyCode
+              and transaction.transactionDate >= :fromDate
+              and transaction.transactionDate < :toDateExclusive
+            """)
+    BigDecimal sumPostedExpenseBySourceAccount(
+            @Param("ownerId") UUID ownerId,
+            @Param("sourceAccountId") UUID sourceAccountId,
+            @Param("currencyCode") String currencyCode,
+            @Param("fromDate") OffsetDateTime fromDate,
+            @Param("toDateExclusive") OffsetDateTime toDateExclusive
+    );
 }

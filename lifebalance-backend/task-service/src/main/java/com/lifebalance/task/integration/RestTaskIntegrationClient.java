@@ -1,11 +1,15 @@
 package com.lifebalance.task.integration;
 
+import java.net.http.HttpClient;
+import java.time.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 
 @Component
 class RestTaskIntegrationClient implements TaskIntegrationClient {
@@ -15,6 +19,7 @@ class RestTaskIntegrationClient implements TaskIntegrationClient {
 
     private final RestClient.Builder restClientBuilder;
     private final TaskIntegrationProperties properties;
+    private final JdkClientHttpRequestFactory requestFactory;
 
     RestTaskIntegrationClient(
             RestClient.Builder restClientBuilder,
@@ -22,6 +27,11 @@ class RestTaskIntegrationClient implements TaskIntegrationClient {
     ) {
         this.restClientBuilder = restClientBuilder;
         this.properties = properties;
+        HttpClient httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofMillis(properties.getConnectTimeoutMillis()))
+                .build();
+        this.requestFactory = new JdkClientHttpRequestFactory(httpClient);
+        this.requestFactory.setReadTimeout(Duration.ofMillis(properties.getReadTimeoutMillis()));
     }
 
     @Override
@@ -99,6 +109,28 @@ class RestTaskIntegrationClient implements TaskIntegrationClient {
         );
     }
 
+    @Override
+    public void recordMonthlyIncome(
+            MonthlyIncomeTransactionRequest request,
+            String authorizationHeader) {
+
+        if (!hasBearer(authorizationHeader)) {
+            log.warn("Skipping monthly income settlement because bearer token is missing. taskId={}",
+                    request.taskId());
+            return;
+        }
+
+        post(
+                properties.getFinanceService().getBaseUrl(),
+                "/api/transactions",
+                request,
+                authorizationHeader,
+                true,
+                "finance-service",
+                null
+        );
+    }
+
     private void post(
             String baseUrl,
             String uri,
@@ -108,29 +140,73 @@ class RestTaskIntegrationClient implements TaskIntegrationClient {
             String serviceName,
             TaskIntegrationEvent event
     ) {
-        try {
-            restClientBuilder
-                    .clone()
-                    .baseUrl(normalizeBaseUrl(baseUrl))
-                    .build()
-                    .post()
-                    .uri(uri)
-                    .headers(headers -> {
-                        headers.set(HttpHeaders.AUTHORIZATION, authorizationHeader);
-                        if (includeInternalCredential && properties.hasInternalSecret()) {
-                            headers.set(INTERNAL_SECRET_HEADER, properties.getInternalSecret().trim());
-                        }
-                    })
-                    .body(request)
-                    .retrieve()
-                    .toBodilessEntity();
-        } catch (RestClientException exception) {
-            if (event == null) {
-                log.warn("Cross-service integration call failed. service={} uri={}", serviceName, uri, exception);
+        RestClientException lastFailure = null;
+        int maxAttempts = properties.getMaxAttempts();
+        int attemptsMade = 0;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            attemptsMade = attempt;
+            try {
+                restClientBuilder
+                        .clone()
+                        .baseUrl(normalizeBaseUrl(baseUrl))
+                        // Keep retry accounting in this class. Some auto-configured
+                        // Apache clients retry 503 responses on their own, which can
+                        // multiply POST attempts and duplicate side effects.
+                        .requestFactory(requestFactory)
+                        .build()
+                        .post()
+                        .uri(uri)
+                        .headers(headers -> {
+                            headers.set(HttpHeaders.AUTHORIZATION, authorizationHeader);
+                            if (includeInternalCredential && properties.hasInternalSecret()) {
+                                headers.set(INTERNAL_SECRET_HEADER, properties.getInternalSecret().trim());
+                            }
+                        })
+                        .body(request)
+                        .retrieve()
+                        .toBodilessEntity();
                 return;
+            } catch (RestClientException exception) {
+                lastFailure = exception;
+                if (!isRetryable(exception)
+                        || attempt >= maxAttempts
+                        || !waitBeforeRetry(attempt)) {
+                    break;
+                }
             }
-            log.warn("Cross-service integration call failed. service={} uri={} taskId={} action={}",
-                    serviceName, uri, event.taskId(), event.action(), exception);
+        }
+
+        if (event == null) {
+            log.warn("Cross-service integration call failed after {} attempt(s). service={} uri={}",
+                    attemptsMade, serviceName, uri, lastFailure);
+        } else {
+            log.warn("Cross-service integration call failed after {} attempt(s). service={} uri={} taskId={} action={}",
+                    attemptsMade, serviceName, uri, event.taskId(), event.action(), lastFailure);
+        }
+    }
+
+    private static boolean isRetryable(RestClientException exception) {
+        if (!(exception instanceof RestClientResponseException responseException)) {
+            return true;
+        }
+        int status = responseException.getStatusCode().value();
+        return responseException.getStatusCode().is5xxServerError()
+                || status == 408
+                || status == 425
+                || status == 429;
+    }
+
+    private boolean waitBeforeRetry(int completedAttempts) {
+        long delayMillis = properties.getRetryBackoffMillis() * completedAttempts;
+        if (delayMillis <= 0) {
+            return true;
+        }
+        try {
+            Thread.sleep(delayMillis);
+            return true;
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            return false;
         }
     }
 
