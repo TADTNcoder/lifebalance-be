@@ -26,6 +26,10 @@ import org.springframework.transaction.annotation.Transactional;
 class EvaluationServiceImpl implements EvaluationService {
 
     private static final BigDecimal ONE_HUNDRED = BigDecimal.valueOf(100);
+    private static final OffsetDateTime EARLIEST_EVALUATION_DATE =
+            OffsetDateTime.parse("0001-01-01T00:00:00Z");
+    private static final OffsetDateTime LATEST_EVALUATION_DATE =
+            OffsetDateTime.parse("9999-12-31T23:59:59.999999999Z");
 
     private final ActualRecordRepository actualRecordRepository;
     private final EvaluationResultRepository evaluationResultRepository;
@@ -139,7 +143,18 @@ class EvaluationServiceImpl implements EvaluationService {
         if (from != null && to != null && from.isAfter(to)) {
             throw AnalyticsExceptions.invalidPeriod("from must be before or equal to to.");
         }
-        return evaluationResultRepository.search(ownerId, taskId, capitalCycleId, status, from, to, pageable)
+        OffsetDateTime normalizedFrom = from == null ? EARLIEST_EVALUATION_DATE : from;
+        OffsetDateTime normalizedTo = to == null ? LATEST_EVALUATION_DATE : to;
+
+        return evaluationResultRepository.search(
+                        ownerId,
+                        taskId,
+                        capitalCycleId,
+                        status,
+                        normalizedFrom,
+                        normalizedTo,
+                        pageable
+                )
                 .map(mapper::toResponse);
     }
 

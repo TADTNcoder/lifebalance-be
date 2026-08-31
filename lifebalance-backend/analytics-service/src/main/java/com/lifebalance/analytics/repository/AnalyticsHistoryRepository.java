@@ -20,8 +20,8 @@ public interface AnalyticsHistoryRepository extends JpaRepository<AnalyticsHisto
               AND (:actualRecordId IS NULL OR history.actualRecord.id = :actualRecordId)
               AND (:evaluationResultId IS NULL OR history.evaluationResult.id = :evaluationResultId)
               AND (:reportId IS NULL OR history.report.id = :reportId)
-              AND (:from IS NULL OR history.occurredAt >= :from)
-              AND (:to IS NULL OR history.occurredAt <= :to)
+              AND history.occurredAt >= :from
+              AND history.occurredAt <= :to
             ORDER BY history.occurredAt DESC, history.id DESC
             """)
     Page<AnalyticsHistory> search(

@@ -14,6 +14,11 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 class AnalyticsHistoryServiceImpl implements AnalyticsHistoryService {
 
+    private static final OffsetDateTime EARLIEST_HISTORY_DATE =
+            OffsetDateTime.parse("0001-01-01T00:00:00Z");
+    private static final OffsetDateTime LATEST_HISTORY_DATE =
+            OffsetDateTime.parse("9999-12-31T23:59:59.999999999Z");
+
     private final AnalyticsHistoryRepository historyRepository;
     private final AnalyticsMapper mapper;
 
@@ -40,7 +45,19 @@ class AnalyticsHistoryServiceImpl implements AnalyticsHistoryService {
                     "from must be before or equal to to."
             );
         }
-        return historyRepository.search(ownerId, actionType, actualRecordId, evaluationResultId, reportId, from, to, pageable)
+        OffsetDateTime normalizedFrom = from == null ? EARLIEST_HISTORY_DATE : from;
+        OffsetDateTime normalizedTo = to == null ? LATEST_HISTORY_DATE : to;
+
+        return historyRepository.search(
+                        ownerId,
+                        actionType,
+                        actualRecordId,
+                        evaluationResultId,
+                        reportId,
+                        normalizedFrom,
+                        normalizedTo,
+                        pageable
+                )
                 .map(mapper::toResponse);
     }
 }

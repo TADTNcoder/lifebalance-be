@@ -39,8 +39,8 @@ public interface EvaluationResultRepository extends JpaRepository<EvaluationResu
               AND (:taskId IS NULL OR result.taskId = :taskId)
               AND (:capitalCycleId IS NULL OR result.capitalCycleId = :capitalCycleId)
               AND (:status IS NULL OR result.status = :status)
-              AND (:from IS NULL OR result.generatedAt >= :from)
-              AND (:to IS NULL OR result.generatedAt <= :to)
+              AND result.generatedAt >= :from
+              AND result.generatedAt <= :to
             ORDER BY result.generatedAt DESC, result.id DESC
             """)
     Page<EvaluationResult> search(
