@@ -1,12 +1,21 @@
 package com.lifebalance.finance.service.impl;
 
 import com.lifebalance.finance.domain.FinanceTransactionType;
+import com.lifebalance.finance.domain.FinanceAccountType;
+import com.lifebalance.finance.domain.FinanceMonthlyJarSettlement;
+import com.lifebalance.finance.dto.FinanceMonthlyJarSettlementSummaryResponse;
 import com.lifebalance.finance.dto.FinanceSummaryResponse;
 import com.lifebalance.finance.repository.FinanceAccountRepository;
+import com.lifebalance.finance.repository.FinanceMonthlyJarSettlementRepository;
 import com.lifebalance.finance.repository.FinancialTransactionRepository;
 import com.lifebalance.finance.service.FinanceReportService;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.time.YearMonth;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,13 +25,16 @@ public class FinanceReportServiceImpl implements FinanceReportService {
 
     private final FinancialTransactionRepository transactionRepository;
     private final FinanceAccountRepository accountRepository;
+    private final FinanceMonthlyJarSettlementRepository settlementRepository;
 
     public FinanceReportServiceImpl(
             FinancialTransactionRepository transactionRepository,
-            FinanceAccountRepository accountRepository
+            FinanceAccountRepository accountRepository,
+            FinanceMonthlyJarSettlementRepository settlementRepository
     ) {
         this.transactionRepository = transactionRepository;
         this.accountRepository = accountRepository;
+        this.settlementRepository = settlementRepository;
     }
 
     @Override
@@ -34,12 +46,20 @@ public class FinanceReportServiceImpl implements FinanceReportService {
             OffsetDateTime toDate
     ) {
         String normalizedCurrency = FinanceSupport.normalizeCurrency(currencyCode);
-        OffsetDateTime normalizedFrom = fromDate == null ? OffsetDateTime.parse("1970-01-01T00:00:00Z") : fromDate;
         OffsetDateTime normalizedTo = toDate == null ? OffsetDateTime.now() : toDate;
+        FinanceAccountMonthPolicy.MonthRange defaultMonth =
+                FinanceAccountMonthPolicy.monthContaining(normalizedTo);
+        OffsetDateTime normalizedFrom = fromDate == null
+                ? defaultMonth.startInclusive()
+                : fromDate;
 
         if (normalizedTo.isBefore(normalizedFrom)) {
             throw com.lifebalance.finance.error.FinanceExceptions.invalidTransaction("Summary period is invalid");
         }
+
+        FinanceAccountMonthPolicy.MonthRange accountMonths = fromDate == null
+                ? defaultMonth
+                : FinanceAccountMonthPolicy.monthsCovering(normalizedFrom, normalizedTo);
 
         BigDecimal totalIncome = transactionRepository.sumPostedAmount(
                 ownerId,
@@ -57,7 +77,58 @@ public class FinanceReportServiceImpl implements FinanceReportService {
                 normalizedTo,
                 null
         );
-        BigDecimal totalBalance = accountRepository.sumActiveBalance(ownerId, normalizedCurrency);
+        BigDecimal mainPoolBalance = accountRepository.sumActiveBalanceByType(
+                ownerId,
+                normalizedCurrency,
+                FinanceAccountType.MAIN_POOL,
+                accountMonths.startInclusive(),
+                accountMonths.endExclusive()
+        );
+        BigDecimal totalJarBalance = accountRepository.sumActiveBalanceByType(
+                ownerId,
+                normalizedCurrency,
+                FinanceAccountType.JAR,
+                accountMonths.startInclusive(),
+                accountMonths.endExclusive()
+        );
+        BigDecimal totalBalance = mainPoolBalance.add(totalJarBalance);
+        BigDecimal openingBalance = accountRepository.sumActiveOpeningBalance(
+                ownerId,
+                normalizedCurrency,
+                accountMonths.startInclusive(),
+                accountMonths.endExclusive()
+        );
+
+        if (normalizedFrom.isAfter(accountMonths.startInclusive())) {
+            OffsetDateTime beforePeriod = normalizedFrom.minusNanos(1);
+            BigDecimal incomeBeforePeriod = transactionRepository.sumPostedAmount(
+                    ownerId,
+                    FinanceTransactionType.INCOME,
+                    normalizedCurrency,
+                    accountMonths.startInclusive(),
+                    beforePeriod,
+                    null
+            );
+            BigDecimal expenseBeforePeriod = transactionRepository.sumPostedAmount(
+                    ownerId,
+                    FinanceTransactionType.EXPENSE,
+                    normalizedCurrency,
+                    accountMonths.startInclusive(),
+                    beforePeriod,
+                    null
+            );
+            openingBalance = openingBalance.add(incomeBeforePeriod).subtract(expenseBeforePeriod);
+        }
+
+        List<FinanceMonthlyJarSettlementSummaryResponse> monthlySettlements = summarizeSettlements(
+                settlementRepository
+                        .findByOwnerIdAndCurrencyCodeAndPeriodStartBetweenOrderByPeriodStartAsc(
+                                ownerId,
+                                normalizedCurrency,
+                                YearMonth.from(accountMonths.startInclusive()).atDay(1),
+                                YearMonth.from(accountMonths.endExclusive().minusDays(1)).atDay(1)
+                        )
+        );
 
         return new FinanceSummaryResponse(
                 ownerId,
@@ -67,7 +138,57 @@ public class FinanceReportServiceImpl implements FinanceReportService {
                 totalIncome,
                 totalExpense,
                 totalIncome.subtract(totalExpense),
-                totalBalance
+                mainPoolBalance,
+                totalJarBalance,
+                totalBalance,
+                openingBalance,
+                monthlySettlements
         );
+    }
+
+    private static List<FinanceMonthlyJarSettlementSummaryResponse> summarizeSettlements(
+            List<FinanceMonthlyJarSettlement> settlements
+    ) {
+        Map<YearMonth, SettlementTotals> totalsByMonth = new LinkedHashMap<>();
+        for (FinanceMonthlyJarSettlement settlement : settlements) {
+            YearMonth period = YearMonth.from(settlement.getPeriodStart());
+            totalsByMonth.computeIfAbsent(period, ignored -> new SettlementTotals()).add(settlement);
+        }
+
+        List<FinanceMonthlyJarSettlementSummaryResponse> summaries = new ArrayList<>();
+        totalsByMonth.forEach((period, totals) -> summaries.add(new FinanceMonthlyJarSettlementSummaryResponse(
+                period.toString(),
+                totals.allocatedAmount,
+                totals.actualExpenseAmount,
+                totals.closingBalance,
+                totals.returnedAmount,
+                totals.coveredDeficitAmount,
+                totals.varianceAmount,
+                totals.settledJarCount
+        )));
+        return List.copyOf(summaries);
+    }
+
+    private static final class SettlementTotals {
+        private BigDecimal allocatedAmount = BigDecimal.ZERO;
+        private BigDecimal actualExpenseAmount = BigDecimal.ZERO;
+        private BigDecimal closingBalance = BigDecimal.ZERO;
+        private BigDecimal returnedAmount = BigDecimal.ZERO;
+        private BigDecimal coveredDeficitAmount = BigDecimal.ZERO;
+        private BigDecimal varianceAmount = BigDecimal.ZERO;
+        private int settledJarCount;
+
+        private void add(FinanceMonthlyJarSettlement settlement) {
+            allocatedAmount = allocatedAmount.add(settlement.getAllocatedAmount());
+            actualExpenseAmount = actualExpenseAmount.add(settlement.getActualExpenseAmount());
+            closingBalance = closingBalance.add(settlement.getClosingBalance());
+            if (settlement.getClosingBalance().signum() >= 0) {
+                returnedAmount = returnedAmount.add(settlement.getTransferredAmount());
+            } else {
+                coveredDeficitAmount = coveredDeficitAmount.add(settlement.getTransferredAmount());
+            }
+            varianceAmount = varianceAmount.add(settlement.getVarianceAmount());
+            settledJarCount++;
+        }
     }
 }

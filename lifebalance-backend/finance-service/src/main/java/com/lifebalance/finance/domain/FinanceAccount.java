@@ -1,5 +1,6 @@
 package com.lifebalance.finance.domain;
 
+import com.lifebalance.finance.error.FinanceExceptions;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -86,10 +87,9 @@ public class FinanceAccount {
         return account;
     }
 
-    public void updateDetails(UUID actorId, String name, FinanceAccountType accountType) {
+    public void updateDetails(UUID actorId, String name) {
         this.updatedBy = actorId;
         this.name = name;
-        this.accountType = accountType;
     }
 
     public void credit(BigDecimal amount) {
@@ -97,7 +97,27 @@ public class FinanceAccount {
     }
 
     public void debit(BigDecimal amount) {
+        if (amount == null || amount.signum() < 0) {
+            throw FinanceExceptions.invalidAccount("Debit amount must not be negative");
+        }
+        if (currentBalance.compareTo(amount) < 0) {
+            throw FinanceExceptions.insufficientBalance(this, amount);
+        }
         currentBalance = currentBalance.subtract(amount);
+    }
+
+    public void receiveTransfer(BigDecimal amount) {
+        credit(amount);
+        if (accountType == FinanceAccountType.JAR) {
+            openingBalance = openingBalance.add(amount);
+        }
+    }
+
+    public void reverseReceivedTransfer(BigDecimal amount) {
+        debit(amount);
+        if (accountType == FinanceAccountType.JAR) {
+            openingBalance = openingBalance.subtract(amount);
+        }
     }
 
     public void archive(UUID actorId) {

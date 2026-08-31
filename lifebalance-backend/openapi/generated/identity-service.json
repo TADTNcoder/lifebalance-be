@@ -32,6 +32,10 @@
       "description": "Current-user profile and user account administration"
     },
     {
+      "name": "Password",
+      "description": "Authenticated password management APIs"
+    },
+    {
       "name": "Roles",
       "description": "Role lifecycle and role-permission assignment"
     },
@@ -69,6 +73,160 @@
     }
   ],
   "paths": {
+    "/api/users/me/password": {
+      "put": {
+        "tags": [
+          "Password"
+        ],
+        "summary": "Change current user's password",
+        "description": "Re-authenticates the current user, updates the Keycloak credential, and requires a new login",
+        "operationId": "changePassword",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Password changed",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordChangeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Current password or password policy validation failed",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordChangeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer authentication is required",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordChangeResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many password verification attempts",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordChangeResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Password service is unavailable",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordChangeResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/users/me/password": {
+      "put": {
+        "tags": [
+          "Password"
+        ],
+        "summary": "Change current user's password",
+        "description": "Re-authenticates the current user, updates the Keycloak credential, and requires a new login",
+        "operationId": "changePassword_1",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Password changed",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordChangeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Current password or password policy validation failed",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordChangeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer authentication is required",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordChangeResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many password verification attempts",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordChangeResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Password service is unavailable",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordChangeResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/users/me": {
       "get": {
         "tags": [
@@ -5567,6 +5725,7 @@
               "enum": [
                 "LOGIN",
                 "LOGOUT",
+                "CHANGE_PASSWORD",
                 "CREATE_ROLE",
                 "UPDATE_ROLE",
                 "DELETE_ROLE",
@@ -5643,6 +5802,7 @@
               "enum": [
                 "LOGIN",
                 "LOGOUT",
+                "CHANGE_PASSWORD",
                 "CREATE_ROLE",
                 "UPDATE_ROLE",
                 "DELETE_ROLE",
@@ -7043,6 +7203,7 @@
               "enum": [
                 "LOGIN",
                 "LOGOUT",
+                "CHANGE_PASSWORD",
                 "CREATE_ROLE",
                 "UPDATE_ROLE",
                 "DELETE_ROLE",
@@ -7184,6 +7345,7 @@
               "enum": [
                 "LOGIN",
                 "LOGOUT",
+                "CHANGE_PASSWORD",
                 "CREATE_ROLE",
                 "UPDATE_ROLE",
                 "DELETE_ROLE",
@@ -7824,6 +7986,52 @@
   },
   "components": {
     "schemas": {
+      "ChangePasswordRequest": {
+        "type": "object",
+        "description": "Credentials used to securely change the authenticated user's password",
+        "properties": {
+          "currentPassword": {
+            "type": "string",
+            "format": "password",
+            "maxLength": 128,
+            "minLength": 0,
+            "writeOnly": true
+          },
+          "newPassword": {
+            "type": "string",
+            "format": "password",
+            "maxLength": 128,
+            "minLength": 12,
+            "writeOnly": true
+          },
+          "confirmPassword": {
+            "type": "string",
+            "format": "password",
+            "maxLength": 128,
+            "minLength": 0,
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "confirmPassword",
+          "currentPassword",
+          "newPassword"
+        ]
+      },
+      "PasswordChangeResponse": {
+        "type": "object",
+        "description": "Result of a successful password change",
+        "properties": {
+          "reauthenticationRequired": {
+            "type": "boolean",
+            "description": "The client must discard its current session and authenticate again"
+          },
+          "sessionsRevoked": {
+            "type": "boolean",
+            "description": "Whether Keycloak accepted the request to revoke the user's sessions"
+          }
+        }
+      },
       "UpdateUserRequest": {
         "type": "object",
         "description": "Payload used to update user profile fields",
@@ -9036,6 +9244,7 @@
             "enum": [
               "LOGIN",
               "LOGOUT",
+              "CHANGE_PASSWORD",
               "CREATE_ROLE",
               "UPDATE_ROLE",
               "DELETE_ROLE",
@@ -9348,6 +9557,7 @@
             "enum": [
               "LOGIN",
               "LOGOUT",
+              "CHANGE_PASSWORD",
               "CREATE_ROLE",
               "UPDATE_ROLE",
               "DELETE_ROLE",

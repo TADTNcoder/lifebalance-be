@@ -2,6 +2,7 @@ package com.lifebalance.finance.dto;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 public record FinanceSummaryResponse(
@@ -12,6 +13,10 @@ public record FinanceSummaryResponse(
         BigDecimal totalIncome,
         BigDecimal totalExpense,
         BigDecimal netCashflow,
-        BigDecimal totalAccountBalance
+        BigDecimal mainPoolBalance,
+        BigDecimal totalJarBalance,
+        BigDecimal totalAccountBalance,
+        BigDecimal openingAccountBalance,
+        List<FinanceMonthlyJarSettlementSummaryResponse> monthlyJarSettlements
 ) {
 }

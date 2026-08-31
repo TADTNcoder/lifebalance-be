@@ -3,6 +3,7 @@ package com.lifebalance.task.migration;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -632,6 +633,26 @@ class TaskFlywayMigrationTest {
     }
 
     @Test
+    void flywayAddsFinanceAccountLinkWithoutCrossServiceForeignKey() {
+        assertColumnExists("tasks", "finance_account_id", "uuid");
+        assertIndexExists("idx_tasks_owner_finance_account");
+
+        Integer foreignKeyCount = jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                FROM information_schema.table_constraints tc
+                JOIN information_schema.key_column_usage kcu
+                  ON tc.constraint_schema = kcu.constraint_schema
+                 AND tc.constraint_name = kcu.constraint_name
+                WHERE lower(tc.table_schema) = 'task'
+                  AND lower(tc.table_name) = 'tasks'
+                  AND lower(tc.constraint_type) = 'foreign key'
+                  AND lower(kcu.column_name) = 'finance_account_id'
+                """, Integer.class);
+
+        assertThat(foreignKeyCount).isZero();
+    }
+
+    @Test
     void taskSchemaDoesNotCreateCrossServiceIdentityForeignKeys() {
         Integer foreignKeyCount = jdbcTemplate.queryForObject("""
                 SELECT count(*)
@@ -669,6 +690,30 @@ class TaskFlywayMigrationTest {
         assertThat(response.getId()).isNotNull();
         assertThat(response.getOwnerId()).isEqualTo(ownerId);
         assertThat(historyCount).isEqualTo(1L);
+    }
+
+    @Test
+    @Transactional
+    void tasksAllowTheSameNameWhenDeadlinesDiffer() {
+        UUID ownerId = UUID.randomUUID();
+
+        CreateTaskRequest firstRequest = new CreateTaskRequest();
+        firstRequest.setName("Daily review");
+        firstRequest.setPriority(PriorityLevel.LOW);
+        firstRequest.setDeadline(LocalDate.of(2026, 9, 1));
+
+        CreateTaskRequest secondRequest = new CreateTaskRequest();
+        secondRequest.setName("Daily review");
+        secondRequest.setPriority(PriorityLevel.LOW);
+        secondRequest.setDeadline(LocalDate.of(2026, 9, 2));
+
+        TaskResponse first = taskService.create(ownerId, firstRequest);
+        entityManager.flush();
+        TaskResponse second = taskService.create(ownerId, secondRequest);
+        entityManager.flush();
+
+        assertThat(first.getId()).isNotEqualTo(second.getId());
+        assertThat(second.getDeadline()).isEqualTo(LocalDate.of(2026, 9, 2));
     }
 
     // =========================================================================

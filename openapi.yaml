@@ -707,6 +707,7 @@ paths:
               deadline: '2026-08-20'
               estimatedMinutes: 120
               estimatedCost: 0
+              financeAccountId: 88888888-8888-8888-8888-888888888888
               categoryId: 55555555-5555-5555-5555-555555555555
       responses:
         '200':
@@ -777,6 +778,7 @@ paths:
               progress: 50
               estimatedMinutes: 150
               estimatedCost: 0
+              financeAccountId: 88888888-8888-8888-8888-888888888888
               categoryId: 55555555-5555-5555-5555-555555555555
               status: IN_PROGRESS
       responses:
@@ -2487,6 +2489,12 @@ components:
           nullable: true
           minimum: 0
           example: 0
+        financeAccountId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Cross-service reference to an account owned by Finance.
+          example: 88888888-8888-8888-8888-888888888888
         categoryId:
           type: string
           format: uuid
@@ -2543,6 +2551,12 @@ components:
           nullable: true
           minimum: 0
           example: 0
+        financeAccountId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Cross-service reference to an account owned by Finance.
+          example: 88888888-8888-8888-8888-888888888888
         categoryId:
           type: string
           format: uuid
@@ -2619,6 +2633,12 @@ components:
           nullable: true
           minimum: 0
           example: 0
+        financeAccountId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Cross-service reference to an account owned by Finance.
+          example: 88888888-8888-8888-8888-888888888888
         categoryId:
           type: string
           format: uuid

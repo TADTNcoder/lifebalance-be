@@ -248,6 +248,18 @@ public class TaskController {
                 ownerId);
     }
 
+    @DeleteMapping("/{id}/finance-link")
+    public void deleteFinanceLinkedTask(
+            @PathVariable UUID id,
+            HttpServletRequest httpRequest) {
+
+        UUID ownerId = getCurrentUserId(httpRequest);
+
+        taskService.deleteFinanceLinkedTask(
+                id,
+                ownerId);
+    }
+
     private UUID getCurrentUserId(
             HttpServletRequest request) {
 

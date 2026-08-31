@@ -9,6 +9,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -90,6 +92,79 @@ class TaskPersistenceTest {
                 .get()
                 .extracting(Task::getName)
                 .isEqualTo("Deep Work");
+    }
+
+    @Test
+    void locksEveryTaskInTheMonthlyIncomeGroupForLifecycleSerialization() {
+        UUID ownerId = UUID.randomUUID();
+        UUID groupId = UUID.randomUUID();
+        Task first = Task.builder()
+                .ownerId(ownerId)
+                .userId(ownerId)
+                .name("Salary occurrence 1")
+                .monthlyIncomeGroupId(groupId)
+                .progress(0)
+                .build();
+        Task second = Task.builder()
+                .ownerId(ownerId)
+                .userId(ownerId)
+                .name("Salary occurrence 2")
+                .monthlyIncomeGroupId(groupId)
+                .progress(0)
+                .build();
+        entityManager.persist(first);
+        entityManager.persist(second);
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(taskRepository.lockMonthlyIncomeGroupForTask(first.getId(), ownerId))
+                .extracting(Task::getId)
+                .containsExactlyInAnyOrder(first.getId(), second.getId());
+    }
+
+    @Test
+    void searchesTasksByDeadlineRange() {
+        UUID ownerId = UUID.randomUUID();
+        Task beforeRange = Task.builder()
+                .ownerId(ownerId)
+                .userId(ownerId)
+                .name("Before range")
+                .deadline(LocalDate.of(2026, 8, 29))
+                .progress(0)
+                .build();
+        Task inRange = Task.builder()
+                .ownerId(ownerId)
+                .userId(ownerId)
+                .name("In range")
+                .deadline(LocalDate.of(2026, 8, 30))
+                .progress(0)
+                .build();
+        Task withoutDeadline = Task.builder()
+                .ownerId(ownerId)
+                .userId(ownerId)
+                .name("Without deadline")
+                .progress(0)
+                .build();
+
+        entityManager.persist(beforeRange);
+        entityManager.persist(inRange);
+        entityManager.persist(withoutDeadline);
+        entityManager.flush();
+        entityManager.clear();
+
+        Page<Task> result = taskRepository.searchByOwnerAndFilters(
+                ownerId,
+                "",
+                null,
+                null,
+                null,
+                LocalDate.of(2026, 8, 30),
+                LocalDate.of(2026, 8, 31),
+                PageRequest.of(0, 10));
+
+        assertThat(result.getContent())
+                .extracting(Task::getName)
+                .containsExactly("In range");
     }
 
     @Test

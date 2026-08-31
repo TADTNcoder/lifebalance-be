@@ -40,6 +40,8 @@ management:
         enabled: true
 
 lifebalance:
+  finance:
+    month-end-rollover-cron: "${FINANCE_MONTH_END_ROLLOVER_CRON:0 10 0 * * *}"
   security:
     keycloak:
       client-id: ${KEYCLOAK_CLIENT_ID:lifebalance-api}
@@ -48,7 +50,7 @@ info:
   app:
     name: LifeBalance Finance Service
     version: 1.0.0
-    description: Finance, budget, and transaction API
+    description: Finance accounts, categories, transactions, and reporting API
 
 logging:
   level:

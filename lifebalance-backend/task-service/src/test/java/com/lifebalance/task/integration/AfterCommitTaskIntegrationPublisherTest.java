@@ -91,7 +91,31 @@ class AfterCommitTaskIntegrationPublisherTest {
                         && taskId.equals(request.taskId())
                         && Integer.valueOf(90).equals(request.actualMinutes())
                         && new BigDecimal("25.50").compareTo(request.actualCost()) == 0
-                        && "USD".equals(request.currencyCode())), isNull());
+                && "USD".equals(request.currencyCode())), isNull());
+    }
+
+    @Test
+    void monthlyIncomeSettlementUsesStableGroupIdAndSalaryMetadata() {
+        Task task = task(TaskStatus.COMPLETED);
+        task.setMonthlyIncomeGroupId(UUID.randomUUID());
+        task.setMonthlyIncomeAccountId(UUID.randomUUID());
+        task.setMonthlyIncomeCurrency("VND");
+        task.setMonthlyIncomePeriod("2026-08");
+        task.setMonthlyIncomeBase(new BigDecimal("12000000"));
+        task.setMonthlyIncomeBonus(new BigDecimal("500000"));
+        task.setMonthlyIncomeDeduction(new BigDecimal("100000"));
+        task.setCompletedAt(OffsetDateTime.parse("2026-08-31T18:00:00+07:00"));
+
+        publisher.publishMonthlyIncomeReady(task, ownerId, "All monthly tasks completed");
+
+        verify(client).recordMonthlyIncome(argThat(request ->
+                "INCOME".equals(request.transactionType())
+                        && task.getMonthlyIncomeGroupId().equals(request.taskId())
+                        && task.getMonthlyIncomeAccountId().equals(request.destinationAccountId())
+                        && new BigDecimal("12400000").compareTo(request.amount()) == 0
+                        && "MONTHLY_SALARY".equals(request.incomeSourceType())
+                        && "2026-08".equals(request.salaryPeriod())
+                        && task.getCompletedAt().equals(request.transactionDate())), isNull());
     }
 
     @Test

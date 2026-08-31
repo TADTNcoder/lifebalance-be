@@ -55,6 +55,22 @@ public class TaskResponse {
 
     private BigDecimal estimatedCost;
 
+    private UUID financeAccountId;
+
+    private UUID monthlyIncomeGroupId;
+
+    private UUID monthlyIncomeAccountId;
+
+    private String monthlyIncomeCurrency;
+
+    private String monthlyIncomePeriod;
+
+    private BigDecimal monthlyIncomeBase;
+
+    private BigDecimal monthlyIncomeBonus;
+
+    private BigDecimal monthlyIncomeDeduction;
+
     private UUID categoryId;
 
     private String categoryName;

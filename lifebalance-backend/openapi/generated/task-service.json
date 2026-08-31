@@ -1739,6 +1739,30 @@
           }
         }
       }
+    },
+    "/api/tasks/{id}/finance-link": {
+      "delete": {
+        "tags": [
+          "task-controller"
+        ],
+        "operationId": "deleteFinanceLinkedTask",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1799,6 +1823,35 @@
             "minimum": 0
           },
           "estimatedCost": {
+            "type": "number"
+          },
+          "financeAccountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "monthlyIncomeGroupId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "monthlyIncomeAccountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "monthlyIncomeCurrency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$"
+          },
+          "monthlyIncomePeriod": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+          },
+          "monthlyIncomeBase": {
+            "type": "number"
+          },
+          "monthlyIncomeBonus": {
+            "type": "number"
+          },
+          "monthlyIncomeDeduction": {
             "type": "number"
           },
           "categoryId": {
@@ -1915,12 +1968,47 @@
           "estimatedCost": {
             "type": "number"
           },
+          "financeAccountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "monthlyIncomeGroupId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "monthlyIncomeAccountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "monthlyIncomeCurrency": {
+            "type": "string"
+          },
+          "monthlyIncomePeriod": {
+            "type": "string"
+          },
+          "monthlyIncomeBase": {
+            "type": "number"
+          },
+          "monthlyIncomeBonus": {
+            "type": "number"
+          },
+          "monthlyIncomeDeduction": {
+            "type": "number"
+          },
           "categoryId": {
             "type": "string",
             "format": "uuid"
           },
           "categoryName": {
             "type": "string"
+          },
+          "tagIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "uniqueItems": true
           },
           "createdBy": {
             "type": "string",
@@ -2280,6 +2368,10 @@
             "type": "string",
             "format": "uuid"
           },
+          "ownerId": {
+            "type": "string",
+            "format": "uuid"
+          },
           "name": {
             "type": "string"
           },
@@ -2296,6 +2388,9 @@
             "type": "string"
           },
           "isSystem": {
+            "type": "boolean"
+          },
+          "canModify": {
             "type": "boolean"
           },
           "createdAt": {
@@ -2357,6 +2452,35 @@
             "format": "int32"
           },
           "estimatedCost": {
+            "type": "number"
+          },
+          "financeAccountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "monthlyIncomeGroupId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "monthlyIncomeAccountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "monthlyIncomeCurrency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$"
+          },
+          "monthlyIncomePeriod": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+          },
+          "monthlyIncomeBase": {
+            "type": "number"
+          },
+          "monthlyIncomeBonus": {
+            "type": "number"
+          },
+          "monthlyIncomeDeduction": {
             "type": "number"
           },
           "categoryId": {
@@ -2570,6 +2694,40 @@
             "format": "int32"
           },
           "estimatedCost": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string",
+            "maxLength": 3,
+            "minLength": 0
+          },
+          "financeAccountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "monthlyIncomeGroupId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "monthlyIncomeAccountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "monthlyIncomeCurrency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$"
+          },
+          "monthlyIncomePeriod": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+          },
+          "monthlyIncomeBase": {
+            "type": "number"
+          },
+          "monthlyIncomeBonus": {
+            "type": "number"
+          },
+          "monthlyIncomeDeduction": {
             "type": "number"
           },
           "categoryId": {

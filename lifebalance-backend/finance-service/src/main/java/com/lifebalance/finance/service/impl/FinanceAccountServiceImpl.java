@@ -2,6 +2,7 @@ package com.lifebalance.finance.service.impl;
 
 import com.lifebalance.finance.domain.FinanceAccount;
 import com.lifebalance.finance.domain.FinanceAccountStatus;
+import com.lifebalance.finance.domain.FinanceAccountType;
 import com.lifebalance.finance.domain.FinanceHistoryActionType;
 import com.lifebalance.finance.domain.FinanceReferenceType;
 import com.lifebalance.finance.dto.CreateFinanceAccountRequest;
@@ -37,11 +38,22 @@ public class FinanceAccountServiceImpl implements FinanceAccountService {
         String currencyCode = FinanceSupport.normalizeCurrency(request.currencyCode());
         BigDecimal openingBalance = FinanceSupport.normalizeAmount(request.openingBalance());
         String name = request.name().trim();
+        FinanceAccountMonthPolicy.MonthRange effectiveMonth = FinanceAccountMonthPolicy.currentMonth();
 
-        if (financeAccountRepository.existsByOwnerIdAndNameIgnoreCaseAndStatus(
+        validateAccountStructure(
+                ownerId,
+                request.accountType(),
+                currencyCode,
+                openingBalance,
+                effectiveMonth
+        );
+
+        if (financeAccountRepository.existsNameInCreatedPeriod(
                 ownerId,
                 name,
-                FinanceAccountStatus.ACTIVE
+                FinanceAccountStatus.ACTIVE,
+                effectiveMonth.startInclusive(),
+                effectiveMonth.endExclusive()
         )) {
             throw FinanceExceptions.accountAlreadyExists(name);
         }
@@ -75,18 +87,23 @@ public class FinanceAccountServiceImpl implements FinanceAccountService {
     public FinanceAccountResponse update(UUID ownerId, UUID accountId, UpdateFinanceAccountRequest request) {
         FinanceAccount account = getOwnedAccount(ownerId, accountId);
         String name = request.name().trim();
+        FinanceAccountMonthPolicy.MonthRange accountMonth = account.getCreatedAt() == null
+                ? FinanceAccountMonthPolicy.currentMonth()
+                : FinanceAccountMonthPolicy.monthContaining(account.getCreatedAt());
 
         if (!account.getName().equalsIgnoreCase(name)
-                && financeAccountRepository.existsByOwnerIdAndNameIgnoreCaseAndStatus(
+                && financeAccountRepository.existsNameInCreatedPeriod(
                 ownerId,
                 name,
-                FinanceAccountStatus.ACTIVE
+                FinanceAccountStatus.ACTIVE,
+                accountMonth.startInclusive(),
+                accountMonth.endExclusive()
         )) {
             throw FinanceExceptions.accountAlreadyExists(name);
         }
 
         String oldValue = snapshot(account);
-        account.updateDetails(ownerId, name, request.accountType());
+        account.updateDetails(ownerId, name);
         account = financeAccountRepository.save(account);
 
         historyRecorder.record(
@@ -107,6 +124,12 @@ public class FinanceAccountServiceImpl implements FinanceAccountService {
     @Transactional
     public FinanceAccountResponse archive(UUID ownerId, UUID accountId, String reason) {
         FinanceAccount account = getOwnedAccount(ownerId, accountId);
+        if (account.getAccountType() == FinanceAccountType.MAIN_POOL) {
+            throw FinanceExceptions.invalidAccount("Main pool cannot be archived");
+        }
+        if (account.getCurrentBalance().compareTo(BigDecimal.ZERO) != 0) {
+            throw FinanceExceptions.invalidAccount("Jar balance must be zero before archiving");
+        }
         String oldValue = snapshot(account);
         account.archive(ownerId);
         account = financeAccountRepository.save(account);
@@ -150,6 +173,46 @@ public class FinanceAccountServiceImpl implements FinanceAccountService {
     private FinanceAccount getOwnedAccount(UUID ownerId, UUID accountId) {
         return financeAccountRepository.findByIdAndOwnerId(accountId, ownerId)
                 .orElseThrow(() -> FinanceExceptions.accountNotFound(accountId));
+    }
+
+    private void validateAccountStructure(
+            UUID ownerId,
+            FinanceAccountType accountType,
+            String currencyCode,
+            BigDecimal openingBalance,
+            FinanceAccountMonthPolicy.MonthRange effectiveMonth
+    ) {
+        if (accountType == FinanceAccountType.MAIN_POOL) {
+            if (financeAccountRepository.existsTypeInCreatedPeriod(
+                    ownerId,
+                    FinanceAccountType.MAIN_POOL,
+                    FinanceAccountStatus.ACTIVE,
+                    effectiveMonth.startInclusive(),
+                    effectiveMonth.endExclusive()
+            )) {
+                throw FinanceExceptions.invalidAccount("Only one main pool is allowed per month");
+            }
+            return;
+        }
+
+        FinanceAccount mainPool = financeAccountRepository
+                .findFirstByOwnerIdAndAccountTypeAndStatusAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+                        ownerId,
+                        FinanceAccountType.MAIN_POOL,
+                        FinanceAccountStatus.ACTIVE,
+                        effectiveMonth.startInclusive(),
+                        effectiveMonth.endExclusive()
+                )
+                .orElseThrow(() -> FinanceExceptions.invalidAccount(
+                        "Create the main pool for this month before creating jars"
+                ));
+
+        if (!mainPool.getCurrencyCode().equals(currencyCode)) {
+            throw FinanceExceptions.currencyMismatch(mainPool.getCurrencyCode(), currencyCode);
+        }
+        if (openingBalance.compareTo(BigDecimal.ZERO) != 0) {
+            throw FinanceExceptions.invalidAccount("New jars must start at zero and be funded by a transfer");
+        }
     }
 
     private static String snapshot(FinanceAccount account) {

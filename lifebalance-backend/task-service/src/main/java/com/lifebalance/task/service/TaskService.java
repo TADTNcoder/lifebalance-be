@@ -88,6 +88,10 @@ public interface TaskService {
                         UUID id,
                         UUID ownerId);
 
+        void deleteFinanceLinkedTask(
+                        UUID id,
+                        UUID ownerId);
+
         TaskResponse duplicate(
                         UUID id,
                         UUID ownerId);

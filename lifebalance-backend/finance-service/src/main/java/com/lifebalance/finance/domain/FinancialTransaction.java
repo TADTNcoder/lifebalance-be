@@ -58,8 +58,30 @@ public class FinancialTransaction {
     @Column(name = "transaction_date", nullable = false)
     private OffsetDateTime transactionDate;
 
+    @Column(name = "transaction_name", length = 255)
+    private String transactionName;
+
     @Column(length = 1000)
     private String description;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "income_source_type", nullable = false, length = 32)
+    private FinanceIncomeSourceType incomeSourceType;
+
+    @Column(name = "salary_period", length = 7)
+    private String salaryPeriod;
+
+    @Column(name = "base_salary", precision = 19, scale = 4)
+    private BigDecimal baseSalary;
+
+    @Column(name = "bonus_amount", precision = 19, scale = 4)
+    private BigDecimal bonusAmount;
+
+    @Column(name = "deduction_amount", precision = 19, scale = 4)
+    private BigDecimal deductionAmount;
+
+    @Column(name = "system_generated", nullable = false)
+    private boolean systemGenerated;
 
     @Column(name = "task_id")
     private UUID taskId;
@@ -105,7 +127,13 @@ public class FinancialTransaction {
             BigDecimal amount,
             String currencyCode,
             OffsetDateTime transactionDate,
+            String transactionName,
             String description,
+            FinanceIncomeSourceType incomeSourceType,
+            String salaryPeriod,
+            BigDecimal baseSalary,
+            BigDecimal bonusAmount,
+            BigDecimal deductionAmount,
             UUID taskId,
             UUID capitalCycleId,
             UUID capitalAllocationId
@@ -122,11 +150,167 @@ public class FinancialTransaction {
         transaction.amount = amount;
         transaction.currencyCode = currencyCode;
         transaction.transactionDate = transactionDate;
+        transaction.transactionName = transactionName;
         transaction.description = description;
+        transaction.incomeSourceType = incomeSourceType;
+        transaction.salaryPeriod = salaryPeriod;
+        transaction.baseSalary = baseSalary;
+        transaction.bonusAmount = bonusAmount;
+        transaction.deductionAmount = deductionAmount;
+        transaction.systemGenerated = false;
         transaction.taskId = taskId;
         transaction.capitalCycleId = capitalCycleId;
         transaction.capitalAllocationId = capitalAllocationId;
         return transaction;
+    }
+
+    public static FinancialTransaction post(
+            UUID ownerId,
+            UUID actorId,
+            FinanceTransactionType transactionType,
+            FinanceAccount sourceAccount,
+            FinanceAccount destinationAccount,
+            FinanceCategory category,
+            BigDecimal amount,
+            String currencyCode,
+            OffsetDateTime transactionDate,
+            String transactionName,
+            String description,
+            UUID taskId,
+            UUID capitalCycleId,
+            UUID capitalAllocationId
+    ) {
+        return post(
+                ownerId,
+                actorId,
+                transactionType,
+                sourceAccount,
+                destinationAccount,
+                category,
+                amount,
+                currencyCode,
+                transactionDate,
+                transactionName,
+                description,
+                FinanceIncomeSourceType.ONE_OFF,
+                null,
+                null,
+                null,
+                null,
+                taskId,
+                capitalCycleId,
+                capitalAllocationId
+        );
+    }
+
+    public static FinancialTransaction post(
+            UUID ownerId,
+            UUID actorId,
+            FinanceTransactionType transactionType,
+            FinanceAccount sourceAccount,
+            FinanceAccount destinationAccount,
+            FinanceCategory category,
+            BigDecimal amount,
+            String currencyCode,
+            OffsetDateTime transactionDate,
+            String description,
+            UUID taskId,
+            UUID capitalCycleId,
+            UUID capitalAllocationId
+    ) {
+        return post(
+                ownerId,
+                actorId,
+                transactionType,
+                sourceAccount,
+                destinationAccount,
+                category,
+                amount,
+                currencyCode,
+                transactionDate,
+                null,
+                description,
+                taskId,
+                capitalCycleId,
+                capitalAllocationId
+        );
+    }
+
+    public void replaceWith(
+            UUID actorId,
+            FinanceTransactionType transactionType,
+            FinanceAccount sourceAccount,
+            FinanceAccount destinationAccount,
+            FinanceCategory category,
+            BigDecimal amount,
+            String currencyCode,
+            OffsetDateTime transactionDate,
+            String transactionName,
+            String description,
+            FinanceIncomeSourceType incomeSourceType,
+            String salaryPeriod,
+            BigDecimal baseSalary,
+            BigDecimal bonusAmount,
+            BigDecimal deductionAmount,
+            UUID taskId,
+            UUID capitalCycleId,
+            UUID capitalAllocationId
+    ) {
+        updatedBy = actorId;
+        this.transactionType = transactionType;
+        this.sourceAccount = sourceAccount;
+        this.destinationAccount = destinationAccount;
+        this.category = category;
+        this.amount = amount;
+        this.currencyCode = currencyCode;
+        this.transactionDate = transactionDate;
+        this.transactionName = transactionName;
+        this.description = description;
+        this.incomeSourceType = incomeSourceType;
+        this.salaryPeriod = salaryPeriod;
+        this.baseSalary = baseSalary;
+        this.bonusAmount = bonusAmount;
+        this.deductionAmount = deductionAmount;
+        this.taskId = taskId;
+        this.capitalCycleId = capitalCycleId;
+        this.capitalAllocationId = capitalAllocationId;
+    }
+
+    public void replaceWith(
+            UUID actorId,
+            FinanceTransactionType transactionType,
+            FinanceAccount sourceAccount,
+            FinanceAccount destinationAccount,
+            FinanceCategory category,
+            BigDecimal amount,
+            String currencyCode,
+            OffsetDateTime transactionDate,
+            String transactionName,
+            String description,
+            UUID taskId,
+            UUID capitalCycleId,
+            UUID capitalAllocationId
+    ) {
+        replaceWith(
+                actorId,
+                transactionType,
+                sourceAccount,
+                destinationAccount,
+                category,
+                amount,
+                currencyCode,
+                transactionDate,
+                transactionName,
+                description,
+                FinanceIncomeSourceType.ONE_OFF,
+                null,
+                null,
+                null,
+                null,
+                taskId,
+                capitalCycleId,
+                capitalAllocationId
+        );
     }
 
     public void replaceWith(
@@ -143,18 +327,21 @@ public class FinancialTransaction {
             UUID capitalCycleId,
             UUID capitalAllocationId
     ) {
-        updatedBy = actorId;
-        this.transactionType = transactionType;
-        this.sourceAccount = sourceAccount;
-        this.destinationAccount = destinationAccount;
-        this.category = category;
-        this.amount = amount;
-        this.currencyCode = currencyCode;
-        this.transactionDate = transactionDate;
-        this.description = description;
-        this.taskId = taskId;
-        this.capitalCycleId = capitalCycleId;
-        this.capitalAllocationId = capitalAllocationId;
+        replaceWith(
+                actorId,
+                transactionType,
+                sourceAccount,
+                destinationAccount,
+                category,
+                amount,
+                currencyCode,
+                transactionDate,
+                null,
+                description,
+                taskId,
+                capitalCycleId,
+                capitalAllocationId
+        );
     }
 
     public void voidTransaction(UUID actorId, String reason) {
@@ -171,6 +358,7 @@ public class FinancialTransaction {
     @PrePersist
     void onCreate() {
         OffsetDateTime now = OffsetDateTime.now();
+        incomeSourceType = incomeSourceType == null ? FinanceIncomeSourceType.ONE_OFF : incomeSourceType;
         createdAt = createdAt == null ? now : createdAt;
         updatedAt = updatedAt == null ? now : updatedAt;
     }
@@ -222,6 +410,38 @@ public class FinancialTransaction {
 
     public String getDescription() {
         return description;
+    }
+
+    public void markSystemGenerated() {
+        systemGenerated = true;
+    }
+
+    public String getTransactionName() {
+        return transactionName;
+    }
+
+    public FinanceIncomeSourceType getIncomeSourceType() {
+        return incomeSourceType;
+    }
+
+    public String getSalaryPeriod() {
+        return salaryPeriod;
+    }
+
+    public BigDecimal getBaseSalary() {
+        return baseSalary;
+    }
+
+    public BigDecimal getBonusAmount() {
+        return bonusAmount;
+    }
+
+    public BigDecimal getDeductionAmount() {
+        return deductionAmount;
+    }
+
+    public boolean isSystemGenerated() {
+        return systemGenerated;
     }
 
     public UUID getTaskId() {
