@@ -18,15 +18,16 @@ class PublicReadinessBearerTokenResolverTest {
     }
 
     @Test
-    void shouldIgnoreBearerTokenOnlyOnPublicActuatorHealthEndpoints() {
+    void shouldIgnoreBearerTokenOnPublicActuatorEndpoints() {
         assertThat(resolve("GET", "/actuator/health")).isNull();
         assertThat(resolve("GET", "/actuator/health/readiness")).isNull();
+        assertThat(resolve("GET", "/actuator/prometheus")).isNull();
     }
 
     @Test
     void shouldResolveBearerTokenOnProtectedActuatorEndpoints() {
         assertThat(resolve("GET", "/actuator/info")).isEqualTo("secret-token");
-        assertThat(resolve("GET", "/actuator/prometheus")).isEqualTo("secret-token");
+        assertThat(resolve("GET", "/actuator/prometheus/details")).isEqualTo("secret-token");
     }
 
     @Test
