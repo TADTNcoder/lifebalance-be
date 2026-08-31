@@ -149,8 +149,8 @@ public class Task extends BaseAuditableEntity {
 
     /**
      * Monthly-income settlement metadata. Every occurrence of one monthly job
-     * shares the same group id for a salary period; the finance service is only
-     * notified after all occurrences in that group are completed.
+     * shares the same group id for a salary period so the client can request one
+     * reviewed salary transaction after all occurrences are completed.
      */
     @Column(name = "monthly_income_group_id")
     private UUID monthlyIncomeGroupId;

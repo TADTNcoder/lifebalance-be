@@ -74,19 +74,9 @@ public interface TaskRepository extends JpaRepository<Task, UUID> {
                 PriorityLevel priority,
                 Pageable pageable);
 
-        long countByOwnerIdAndMonthlyIncomeGroupId(
-                UUID ownerId,
-                UUID monthlyIncomeGroupId);
-
-        long countByOwnerIdAndMonthlyIncomeGroupIdAndStatus(
-                UUID ownerId,
-                UUID monthlyIncomeGroupId,
-                TaskStatus status);
-
         /**
-         * Serializes lifecycle changes for every occurrence in the same monthly
-         * income group. Without this lock, two final occurrences can both count
-         * the other one as incomplete and neither one emits the salary event.
+         * Serializes metadata updates for every occurrence in the same monthly
+         * income group so concurrent edits cannot split a salary chain.
          */
         @Lock(LockModeType.PESSIMISTIC_WRITE)
         @Query("""

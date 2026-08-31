@@ -250,10 +250,6 @@ public class TaskServiceImpl implements TaskService {
                     String.valueOf(task.getStatus()),
                     null);
         }
-        if (oldStatus != TaskStatus.COMPLETED
-                && task.getStatus() == TaskStatus.COMPLETED) {
-            publishMonthlyIncomeIfReady(task, ownerId, null);
-        }
         if (!Objects.equals(oldSnapshot, newSnapshot) || oldStatus != task.getStatus()) {
             taskIntegrationPublisher.publishTaskChanged(
                     task,
@@ -544,7 +540,6 @@ public class TaskServiceImpl implements TaskService {
             UUID ownerId,
             TaskLifecycleActionRequest request) {
 
-        lockMonthlyIncomeGroup(id, ownerId);
         Task task = findTask(id, ownerId);
         TaskStatus oldStatus = task.getStatus();
         String reason = reasonOf(request);
@@ -578,8 +573,6 @@ public class TaskServiceImpl implements TaskService {
                 ownerId,
                 TaskIntegrationAction.TASK_COMPLETED,
                 reason);
-        publishMonthlyIncomeIfReady(task, ownerId, reason);
-
         return mapToResponse(task);
     }
 
@@ -984,29 +977,6 @@ public class TaskServiceImpl implements TaskService {
         task.setMonthlyIncomeBase(base);
         task.setMonthlyIncomeBonus(bonus);
         task.setMonthlyIncomeDeduction(deduction);
-    }
-
-    private void publishMonthlyIncomeIfReady(
-            Task task,
-            UUID ownerId,
-            String reason) {
-
-        if (!task.hasMonthlyIncomePlan()) {
-            return;
-        }
-        // Make the just-completed occurrence visible to the aggregate count
-        // before deciding whether this is the final task in the group.
-        taskRepository.flush();
-        long totalTasks = taskRepository.countByOwnerIdAndMonthlyIncomeGroupId(
-                ownerId,
-                task.getMonthlyIncomeGroupId());
-        long completedTasks = taskRepository.countByOwnerIdAndMonthlyIncomeGroupIdAndStatus(
-                ownerId,
-                task.getMonthlyIncomeGroupId(),
-                TaskStatus.COMPLETED);
-        if (totalTasks > 0 && totalTasks == completedTasks) {
-            taskIntegrationPublisher.publishMonthlyIncomeReady(task, ownerId, reason);
-        }
     }
 
     private void lockMonthlyIncomeGroup(UUID taskId, UUID ownerId) {

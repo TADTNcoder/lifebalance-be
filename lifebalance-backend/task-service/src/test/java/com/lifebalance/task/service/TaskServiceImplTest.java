@@ -451,7 +451,7 @@ class TaskServiceImplTest {
     }
 
     @Test
-    void completeDoesNotSettleMonthlyIncomeUntilEveryOccurrenceIsCompleted() {
+    void completeDoesNotRecordMonthlyIncomeForAnIntermediateOccurrence() {
         mockTask.setStatus(TaskStatus.IN_PROGRESS);
         mockTask.setMonthlyIncomeGroupId(UUID.randomUUID());
         mockTask.setMonthlyIncomeAccountId(UUID.randomUUID());
@@ -463,20 +463,13 @@ class TaskServiceImplTest {
 
         when(taskRepository.findByIdAndOwnerId(TASK_ID, USER_ID)).thenReturn(Optional.of(mockTask));
         when(taskRepository.save(mockTask)).thenReturn(mockTask);
-        when(taskRepository.countByOwnerIdAndMonthlyIncomeGroupId(
-                eq(USER_ID), eq(mockTask.getMonthlyIncomeGroupId()))).thenReturn(3L);
-        when(taskRepository.countByOwnerIdAndMonthlyIncomeGroupIdAndStatus(
-                eq(USER_ID), eq(mockTask.getMonthlyIncomeGroupId()), eq(TaskStatus.COMPLETED)))
-                .thenReturn(2L);
-
         taskService.complete(TASK_ID, USER_ID, new TaskLifecycleActionRequest());
 
-        verify(taskRepository).lockMonthlyIncomeGroupForTask(TASK_ID, USER_ID);
         verify(taskIntegrationPublisher, never()).publishMonthlyIncomeReady(any(), any(), any());
     }
 
     @Test
-    void completeSettlesMonthlyIncomeWhenItIsTheFinalOccurrence() {
+    void completeWaitsForUserConfirmationWhenItIsTheFinalMonthlyOccurrence() {
         mockTask.setStatus(TaskStatus.IN_PROGRESS);
         mockTask.setMonthlyIncomeGroupId(UUID.randomUUID());
         mockTask.setMonthlyIncomeAccountId(UUID.randomUUID());
@@ -488,17 +481,9 @@ class TaskServiceImplTest {
 
         when(taskRepository.findByIdAndOwnerId(TASK_ID, USER_ID)).thenReturn(Optional.of(mockTask));
         when(taskRepository.save(mockTask)).thenReturn(mockTask);
-        when(taskRepository.countByOwnerIdAndMonthlyIncomeGroupId(
-                eq(USER_ID), eq(mockTask.getMonthlyIncomeGroupId()))).thenReturn(3L);
-        when(taskRepository.countByOwnerIdAndMonthlyIncomeGroupIdAndStatus(
-                eq(USER_ID), eq(mockTask.getMonthlyIncomeGroupId()), eq(TaskStatus.COMPLETED)))
-                .thenReturn(3L);
-
         taskService.complete(TASK_ID, USER_ID, new TaskLifecycleActionRequest());
 
-        verify(taskRepository).lockMonthlyIncomeGroupForTask(TASK_ID, USER_ID);
-        verify(taskIntegrationPublisher).publishMonthlyIncomeReady(
-                eq(mockTask), eq(USER_ID), isNull());
+        verify(taskIntegrationPublisher, never()).publishMonthlyIncomeReady(any(), any(), any());
     }
 
     @Test
