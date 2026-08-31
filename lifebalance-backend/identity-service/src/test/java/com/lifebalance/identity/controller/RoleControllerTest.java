@@ -3,20 +3,14 @@ package com.lifebalance.identity.controller;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
-import java.util.List;
-import java.util.UUID;
-
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lifebalance.identity.dto.CreateRoleRequest;
@@ -24,10 +18,24 @@ import com.lifebalance.identity.dto.RoleResponse;
 import com.lifebalance.identity.dto.RoleSyncResponse;
 import com.lifebalance.identity.dto.UpdateRoleRequest;
 import com.lifebalance.identity.service.RoleService;
+import java.util.List;
+import java.util.UUID;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(RoleController.class)
-@AutoConfigureMockMvc(addFilters = false) // Tắt filter bảo mật để test đúng nghiệp vụ Controller
+@AutoConfigureMockMvc(addFilters = false)
 class RoleControllerTest {
+
+    private static final UUID ROLE_ID =
+            UUID.fromString("22222222-2222-2222-2222-222222222222");
+    private static final UUID PERMISSION_ID =
+            UUID.fromString("33333333-3333-3333-3333-333333333333");
 
     @Autowired
     private MockMvc mockMvc;
@@ -35,94 +43,118 @@ class RoleControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @MockBean
+    @MockitoBean
     private RoleService roleService;
 
     @Test
     void shouldGetAllRoles() throws Exception {
-        // Sửa lại thành getAllRoles() cho khớp với RoleService
-        when(roleService.getAllRoles()).thenReturn(List.of(new RoleResponse()));
+        when(roleService.getAllRoles()).thenReturn(List.of(roleResponse()));
 
-        mockMvc.perform(get("/roles")).andExpect(status().isOk());
+        mockMvc.perform(get("/roles"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(ROLE_ID.toString()))
+                .andExpect(jsonPath("$[0].code").value("MANAGER"));
+
+        verify(roleService).getAllRoles();
     }
 
     @Test
     void shouldGetRoleById() throws Exception {
-        UUID id = UUID.randomUUID();
+        when(roleService.getRoleById(ROLE_ID)).thenReturn(roleResponse());
 
-        // Sửa lại thành getRoleById()
-        when(roleService.getRoleById(id)).thenReturn(new RoleResponse());
-
-        mockMvc.perform(get("/roles/{id}", id)).andExpect(status().isOk());
+        mockMvc.perform(get("/roles/{id}", ROLE_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(ROLE_ID.toString()));
     }
 
-    // BỔ SUNG: Test cho API lấy Role theo Code
     @Test
     void shouldGetRoleByCode() throws Exception {
-        String code = "ADMIN";
-        when(roleService.getRoleByCode(code)).thenReturn(new RoleResponse());
+        when(roleService.getRoleByCode("MANAGER")).thenReturn(roleResponse());
 
-        mockMvc.perform(get("/roles/code/{code}", code)).andExpect(status().isOk());
+        mockMvc.perform(get("/roles/code/{code}", "MANAGER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("MANAGER"));
     }
 
     @Test
     void shouldCreateRole() throws Exception {
         CreateRoleRequest request = new CreateRoleRequest();
-        request.setCode("admin");
-        request.setName("Admin Role");
+        request.setCode("MANAGER");
+        request.setName("Manager");
+        request.setDescription("Manager role");
 
-        // Sửa lại thành createRole()
-        when(roleService.createRole(any(CreateRoleRequest.class))).thenReturn(new RoleResponse());
+        when(roleService.createRole(any(CreateRoleRequest.class))).thenReturn(roleResponse());
 
         mockMvc.perform(post("/roles")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(ROLE_ID.toString()))
+                .andExpect(jsonPath("$.code").value("MANAGER"));
+    }
+
+    @Test
+    void shouldRejectCreateRoleWhenRequiredFieldsAreMissing() throws Exception {
+        mockMvc.perform(post("/roles")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
     void shouldSyncAllRolesToKeycloak() throws Exception {
         when(roleService.syncAllRolesToKeycloak()).thenReturn(new RoleSyncResponse(3));
 
-        mockMvc.perform(post("/roles/sync/keycloak")).andExpect(status().isOk());
+        mockMvc.perform(post("/roles/sync/keycloak"))
+                .andExpect(status().isOk());
     }
 
     @Test
     void shouldUpdateRole() throws Exception {
-        UUID id = UUID.randomUUID();
         UpdateRoleRequest request = new UpdateRoleRequest();
-        request.setName("Updated Role");
+        request.setName("Updated Manager");
+        request.setDescription("Updated role");
 
-        // Sửa lại thành updateRole()
-        when(roleService.updateRole(eq(id), any(UpdateRoleRequest.class))).thenReturn(new RoleResponse());
+        when(roleService.updateRole(eq(ROLE_ID), any(UpdateRoleRequest.class)))
+                .thenReturn(roleResponse());
 
-        mockMvc.perform(put("/roles/{id}", id)
+        mockMvc.perform(put("/roles/{id}", ROLE_ID)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(ROLE_ID.toString()));
     }
 
-    // BỔ SUNG: Test cho API gán Permission vào Role
     @Test
     void shouldAssignPermissions() throws Exception {
-        UUID id = UUID.randomUUID();
-        List<UUID> permissionIds = List.of(UUID.randomUUID(), UUID.randomUUID());
+        when(roleService.assignPermissionsToRole(eq(ROLE_ID), any()))
+                .thenReturn(roleResponse());
 
-        when(roleService.assignPermissionsToRole(eq(id), any())).thenReturn(new RoleResponse());
-
-        mockMvc.perform(put("/roles/{id}/permissions", id)
+        mockMvc.perform(put("/roles/{id}/permissions", ROLE_ID)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(permissionIds)))
-                .andExpect(status().isOk());
+                        .content(objectMapper.writeValueAsString(List.of(PERMISSION_ID))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(ROLE_ID.toString()));
     }
 
     @Test
     void shouldDeleteRole() throws Exception {
-        UUID id = UUID.randomUUID();
+        doNothing().when(roleService).deleteRole(ROLE_ID);
 
-        // Sửa lại thành deleteRole()
-        doNothing().when(roleService).deleteRole(id);
+        mockMvc.perform(delete("/roles/{id}", ROLE_ID))
+                .andExpect(status().isOk());
 
-        mockMvc.perform(delete("/roles/{id}", id)).andExpect(status().isOk());
+        verify(roleService).deleteRole(ROLE_ID);
+    }
+
+    private static RoleResponse roleResponse() {
+        RoleResponse response = new RoleResponse();
+        response.setId(ROLE_ID);
+        response.setCode("MANAGER");
+        response.setName("Manager");
+        response.setDescription("Manager role");
+        response.setSystem(false);
+        response.setPermissions(List.of());
+        return response;
     }
 }
