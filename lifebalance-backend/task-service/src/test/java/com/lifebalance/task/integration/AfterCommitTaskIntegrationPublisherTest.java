@@ -88,10 +88,14 @@ class AfterCommitTaskIntegrationPublisherTest {
                         && Boolean.TRUE.equals(request.policyApproved())), isNull());
         verify(client).recordActualSeed(argThat(request ->
                 "TIME_AND_MONEY".equals(request.recordType())
-                        && taskId.equals(request.taskId())
-                        && Integer.valueOf(90).equals(request.actualMinutes())
-                        && new BigDecimal("25.50").compareTo(request.actualCost()) == 0
-                && "USD".equals(request.currencyCode())), isNull());
+                && taskId.equals(request.taskId())
+                && Integer.valueOf(90).equals(request.actualMinutes())
+                && new BigDecimal("25.50").compareTo(request.actualCost()) == 0
+                && "USD".equals(request.currencyCode())
+                && request.evaluationBaseline() != null
+                && Integer.valueOf(90).equals(request.evaluationBaseline().plannedMinutes())
+                && new BigDecimal("25.50").compareTo(request.evaluationBaseline().plannedCost()) == 0
+                && "USD".equals(request.evaluationBaseline().currencyCode())), isNull());
     }
 
     @Test

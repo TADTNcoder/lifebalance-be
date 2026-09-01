@@ -249,6 +249,20 @@ public class AfterCommitTaskIntegrationPublisher implements TaskIntegrationPubli
         LocalDate actualDate = event.completedAt() == null
                 ? LocalDate.now()
                 : event.completedAt().toLocalDate();
+        LocalDate periodStart = event.plannedStartAt() != null
+                ? event.plannedStartAt().toLocalDate()
+                : event.scheduledStartAt() != null
+                        ? event.scheduledStartAt().toLocalDate()
+                        : actualDate;
+        LocalDate periodEnd = event.plannedEndAt() != null
+                ? event.plannedEndAt().toLocalDate()
+                : event.scheduledEndAt() != null
+                        ? event.scheduledEndAt().toLocalDate()
+                        : event.deadline() == null ? actualDate : event.deadline();
+        if (periodStart.isAfter(periodEnd)) {
+            periodStart = actualDate;
+            periodEnd = actualDate;
+        }
         return java.util.Optional.of(new TaskActualRecordRequest(
                 recordType,
                 event.taskId(),
@@ -260,7 +274,14 @@ public class AfterCommitTaskIntegrationPublisher implements TaskIntegrationPubli
                 hasCost ? normalizedCurrencyCode() : null,
                 actualDate,
                 "Seeded from task completion. User should review actual values.",
-                "TASK_COMPLETION_INTEGRATION"
+                "TASK_COMPLETION_INTEGRATION",
+                new TaskEvaluationBaselineRequest(
+                        periodStart,
+                        periodEnd,
+                        hasMinutes ? event.estimatedMinutes() : null,
+                        hasCost ? event.estimatedCost() : null,
+                        hasCost ? normalizedCurrencyCode() : null
+                )
         ));
     }
 

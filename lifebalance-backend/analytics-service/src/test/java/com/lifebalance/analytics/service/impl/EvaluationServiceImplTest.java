@@ -15,8 +15,10 @@ import com.lifebalance.analytics.dto.EvaluateTaskRequest;
 import com.lifebalance.analytics.dto.EvaluationResultResponse;
 import com.lifebalance.analytics.repository.ActualRecordRepository;
 import com.lifebalance.analytics.repository.EvaluationResultRepository;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -86,6 +88,61 @@ class EvaluationServiceImplTest {
                 isNull(),
                 contains("status=OVER_PLANNED"),
                 eq("Monthly review")
+        );
+    }
+
+    @Test
+    void evaluateTaskArchivesTheCurrentVersionAndRecordsRegeneration() {
+        EvaluationResult previous = EvaluationResult.create(
+                OWNER_ID,
+                OWNER_ID,
+                TASK_ID,
+                null,
+                LocalDate.parse("2026-08-01"),
+                LocalDate.parse("2026-08-31"),
+                60,
+                60,
+                0,
+                null,
+                null,
+                null,
+                null,
+                new BigDecimal("100.0000"),
+                EvaluationStatus.ON_TRACK,
+                "first"
+        );
+        when(evaluationResultRepository.findByOwnerIdAndTaskIdAndStatusNotOrderByGeneratedAtDesc(
+                OWNER_ID, TASK_ID, EvaluationStatus.ARCHIVED
+        )).thenReturn(List.of(previous));
+        when(evaluationResultRepository.save(any(EvaluationResult.class))).thenAnswer(invocation -> {
+            EvaluationResult result = invocation.getArgument(0);
+            ReflectionTestUtils.setField(result, "id", EVALUATION_ID);
+            return result;
+        });
+
+        EvaluationResultResponse response = createService().evaluateTask(OWNER_ID, new EvaluateTaskRequest(
+                TASK_ID,
+                null,
+                LocalDate.parse("2026-08-01"),
+                LocalDate.parse("2026-08-31"),
+                60,
+                75,
+                null,
+                null,
+                null,
+                "updated actual"
+        ));
+
+        assertThat(previous.getStatus()).isEqualTo(EvaluationStatus.ARCHIVED);
+        assertThat(response.status()).isEqualTo(EvaluationStatus.OVER_PLANNED);
+        verify(historyRecorder).recordEvaluation(
+                eq(OWNER_ID),
+                eq(OWNER_ID),
+                eq(AnalyticsHistoryActionType.EVALUATION_REGENERATED),
+                any(EvaluationResult.class),
+                contains("status=ON_TRACK"),
+                contains("status=OVER_PLANNED"),
+                eq("updated actual")
         );
     }
 

@@ -25,6 +25,19 @@ import org.springframework.data.repository.query.Param;
 public interface EvaluationResultRepository
         extends JpaRepository<EvaluationResult, UUID>, JpaSpecificationExecutor<EvaluationResult> {
 
+    Optional<EvaluationResult> findFirstByOwnerIdAndTaskIdAndStatusNotOrderByGeneratedAtDesc(
+            UUID ownerId,
+            UUID taskId,
+            EvaluationStatus excludedStatus
+    );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    List<EvaluationResult> findByOwnerIdAndTaskIdAndStatusNotOrderByGeneratedAtDesc(
+            UUID ownerId,
+            UUID taskId,
+            EvaluationStatus excludedStatus
+    );
+
     Optional<EvaluationResult> findByIdAndOwnerId(UUID id, UUID ownerId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

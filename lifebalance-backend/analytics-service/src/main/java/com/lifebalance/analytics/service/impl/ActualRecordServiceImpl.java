@@ -25,15 +25,18 @@ class ActualRecordServiceImpl implements ActualRecordService {
     private final ActualRecordRepository actualRecordRepository;
     private final AnalyticsHistoryRecorder historyRecorder;
     private final AnalyticsMapper mapper;
+    private final AutomaticEvaluationService automaticEvaluationService;
 
     ActualRecordServiceImpl(
             ActualRecordRepository actualRecordRepository,
             AnalyticsHistoryRecorder historyRecorder,
-            AnalyticsMapper mapper
+            AnalyticsMapper mapper,
+            AutomaticEvaluationService automaticEvaluationService
     ) {
         this.actualRecordRepository = actualRecordRepository;
         this.historyRecorder = historyRecorder;
         this.mapper = mapper;
+        this.automaticEvaluationService = automaticEvaluationService;
     }
 
     @Override
@@ -66,6 +69,20 @@ class ActualRecordServiceImpl implements ActualRecordService {
                 mapper.actualRecordSnapshot(saved),
                 request.note()
         );
+        automaticEvaluationService.evaluateAfterActualChange(
+                ownerId,
+                new AutomaticEvaluationTarget(
+                        saved.getTaskId(),
+                        saved.getCapitalCycleId(),
+                        saved.getActualDate(),
+                        saved.getCurrencyCode(),
+                        hasTime(saved.getRecordType()),
+                        hasCost(saved.getRecordType()),
+                        true
+                ),
+                request.evaluationBaseline(),
+                request.note()
+        );
         return mapper.toResponse(saved);
     }
 
@@ -76,6 +93,15 @@ class ActualRecordServiceImpl implements ActualRecordService {
         ActualRecord actualRecord = actualRecordRepository.findByIdAndOwnerIdForUpdate(actualRecordId, ownerId)
                 .orElseThrow(() -> AnalyticsExceptions.actualRecordNotFound(actualRecordId));
         String oldSnapshot = mapper.actualRecordSnapshot(actualRecord);
+        AutomaticEvaluationTarget previousTarget = new AutomaticEvaluationTarget(
+                actualRecord.getTaskId(),
+                actualRecord.getCapitalCycleId(),
+                actualRecord.getActualDate(),
+                actualRecord.getCurrencyCode(),
+                hasTime(actualRecord.getRecordType()),
+                hasCost(actualRecord.getRecordType()),
+                false
+        );
 
         ActualRecordType targetType = request.recordType() == null ? actualRecord.getRecordType() : request.recordType();
         validateTypeSpecificUpdate(targetType, request);
@@ -103,6 +129,29 @@ class ActualRecordServiceImpl implements ActualRecordService {
                 mapper.actualRecordSnapshot(actualRecord),
                 request.reason()
         );
+        AutomaticEvaluationTarget currentTarget = new AutomaticEvaluationTarget(
+                actualRecord.getTaskId(),
+                actualRecord.getCapitalCycleId(),
+                actualRecord.getActualDate(),
+                actualRecord.getCurrencyCode(),
+                hasTime(actualRecord.getRecordType()),
+                hasCost(actualRecord.getRecordType()),
+                true
+        );
+        if (!sameEvaluationScope(previousTarget, currentTarget)) {
+            automaticEvaluationService.evaluateAfterActualChange(
+                    ownerId,
+                    previousTarget,
+                    null,
+                    "Ghi nhận thực tế đã được chuyển sang task khác."
+            );
+        }
+        automaticEvaluationService.evaluateAfterActualChange(
+                ownerId,
+                currentTarget,
+                request.evaluationBaseline(),
+                request.reason()
+        );
         return mapper.toResponse(actualRecord);
     }
 
@@ -122,6 +171,20 @@ class ActualRecordServiceImpl implements ActualRecordService {
                 actualRecord,
                 oldSnapshot,
                 mapper.actualRecordSnapshot(actualRecord),
+                request == null ? null : request.reason()
+        );
+        automaticEvaluationService.evaluateAfterActualChange(
+                ownerId,
+                new AutomaticEvaluationTarget(
+                        actualRecord.getTaskId(),
+                        actualRecord.getCapitalCycleId(),
+                        actualRecord.getActualDate(),
+                        actualRecord.getCurrencyCode(),
+                        hasTime(actualRecord.getRecordType()),
+                        hasCost(actualRecord.getRecordType()),
+                        false
+                ),
+                null,
                 request == null ? null : request.reason()
         );
         return mapper.toResponse(actualRecord);
@@ -235,5 +298,25 @@ class ActualRecordServiceImpl implements ActualRecordService {
         if (ownerId == null) {
             throw AnalyticsExceptions.invalidRequest("ownerId is required.");
         }
+    }
+
+    private static boolean sameEvaluationScope(
+            AutomaticEvaluationTarget left,
+            AutomaticEvaluationTarget right
+    ) {
+        return java.util.Objects.equals(left.taskId(), right.taskId())
+                && java.util.Objects.equals(left.capitalCycleId(), right.capitalCycleId())
+                && java.util.Objects.equals(left.actualDate(), right.actualDate())
+                && java.util.Objects.equals(left.currencyCode(), right.currencyCode())
+                && left.hasTime() == right.hasTime()
+                && left.hasCost() == right.hasCost();
+    }
+
+    private static boolean hasTime(ActualRecordType recordType) {
+        return recordType == ActualRecordType.TIME || recordType == ActualRecordType.TIME_AND_MONEY;
+    }
+
+    private static boolean hasCost(ActualRecordType recordType) {
+        return recordType == ActualRecordType.MONEY || recordType == ActualRecordType.TIME_AND_MONEY;
     }
 }

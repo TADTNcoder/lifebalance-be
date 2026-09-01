@@ -16,6 +16,36 @@ record TaskActualRecordRequest(
         String currencyCode,
         LocalDate actualDate,
         String note,
-        String source
+        String source,
+        TaskEvaluationBaselineRequest evaluationBaseline
 ) {
+
+    TaskActualRecordRequest(
+            String recordType,
+            UUID taskId,
+            UUID capitalCycleId,
+            UUID categoryId,
+            Set<UUID> tagIds,
+            Integer actualMinutes,
+            BigDecimal actualCost,
+            String currencyCode,
+            LocalDate actualDate,
+            String note,
+            String source
+    ) {
+        this(
+                recordType,
+                taskId,
+                capitalCycleId,
+                categoryId,
+                tagIds,
+                actualMinutes,
+                actualCost,
+                currencyCode,
+                actualDate,
+                note,
+                source,
+                null
+        );
+    }
 }

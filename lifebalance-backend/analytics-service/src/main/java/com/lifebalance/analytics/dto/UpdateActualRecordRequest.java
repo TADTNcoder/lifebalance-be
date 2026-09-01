@@ -1,6 +1,7 @@
 package com.lifebalance.analytics.dto;
 
 import com.lifebalance.analytics.domain.ActualRecordType;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
@@ -21,6 +22,38 @@ public record UpdateActualRecordRequest(
         LocalDate actualDate,
         @Size(max = 1000) String note,
         @Size(max = 64) String source,
-        @Size(max = 1000) String reason
+        @Size(max = 1000) String reason,
+        @Valid AutomaticEvaluationBaselineRequest evaluationBaseline
 ) {
+
+    public UpdateActualRecordRequest(
+            ActualRecordType recordType,
+            UUID taskId,
+            UUID capitalCycleId,
+            UUID categoryId,
+            Set<UUID> tagIds,
+            Integer actualMinutes,
+            BigDecimal actualCost,
+            String currencyCode,
+            LocalDate actualDate,
+            String note,
+            String source,
+            String reason
+    ) {
+        this(
+                recordType,
+                taskId,
+                capitalCycleId,
+                categoryId,
+                tagIds,
+                actualMinutes,
+                actualCost,
+                currencyCode,
+                actualDate,
+                note,
+                source,
+                reason,
+                null
+        );
+    }
 }

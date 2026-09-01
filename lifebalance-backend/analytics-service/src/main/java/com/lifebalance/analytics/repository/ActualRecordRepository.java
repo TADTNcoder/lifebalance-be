@@ -27,6 +27,8 @@ public interface ActualRecordRepository
 
     Optional<ActualRecord> findByIdAndOwnerId(UUID id, UUID ownerId);
 
+    long countByOwnerIdAndTaskIdAndStatus(UUID ownerId, UUID taskId, ActualRecordStatus status);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             SELECT record

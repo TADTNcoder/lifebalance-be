@@ -65,6 +65,22 @@ class EvaluationServiceImpl implements EvaluationService {
                 efficiencyPercent(request.plannedCost(), actualCost)
         );
         EvaluationStatus status = status(request.plannedMinutes(), actualMinutes, request.plannedCost(), actualCost);
+        List<EvaluationResult> currentVersions = evaluationResultRepository
+                .findByOwnerIdAndTaskIdAndStatusNotOrderByGeneratedAtDesc(
+                        ownerId,
+                        request.taskId(),
+                        EvaluationStatus.ARCHIVED
+                );
+        EvaluationResult previous = currentVersions.stream()
+                .filter(result -> samePeriod(result, request))
+                .findFirst()
+                .orElse(null);
+        String oldSnapshot = previous == null ? null : mapper.evaluationSnapshot(previous);
+        if (previous != null) {
+            currentVersions.stream()
+                    .filter(result -> samePeriod(result, request))
+                    .forEach(result -> result.archive(ownerId));
+        }
 
         EvaluationResult result = EvaluationResult.create(
                 ownerId,
@@ -89,9 +105,11 @@ class EvaluationServiceImpl implements EvaluationService {
         historyRecorder.recordEvaluation(
                 ownerId,
                 ownerId,
-                AnalyticsHistoryActionType.EVALUATION_GENERATED,
+                previous == null
+                        ? AnalyticsHistoryActionType.EVALUATION_GENERATED
+                        : AnalyticsHistoryActionType.EVALUATION_REGENERATED,
                 saved,
-                null,
+                oldSnapshot,
                 mapper.evaluationSnapshot(saved),
                 request.reason()
         );
@@ -215,6 +233,12 @@ class EvaluationServiceImpl implements EvaluationService {
             return null;
         }
         return ActualRecord.normalizeCurrency(request.currencyCode());
+    }
+
+    private static boolean samePeriod(EvaluationResult result, EvaluateTaskRequest request) {
+        return java.util.Objects.equals(result.getCapitalCycleId(), request.capitalCycleId())
+                && java.util.Objects.equals(result.getPeriodStart(), request.periodStart())
+                && java.util.Objects.equals(result.getPeriodEnd(), request.periodEnd());
     }
 
     private static Integer variance(Integer planned, Integer actual) {

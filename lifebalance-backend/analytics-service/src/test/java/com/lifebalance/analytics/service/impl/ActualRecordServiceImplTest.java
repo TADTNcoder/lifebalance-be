@@ -42,6 +42,9 @@ class ActualRecordServiceImplTest {
     @Mock
     private AnalyticsHistoryRecorder historyRecorder;
 
+    @Mock
+    private AutomaticEvaluationService automaticEvaluationService;
+
     @Test
     void recordTimeActualPersistsAndWritesHistory() {
         when(actualRecordRepository.save(any(ActualRecord.class))).thenAnswer(invocation -> {
@@ -76,6 +79,12 @@ class ActualRecordServiceImplTest {
                 eq(captor.getValue()),
                 isNull(),
                 contains("minutes=90"),
+                eq("Deep work")
+        );
+        verify(automaticEvaluationService).evaluateAfterActualChange(
+                eq(OWNER_ID),
+                any(AutomaticEvaluationTarget.class),
+                isNull(),
                 eq("Deep work")
         );
     }
@@ -141,7 +150,8 @@ class ActualRecordServiceImplTest {
         return new ActualRecordServiceImpl(
                 actualRecordRepository,
                 historyRecorder,
-                new AnalyticsMapper()
+                new AnalyticsMapper(),
+                automaticEvaluationService
         );
     }
 }
