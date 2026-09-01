@@ -12,7 +12,9 @@ import com.lifebalance.common.api.ApiResponse;
 import com.lifebalance.common.web.PageableLimits;
 import com.lifebalance.security.keycloak.KeycloakUserPrincipal;
 import jakarta.validation.Valid;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
@@ -63,18 +65,25 @@ public class EvaluationController {
             @RequestParam(required = false) UUID taskId,
             @RequestParam(required = false) UUID capitalCycleId,
             @RequestParam(required = false) EvaluationStatus status,
-            @RequestParam(required = false) OffsetDateTime from,
-            @RequestParam(required = false) OffsetDateTime to,
+            @RequestParam(required = false) LocalDate from,
+            @RequestParam(required = false) LocalDate to,
             Pageable pageable,
             @RequestAttribute(value = CURRENT_USER_ATTRIBUTE, required = false) KeycloakUserPrincipal currentUser
     ) {
+        OffsetDateTime fromDateTime = from == null
+                ? null
+                : from.atStartOfDay().atOffset(ZoneOffset.UTC);
+        OffsetDateTime toDateTime = to == null
+                ? null
+                : to.plusDays(1).atStartOfDay().atOffset(ZoneOffset.UTC).minusNanos(1);
+
         return ResponseEntity.ok(ApiResponse.success(PageResponse.from(evaluationService.search(
                 CurrentAnalyticsUser.ownerId(currentUser),
                 taskId,
                 capitalCycleId,
                 status,
-                from,
-                to,
+                fromDateTime,
+                toDateTime,
                 PageableLimits.normalize(pageable)
         ))));
     }
