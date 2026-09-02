@@ -326,11 +326,11 @@ public class FinancialTransactionServiceImpl implements FinancialTransactionServ
         }
         if (sourceAccount != null
                 && !FinanceAccountMonthPolicy.isEffectiveAt(sourceAccount, transactionDate)) {
-            throw FinanceExceptions.invalidAccount("Ví/Hũ chỉ có hiệu lực trong tháng được tạo");
+            throw FinanceExceptions.invalidAccount("Hũ chỉ có hiệu lực trong tháng được tạo; Ví tổng có hiệu lực suốt đời");
         }
         if (destinationAccount != null
                 && !FinanceAccountMonthPolicy.isEffectiveAt(destinationAccount, transactionDate)) {
-            throw FinanceExceptions.invalidAccount("Ví/Hũ chỉ có hiệu lực trong tháng được tạo");
+            throw FinanceExceptions.invalidAccount("Hũ chỉ có hiệu lực trong tháng được tạo; Ví tổng có hiệu lực suốt đời");
         }
         if (sourceAccount != null) {
             FinanceSupport.ensureAccountCurrency(sourceAccount, currencyCode);

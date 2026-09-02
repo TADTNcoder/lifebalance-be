@@ -187,14 +187,11 @@ class FinanceMonthEndRolloverServiceTest {
     }
 
     private void stubMainPool(FinanceAccount mainPool) {
-        when(accountRepository
-                .findFirstByOwnerIdAndAccountTypeAndStatusAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
-                        OWNER_ID,
-                        FinanceAccountType.MAIN_POOL,
-                        FinanceAccountStatus.ACTIVE,
-                        OffsetDateTime.parse("2026-08-01T00:00:00+07:00"),
-                        OffsetDateTime.parse("2026-09-01T00:00:00+07:00")
-                ))
+        when(accountRepository.findFirstByOwnerIdAndAccountTypeAndStatusOrderByCreatedAtAscIdAsc(
+                OWNER_ID,
+                FinanceAccountType.MAIN_POOL,
+                FinanceAccountStatus.ACTIVE
+        ))
                 .thenReturn(Optional.of(mainPool));
     }
 

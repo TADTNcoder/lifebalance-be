@@ -61,26 +61,16 @@ public interface FinanceAccountRepository extends JpaRepository<FinanceAccount, 
             select (count(account) > 0)
             from FinanceAccount account
             where account.ownerId = :ownerId
-              and account.accountType = :accountType
-              and account.status = :status
-              and account.createdAt >= :createdFrom
-              and account.createdAt < :createdTo
+              and account.accountType = com.lifebalance.finance.domain.FinanceAccountType.MAIN_POOL
+              and account.status = com.lifebalance.finance.domain.FinanceAccountStatus.ACTIVE
             """)
-    boolean existsTypeInCreatedPeriod(
-            @Param("ownerId") UUID ownerId,
-            @Param("accountType") FinanceAccountType accountType,
-            @Param("status") FinanceAccountStatus status,
-            @Param("createdFrom") OffsetDateTime createdFrom,
-            @Param("createdTo") OffsetDateTime createdTo);
+    boolean existsActiveMainPool(@Param("ownerId") UUID ownerId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    Optional<FinanceAccount>
-    findFirstByOwnerIdAndAccountTypeAndStatusAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+    Optional<FinanceAccount> findFirstByOwnerIdAndAccountTypeAndStatusOrderByCreatedAtAscIdAsc(
             UUID ownerId,
             FinanceAccountType accountType,
-            FinanceAccountStatus status,
-            OffsetDateTime createdFrom,
-            OffsetDateTime createdTo);
+            FinanceAccountStatus status);
 
     @Query("""
             select account
@@ -112,18 +102,29 @@ public interface FinanceAccountRepository extends JpaRepository<FinanceAccount, 
         );
     }
 
-    default BigDecimal sumActiveOpeningBalance(
+    default BigDecimal sumActiveBalanceByType(
             UUID ownerId,
             String currencyCode,
-            OffsetDateTime createdFrom,
-            OffsetDateTime createdTo
+            FinanceAccountType accountType
     ) {
-        return sumOpeningBalanceByStatusInCreatedPeriod(
+        return sumBalanceByStatusAndAccountType(
                 ownerId,
                 currencyCode,
                 FinanceAccountStatus.ACTIVE,
-                createdFrom,
-                createdTo
+                accountType
+        );
+    }
+
+    default BigDecimal sumActiveOpeningBalanceByType(
+            UUID ownerId,
+            String currencyCode,
+            FinanceAccountType accountType
+    ) {
+        return sumOpeningBalanceByStatusAndAccountType(
+                ownerId,
+                currencyCode,
+                FinanceAccountStatus.ACTIVE,
+                accountType
         );
     }
 
@@ -146,18 +147,30 @@ public interface FinanceAccountRepository extends JpaRepository<FinanceAccount, 
             @Param("createdTo") OffsetDateTime createdTo);
 
     @Query("""
+            select coalesce(sum(account.currentBalance), 0)
+            from FinanceAccount account
+            where account.ownerId = :ownerId
+              and account.status = :status
+              and account.currencyCode = :currencyCode
+              and account.accountType = :accountType
+            """)
+    BigDecimal sumBalanceByStatusAndAccountType(
+            @Param("ownerId") UUID ownerId,
+            @Param("currencyCode") String currencyCode,
+            @Param("status") FinanceAccountStatus status,
+            @Param("accountType") FinanceAccountType accountType);
+
+    @Query("""
             select coalesce(sum(account.openingBalance), 0)
             from FinanceAccount account
             where account.ownerId = :ownerId
               and account.status = :status
               and account.currencyCode = :currencyCode
-              and account.createdAt >= :createdFrom
-              and account.createdAt < :createdTo
+              and account.accountType = :accountType
             """)
-    BigDecimal sumOpeningBalanceByStatusInCreatedPeriod(
+    BigDecimal sumOpeningBalanceByStatusAndAccountType(
             @Param("ownerId") UUID ownerId,
             @Param("currencyCode") String currencyCode,
             @Param("status") FinanceAccountStatus status,
-            @Param("createdFrom") OffsetDateTime createdFrom,
-            @Param("createdTo") OffsetDateTime createdTo);
+            @Param("accountType") FinanceAccountType accountType);
 }

@@ -23,6 +23,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class FinanceReportServiceImpl implements FinanceReportService {
 
+    private static final OffsetDateTime EARLIEST_TRANSACTION_DATE =
+            OffsetDateTime.parse("0001-01-01T00:00:00Z");
+
     private final FinancialTransactionRepository transactionRepository;
     private final FinanceAccountRepository accountRepository;
     private final FinanceMonthlyJarSettlementRepository settlementRepository;
@@ -80,9 +83,7 @@ public class FinanceReportServiceImpl implements FinanceReportService {
         BigDecimal mainPoolBalance = accountRepository.sumActiveBalanceByType(
                 ownerId,
                 normalizedCurrency,
-                FinanceAccountType.MAIN_POOL,
-                accountMonths.startInclusive(),
-                accountMonths.endExclusive()
+                FinanceAccountType.MAIN_POOL
         );
         BigDecimal totalJarBalance = accountRepository.sumActiveBalanceByType(
                 ownerId,
@@ -92,20 +93,19 @@ public class FinanceReportServiceImpl implements FinanceReportService {
                 accountMonths.endExclusive()
         );
         BigDecimal totalBalance = mainPoolBalance.add(totalJarBalance);
-        BigDecimal openingBalance = accountRepository.sumActiveOpeningBalance(
+        BigDecimal openingBalance = accountRepository.sumActiveOpeningBalanceByType(
                 ownerId,
                 normalizedCurrency,
-                accountMonths.startInclusive(),
-                accountMonths.endExclusive()
+                FinanceAccountType.MAIN_POOL
         );
 
-        if (normalizedFrom.isAfter(accountMonths.startInclusive())) {
+        if (normalizedFrom.isAfter(EARLIEST_TRANSACTION_DATE)) {
             OffsetDateTime beforePeriod = normalizedFrom.minusNanos(1);
             BigDecimal incomeBeforePeriod = transactionRepository.sumPostedAmount(
                     ownerId,
                     FinanceTransactionType.INCOME,
                     normalizedCurrency,
-                    accountMonths.startInclusive(),
+                    EARLIEST_TRANSACTION_DATE,
                     beforePeriod,
                     null
             );
@@ -113,7 +113,7 @@ public class FinanceReportServiceImpl implements FinanceReportService {
                     ownerId,
                     FinanceTransactionType.EXPENSE,
                     normalizedCurrency,
-                    accountMonths.startInclusive(),
+                    EARLIEST_TRANSACTION_DATE,
                     beforePeriod,
                     null
             );

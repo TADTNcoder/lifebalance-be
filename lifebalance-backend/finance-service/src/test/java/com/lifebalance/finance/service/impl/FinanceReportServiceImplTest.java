@@ -32,6 +32,8 @@ class FinanceReportServiceImplTest {
     private static final OffsetDateTime PERIOD_END = OffsetDateTime.parse("2026-08-31T23:59:59Z");
     private static final OffsetDateTime ACCOUNT_MONTH_START = OffsetDateTime.parse("2026-08-01T00:00:00+07:00");
     private static final OffsetDateTime ACCOUNT_MONTH_END = OffsetDateTime.parse("2026-10-01T00:00:00+07:00");
+    private static final OffsetDateTime EARLIEST_TRANSACTION_DATE =
+            OffsetDateTime.parse("0001-01-01T00:00:00Z");
 
     @Mock
     private FinancialTransactionRepository transactionRepository;
@@ -44,11 +46,11 @@ class FinanceReportServiceImplTest {
 
     @Test
     void summaryUsesOpeningBalanceBeforeSelectedPeriodAndCurrentActiveBalance() {
-        when(accountRepository.sumActiveOpeningBalance(
-                OWNER_ID, "VND", ACCOUNT_MONTH_START, ACCOUNT_MONTH_END))
+        when(accountRepository.sumActiveOpeningBalanceByType(
+                OWNER_ID, "VND", FinanceAccountType.MAIN_POOL))
                 .thenReturn(new BigDecimal("1000.00"));
         when(accountRepository.sumActiveBalanceByType(
-                OWNER_ID, "VND", FinanceAccountType.MAIN_POOL, ACCOUNT_MONTH_START, ACCOUNT_MONTH_END))
+                OWNER_ID, "VND", FinanceAccountType.MAIN_POOL))
                 .thenReturn(new BigDecimal("750.00"));
         when(accountRepository.sumActiveBalanceByType(
                 OWNER_ID, "VND", FinanceAccountType.JAR, ACCOUNT_MONTH_START, ACCOUNT_MONTH_END))
@@ -63,12 +65,12 @@ class FinanceReportServiceImplTest {
                 .thenReturn(new BigDecimal("250.00"));
         when(transactionRepository.sumPostedAmount(
                 eq(OWNER_ID), eq(FinanceTransactionType.INCOME), eq("VND"),
-                eq(ACCOUNT_MONTH_START),
+                eq(EARLIEST_TRANSACTION_DATE),
                 eq(PERIOD_START.minusNanos(1)), eq(null)))
                 .thenReturn(new BigDecimal("300.00"));
         when(transactionRepository.sumPostedAmount(
                 eq(OWNER_ID), eq(FinanceTransactionType.EXPENSE), eq("VND"),
-                eq(ACCOUNT_MONTH_START),
+                eq(EARLIEST_TRANSACTION_DATE),
                 eq(PERIOD_START.minusNanos(1)), eq(null)))
                 .thenReturn(new BigDecimal("100.00"));
         FinanceAccount mainPool = FinanceAccount.create(
@@ -148,12 +150,21 @@ class FinanceReportServiceImplTest {
                 OWNER_ID, FinanceTransactionType.EXPENSE, "VND", monthStart, toDate, null))
                 .thenReturn(BigDecimal.ZERO);
         when(accountRepository.sumActiveBalanceByType(
-                OWNER_ID, "VND", FinanceAccountType.MAIN_POOL, monthStart, monthEnd))
+                OWNER_ID, "VND", FinanceAccountType.MAIN_POOL))
                 .thenReturn(BigDecimal.ZERO);
         when(accountRepository.sumActiveBalanceByType(
                 OWNER_ID, "VND", FinanceAccountType.JAR, monthStart, monthEnd))
                 .thenReturn(BigDecimal.ZERO);
-        when(accountRepository.sumActiveOpeningBalance(OWNER_ID, "VND", monthStart, monthEnd))
+        when(accountRepository.sumActiveOpeningBalanceByType(
+                OWNER_ID, "VND", FinanceAccountType.MAIN_POOL))
+                .thenReturn(BigDecimal.ZERO);
+        when(transactionRepository.sumPostedAmount(
+                OWNER_ID, FinanceTransactionType.INCOME, "VND",
+                EARLIEST_TRANSACTION_DATE, monthStart.minusNanos(1), null))
+                .thenReturn(BigDecimal.ZERO);
+        when(transactionRepository.sumPostedAmount(
+                OWNER_ID, FinanceTransactionType.EXPENSE, "VND",
+                EARLIEST_TRANSACTION_DATE, monthStart.minusNanos(1), null))
                 .thenReturn(BigDecimal.ZERO);
         when(settlementRepository
                 .findByOwnerIdAndCurrencyCodeAndPeriodStartBetweenOrderByPeriodStartAsc(
@@ -170,6 +181,6 @@ class FinanceReportServiceImplTest {
         verify(transactionRepository).sumPostedAmount(
                 OWNER_ID, FinanceTransactionType.INCOME, "VND", monthStart, toDate, null);
         verify(accountRepository).sumActiveBalanceByType(
-                OWNER_ID, "VND", FinanceAccountType.MAIN_POOL, monthStart, monthEnd);
+                OWNER_ID, "VND", FinanceAccountType.MAIN_POOL);
     }
 }

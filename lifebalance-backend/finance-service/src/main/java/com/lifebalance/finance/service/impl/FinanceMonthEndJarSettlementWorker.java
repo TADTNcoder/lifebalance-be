@@ -71,17 +71,15 @@ public class FinanceMonthEndJarSettlementWorker {
         }
 
         FinanceAccount mainPool = accountRepository
-                .findFirstByOwnerIdAndAccountTypeAndStatusAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+                .findFirstByOwnerIdAndAccountTypeAndStatusOrderByCreatedAtAscIdAsc(
                         jar.getOwnerId(),
                         com.lifebalance.finance.domain.FinanceAccountType.MAIN_POOL,
-                        com.lifebalance.finance.domain.FinanceAccountStatus.ACTIVE,
-                        jarMonth.startInclusive(),
-                        jarMonth.endExclusive()
+                        com.lifebalance.finance.domain.FinanceAccountStatus.ACTIVE
                 )
                 .orElse(null);
         if (mainPool == null) {
             log.warn(
-                    "Cannot settle finance jar {} for {} because its monthly main pool is missing",
+                    "Cannot settle finance jar {} for {} because the lifetime main pool is missing",
                     jar.getId(),
                     periodStart
             );

@@ -13,6 +13,7 @@ import com.lifebalance.finance.repository.FinanceAccountRepository;
 import com.lifebalance.finance.service.FinanceAccountService;
 import java.math.BigDecimal;
 import java.util.UUID;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -44,8 +45,7 @@ public class FinanceAccountServiceImpl implements FinanceAccountService {
                 ownerId,
                 request.accountType(),
                 currencyCode,
-                openingBalance,
-                effectiveMonth
+                openingBalance
         );
 
         if (financeAccountRepository.existsNameInCreatedPeriod(
@@ -66,7 +66,21 @@ public class FinanceAccountServiceImpl implements FinanceAccountService {
                 currencyCode,
                 openingBalance
         );
-        account = financeAccountRepository.save(account);
+        try {
+            account = financeAccountRepository.save(account);
+            if (request.accountType() == FinanceAccountType.MAIN_POOL) {
+                // Force the lifetime unique index to run inside this service call,
+                // so a concurrent create is returned as a domain conflict.
+                financeAccountRepository.flush();
+            }
+        } catch (DataIntegrityViolationException exception) {
+            if (request.accountType() == FinanceAccountType.MAIN_POOL) {
+                throw FinanceExceptions.invalidAccount(
+                        "Only one active main pool is allowed for a lifetime"
+                );
+            }
+            throw exception;
+        }
 
         historyRecorder.record(
                 ownerId,
@@ -179,32 +193,23 @@ public class FinanceAccountServiceImpl implements FinanceAccountService {
             UUID ownerId,
             FinanceAccountType accountType,
             String currencyCode,
-            BigDecimal openingBalance,
-            FinanceAccountMonthPolicy.MonthRange effectiveMonth
+            BigDecimal openingBalance
     ) {
         if (accountType == FinanceAccountType.MAIN_POOL) {
-            if (financeAccountRepository.existsTypeInCreatedPeriod(
-                    ownerId,
-                    FinanceAccountType.MAIN_POOL,
-                    FinanceAccountStatus.ACTIVE,
-                    effectiveMonth.startInclusive(),
-                    effectiveMonth.endExclusive()
-            )) {
-                throw FinanceExceptions.invalidAccount("Only one main pool is allowed per month");
+            if (financeAccountRepository.existsActiveMainPool(ownerId)) {
+                throw FinanceExceptions.invalidAccount("Only one active main pool is allowed for a lifetime");
             }
             return;
         }
 
         FinanceAccount mainPool = financeAccountRepository
-                .findFirstByOwnerIdAndAccountTypeAndStatusAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+                .findFirstByOwnerIdAndAccountTypeAndStatusOrderByCreatedAtAscIdAsc(
                         ownerId,
                         FinanceAccountType.MAIN_POOL,
-                        FinanceAccountStatus.ACTIVE,
-                        effectiveMonth.startInclusive(),
-                        effectiveMonth.endExclusive()
+                        FinanceAccountStatus.ACTIVE
                 )
                 .orElseThrow(() -> FinanceExceptions.invalidAccount(
-                        "Create the main pool for this month before creating jars"
+                        "Create the lifetime main pool before creating jars"
                 ));
 
         if (!mainPool.getCurrencyCode().equals(currencyCode)) {

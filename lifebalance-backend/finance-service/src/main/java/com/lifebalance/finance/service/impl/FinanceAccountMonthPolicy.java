@@ -1,15 +1,17 @@
 package com.lifebalance.finance.service.impl;
 
 import com.lifebalance.finance.domain.FinanceAccount;
+import com.lifebalance.finance.domain.FinanceAccountType;
 import java.time.OffsetDateTime;
 import java.time.YearMonth;
 import java.time.ZoneId;
 
 /**
- * Defines the calendar month in which a finance account can be used.
+ * Defines when a finance account can be used.
  *
  * <p>Finance timestamps are persisted in UTC, while the product currently uses the
- * Asia/Bangkok business timezone (UTC+7) for task and finance dates.</p>
+ * Asia/Bangkok business timezone (UTC+7) for task and finance dates. The main pool
+ * is a lifetime account; jars are effective only in their creation month.</p>
  */
 final class FinanceAccountMonthPolicy {
 
@@ -36,6 +38,10 @@ final class FinanceAccountMonthPolicy {
     static boolean isEffectiveAt(FinanceAccount account, OffsetDateTime transactionDate) {
         if (account == null || account.getCreatedAt() == null || transactionDate == null) {
             return false;
+        }
+
+        if (account.getAccountType() == FinanceAccountType.MAIN_POOL) {
+            return true;
         }
 
         YearMonth accountMonth = YearMonth.from(account.getCreatedAt().atZoneSameInstant(BUSINESS_ZONE));

@@ -16,6 +16,7 @@ import com.lifebalance.finance.dto.CreateFinanceAccountRequest;
 import com.lifebalance.finance.error.FinanceErrorCode;
 import com.lifebalance.finance.repository.FinanceAccountRepository;
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -37,13 +38,7 @@ class FinanceAccountServiceImplTest {
 
     @Test
     void createsSingleMainPoolWithOpeningBalance() {
-        when(accountRepository.existsTypeInCreatedPeriod(
-                eq(OWNER_ID),
-                eq(FinanceAccountType.MAIN_POOL),
-                eq(FinanceAccountStatus.ACTIVE),
-                any(),
-                any()
-        )).thenReturn(false);
+        when(accountRepository.existsActiveMainPool(OWNER_ID)).thenReturn(false);
         when(accountRepository.existsNameInCreatedPeriod(
                 eq(OWNER_ID),
                 eq("Ví tổng"),
@@ -67,13 +62,7 @@ class FinanceAccountServiceImplTest {
 
     @Test
     void rejectsSecondActiveMainPool() {
-        when(accountRepository.existsTypeInCreatedPeriod(
-                eq(OWNER_ID),
-                eq(FinanceAccountType.MAIN_POOL),
-                eq(FinanceAccountStatus.ACTIVE),
-                any(),
-                any()
-        )).thenReturn(true);
+        when(accountRepository.existsActiveMainPool(OWNER_ID)).thenReturn(true);
 
         assertFinanceAccountInvalid(() -> service().create(OWNER_ID, new CreateFinanceAccountRequest(
                 "Ví tổng khác",
@@ -86,7 +75,7 @@ class FinanceAccountServiceImplTest {
     }
 
     @Test
-    void createsZeroBalanceJarUsingMainPoolCurrency() {
+    void createsZeroBalanceJarUsingLifetimeMainPoolCurrency() {
         FinanceAccount mainPool = FinanceAccount.create(
                 OWNER_ID,
                 OWNER_ID,
@@ -95,12 +84,13 @@ class FinanceAccountServiceImplTest {
                 "VND",
                 new BigDecimal("1000000.0000")
         );
-        when(accountRepository.findFirstByOwnerIdAndAccountTypeAndStatusAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
-                eq(OWNER_ID),
-                eq(FinanceAccountType.MAIN_POOL),
-                eq(FinanceAccountStatus.ACTIVE),
-                any(),
-                any()
+        ReflectionTestUtils.setField(
+                mainPool,
+                "createdAt",
+                OffsetDateTime.parse("2026-01-15T00:00:00+07:00")
+        );
+        when(accountRepository.findFirstByOwnerIdAndAccountTypeAndStatusOrderByCreatedAtAscIdAsc(
+                OWNER_ID, FinanceAccountType.MAIN_POOL, FinanceAccountStatus.ACTIVE
         )).thenReturn(Optional.of(mainPool));
         when(accountRepository.existsNameInCreatedPeriod(
                 eq(OWNER_ID),
@@ -132,12 +122,8 @@ class FinanceAccountServiceImplTest {
                 "VND",
                 BigDecimal.ZERO.setScale(4)
         );
-        when(accountRepository.findFirstByOwnerIdAndAccountTypeAndStatusAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
-                eq(OWNER_ID),
-                eq(FinanceAccountType.MAIN_POOL),
-                eq(FinanceAccountStatus.ACTIVE),
-                any(),
-                any()
+        when(accountRepository.findFirstByOwnerIdAndAccountTypeAndStatusOrderByCreatedAtAscIdAsc(
+                OWNER_ID, FinanceAccountType.MAIN_POOL, FinanceAccountStatus.ACTIVE
         )).thenReturn(Optional.of(mainPool));
 
         assertFinanceAccountInvalid(() -> service().create(OWNER_ID, new CreateFinanceAccountRequest(
