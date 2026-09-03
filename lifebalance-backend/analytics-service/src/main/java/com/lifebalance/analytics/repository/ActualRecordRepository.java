@@ -5,7 +5,6 @@ import com.lifebalance.analytics.domain.ActualRecordStatus;
 import com.lifebalance.analytics.domain.ActualRecordType;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.criteria.Predicate;
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -23,7 +22,9 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.repository.query.Param;
 
 public interface ActualRecordRepository
-        extends JpaRepository<ActualRecord, UUID>, JpaSpecificationExecutor<ActualRecord> {
+        extends JpaRepository<ActualRecord, UUID>,
+        JpaSpecificationExecutor<ActualRecord>,
+        ActualRecordAggregateRepository {
 
     Optional<ActualRecord> findByIdAndOwnerId(UUID id, UUID ownerId);
 
@@ -91,44 +92,6 @@ public interface ActualRecordRepository
 
         return findAll(specification, withDefaultSearchSort(pageable));
     }
-
-    @Query("""
-            SELECT SUM(record.actualMinutes)
-            FROM ActualRecord record
-            WHERE record.ownerId = :ownerId
-              AND record.status = com.lifebalance.analytics.domain.ActualRecordStatus.ACTIVE
-              AND (:taskId IS NULL OR record.taskId = :taskId)
-              AND (:capitalCycleId IS NULL OR record.capitalCycleId = :capitalCycleId)
-              AND (:from IS NULL OR record.actualDate >= :from)
-              AND (:to IS NULL OR record.actualDate <= :to)
-            """)
-    Long sumActualMinutes(
-            @Param("ownerId") UUID ownerId,
-            @Param("taskId") UUID taskId,
-            @Param("capitalCycleId") UUID capitalCycleId,
-            @Param("from") LocalDate from,
-            @Param("to") LocalDate to
-    );
-
-    @Query("""
-            SELECT SUM(record.actualCost)
-            FROM ActualRecord record
-            WHERE record.ownerId = :ownerId
-              AND record.status = com.lifebalance.analytics.domain.ActualRecordStatus.ACTIVE
-              AND (:taskId IS NULL OR record.taskId = :taskId)
-              AND (:capitalCycleId IS NULL OR record.capitalCycleId = :capitalCycleId)
-              AND (:currencyCode IS NULL OR record.currencyCode = :currencyCode)
-              AND (:from IS NULL OR record.actualDate >= :from)
-              AND (:to IS NULL OR record.actualDate <= :to)
-            """)
-    BigDecimal sumActualCost(
-            @Param("ownerId") UUID ownerId,
-            @Param("taskId") UUID taskId,
-            @Param("capitalCycleId") UUID capitalCycleId,
-            @Param("currencyCode") String currencyCode,
-            @Param("from") LocalDate from,
-            @Param("to") LocalDate to
-    );
 
     @Query("""
             SELECT COUNT(record)

@@ -40,16 +40,58 @@ public interface TimelinePlacementRepository extends JpaRepository<TimelinePlace
             FROM TimelinePlacement placement
             WHERE placement.ownerId = :ownerId
               AND placement.status = :status
-              AND (:excludedPlacementId IS NULL OR placement.id <> :excludedPlacementId)
+              AND placement.task.status NOT IN (
+                    com.lifebalance.task.model.enums.TaskStatus.COMPLETED,
+                    com.lifebalance.task.model.enums.TaskStatus.CANCELLED,
+                    com.lifebalance.task.model.enums.TaskStatus.ARCHIVED
+              )
               AND placement.startAt < :endAt
               AND placement.endAt > :startAt
             """)
     boolean existsOverlappingPlacement(
             @Param("ownerId") UUID ownerId,
             @Param("status") TimelinePlacementStatus status,
+            @Param("startAt") OffsetDateTime startAt,
+            @Param("endAt") OffsetDateTime endAt);
+
+    @Query("""
+            SELECT CASE WHEN COUNT(placement) > 0 THEN true ELSE false END
+            FROM TimelinePlacement placement
+            WHERE placement.ownerId = :ownerId
+              AND placement.status = :status
+              AND placement.id <> :excludedPlacementId
+              AND placement.task.status NOT IN (
+                    com.lifebalance.task.model.enums.TaskStatus.COMPLETED,
+                    com.lifebalance.task.model.enums.TaskStatus.CANCELLED,
+                    com.lifebalance.task.model.enums.TaskStatus.ARCHIVED
+              )
+              AND placement.startAt < :endAt
+              AND placement.endAt > :startAt
+            """)
+    boolean existsOverlappingPlacementExcludingId(
+            @Param("ownerId") UUID ownerId,
+            @Param("status") TimelinePlacementStatus status,
             @Param("excludedPlacementId") UUID excludedPlacementId,
             @Param("startAt") OffsetDateTime startAt,
             @Param("endAt") OffsetDateTime endAt);
+
+    default boolean existsOverlappingPlacement(
+            UUID ownerId,
+            TimelinePlacementStatus status,
+            UUID excludedPlacementId,
+            OffsetDateTime startAt,
+            OffsetDateTime endAt) {
+
+        if (excludedPlacementId == null) {
+            return existsOverlappingPlacement(ownerId, status, startAt, endAt);
+        }
+        return existsOverlappingPlacementExcludingId(
+                ownerId,
+                status,
+                excludedPlacementId,
+                startAt,
+                endAt);
+    }
 
     @Query("""
             SELECT placement
