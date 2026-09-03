@@ -8,7 +8,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class PasswordChangeProperties {
 
     private boolean enabled;
-    private String serverUrl = "http://localhost:8082";
+    private String serverUrl = "http://localhost:8088";
     private String realm = "lifebalance";
     private String verifierClientId = "lifebalance-password-verifier";
     private String verifierClientSecret;

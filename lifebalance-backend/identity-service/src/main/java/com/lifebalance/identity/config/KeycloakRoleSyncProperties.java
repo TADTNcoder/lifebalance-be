@@ -6,7 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class KeycloakRoleSyncProperties {
 
     private boolean enabled;
-    private String serverUrl = "http://localhost:8082";
+    private String serverUrl = "http://localhost:8088";
     private String realm = "lifebalance";
     private String authRealm = "master";
     private String clientId = "admin-cli";
