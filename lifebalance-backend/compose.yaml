@@ -182,7 +182,7 @@ services:
     networks:
       - lifebalance-internal
       - lifebalance-edge
-
+ 
   frontend:
     image: ${IMAGE_REGISTRY:-lifebalance}/frontend:${APP_VERSION:-dev}
     container_name: lifebalance-frontend
