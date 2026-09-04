@@ -168,6 +168,58 @@ class TaskPersistenceTest {
     }
 
     @Test
+    void adminSearchReturnsMatchingTasksFromEveryOwner() {
+        UUID firstOwnerId = UUID.randomUUID();
+        UUID secondOwnerId = UUID.randomUUID();
+        Task firstOwnerTask = Task.builder()
+                .ownerId(firstOwnerId)
+                .userId(firstOwnerId)
+                .name("Shared quarterly report")
+                .status(TaskStatus.PLANNED)
+                .priority(PriorityLevel.HIGH)
+                .deadline(LocalDate.of(2026, 9, 10))
+                .progress(0)
+                .build();
+        Task secondOwnerTask = Task.builder()
+                .ownerId(secondOwnerId)
+                .userId(secondOwnerId)
+                .name("Shared annual report")
+                .status(TaskStatus.PLANNED)
+                .priority(PriorityLevel.HIGH)
+                .deadline(LocalDate.of(2026, 9, 20))
+                .progress(0)
+                .build();
+        Task excludedTask = Task.builder()
+                .ownerId(secondOwnerId)
+                .userId(secondOwnerId)
+                .name("Private draft")
+                .status(TaskStatus.DRAFT)
+                .priority(PriorityLevel.LOW)
+                .deadline(LocalDate.of(2026, 9, 20))
+                .progress(0)
+                .build();
+
+        entityManager.persist(firstOwnerTask);
+        entityManager.persist(secondOwnerTask);
+        entityManager.persist(excludedTask);
+        entityManager.flush();
+        entityManager.clear();
+
+        Page<Task> result = taskRepository.searchAllByFilters(
+                "report",
+                TaskStatus.PLANNED,
+                PriorityLevel.HIGH,
+                null,
+                LocalDate.of(2026, 9, 1),
+                LocalDate.of(2026, 9, 30),
+                PageRequest.of(0, 10));
+
+        assertThat(result.getContent())
+                .extracting(Task::getOwnerId)
+                .containsExactlyInAnyOrder(firstOwnerId, secondOwnerId);
+    }
+
+    @Test
     void validationRunsBeforePersistingInvalidTask() {
         Task task = Task.builder()
                 .ownerId(UUID.randomUUID())

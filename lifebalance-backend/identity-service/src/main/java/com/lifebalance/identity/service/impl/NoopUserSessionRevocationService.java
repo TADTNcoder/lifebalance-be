@@ -16,4 +16,13 @@ public class NoopUserSessionRevocationService implements UserSessionRevocationSe
                 reason
         );
     }
+
+    @Override
+    public void restoreAccess(User user, String reason) {
+        log.debug(
+                "Access restoration requested for user {} with reason '{}', but no access provider is configured",
+                user.getId(),
+                reason
+        );
+    }
 }

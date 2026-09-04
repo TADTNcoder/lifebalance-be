@@ -8,7 +8,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -25,6 +27,7 @@ import com.lifebalance.identity.dto.UpdateUserRequest;
 import com.lifebalance.identity.exception.UserEmailAlreadyExistsException;
 import com.lifebalance.identity.exception.UserInactiveException;
 import com.lifebalance.identity.exception.UserNotFoundException;
+import com.lifebalance.identity.exception.UserSessionRevokedException;
 import com.lifebalance.identity.exception.UserUsernameAlreadyExistsException;
 import com.lifebalance.identity.exception.UserValidationException;
 import com.lifebalance.identity.model.Role;
@@ -69,6 +72,50 @@ class InternalUserServiceImplTest {
 
         assertThat(service.findOrCreate(currentUser)).isSameAs(user);
         verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldAcceptSessionIssuedAfterLatestRevocation() {
+        CurrentUser currentUser = createCurrentUser();
+        User user = createUser(AccountStatus.ACTIVE);
+        user.setTokenValidAfter(OffsetDateTime.parse("2026-09-05T00:00:00Z"));
+
+        when(userRepository.findByKeycloakId("kc-user-1")).thenReturn(Optional.of(user));
+
+        User result = createService().validateSession(
+                currentUser,
+                Instant.parse("2026-09-05T00:00:01Z")
+        );
+
+        assertThat(result).isSameAs(user);
+    }
+
+    @Test
+    void shouldRejectSessionIssuedBeforeLatestRevocation() {
+        CurrentUser currentUser = createCurrentUser();
+        User user = createUser(AccountStatus.ACTIVE);
+        user.setTokenValidAfter(OffsetDateTime.parse("2026-09-05T00:00:00Z"));
+
+        when(userRepository.findByKeycloakId("kc-user-1")).thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> createService().validateSession(
+                currentUser,
+                Instant.parse("2026-09-04T23:59:59Z")
+        ))
+                .isInstanceOf(UserSessionRevokedException.class)
+                .hasMessage("User session has been revoked");
+    }
+
+    @Test
+    void shouldRejectSessionWithoutIssuedAtAfterRevocation() {
+        CurrentUser currentUser = createCurrentUser();
+        User user = createUser(AccountStatus.ACTIVE);
+        user.setTokenValidAfter(OffsetDateTime.parse("2026-09-05T00:00:00Z"));
+
+        when(userRepository.findByKeycloakId("kc-user-1")).thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> createService().validateSession(currentUser, null))
+                .isInstanceOf(UserSessionRevokedException.class);
     }
 
     @Test

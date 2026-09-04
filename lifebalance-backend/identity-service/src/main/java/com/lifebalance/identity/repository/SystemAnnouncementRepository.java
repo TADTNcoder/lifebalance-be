@@ -32,8 +32,8 @@ public interface SystemAnnouncementRepository extends JpaRepository<SystemAnnoun
             LEFT JOIN FETCH announcement.publishedBy
             WHERE (:status IS NULL OR announcement.status = :status)
               AND (:audience IS NULL OR announcement.audience = :audience)
-              AND (:startsFrom IS NULL OR announcement.startsAt >= :startsFrom)
-              AND (:startsTo IS NULL OR announcement.startsAt <= :startsTo)
+              AND announcement.startsAt >= COALESCE(:startsFrom, announcement.startsAt)
+              AND announcement.startsAt <= COALESCE(:startsTo, announcement.startsAt)
               AND (:keyword IS NULL
                    OR lower(announcement.title) LIKE :keyword
                    OR lower(announcement.message) LIKE :keyword)
@@ -43,8 +43,8 @@ public interface SystemAnnouncementRepository extends JpaRepository<SystemAnnoun
             FROM SystemAnnouncement announcement
             WHERE (:status IS NULL OR announcement.status = :status)
               AND (:audience IS NULL OR announcement.audience = :audience)
-              AND (:startsFrom IS NULL OR announcement.startsAt >= :startsFrom)
-              AND (:startsTo IS NULL OR announcement.startsAt <= :startsTo)
+              AND announcement.startsAt >= COALESCE(:startsFrom, announcement.startsAt)
+              AND announcement.startsAt <= COALESCE(:startsTo, announcement.startsAt)
               AND (:keyword IS NULL
                    OR lower(announcement.title) LIKE :keyword
                    OR lower(announcement.message) LIKE :keyword)
@@ -65,8 +65,8 @@ public interface SystemAnnouncementRepository extends JpaRepository<SystemAnnoun
             WHERE (:status IS NULL OR announcement.status = :status)
               AND (:audience IS NULL OR announcement.audience = :audience)
               AND announcement.audience IN :allowedAudiences
-              AND (:startsFrom IS NULL OR announcement.startsAt >= :startsFrom)
-              AND (:startsTo IS NULL OR announcement.startsAt <= :startsTo)
+              AND announcement.startsAt >= COALESCE(:startsFrom, announcement.startsAt)
+              AND announcement.startsAt <= COALESCE(:startsTo, announcement.startsAt)
               AND (:keyword IS NULL
                    OR lower(announcement.title) LIKE :keyword
                    OR lower(announcement.message) LIKE :keyword)
@@ -77,8 +77,8 @@ public interface SystemAnnouncementRepository extends JpaRepository<SystemAnnoun
             WHERE (:status IS NULL OR announcement.status = :status)
               AND (:audience IS NULL OR announcement.audience = :audience)
               AND announcement.audience IN :allowedAudiences
-              AND (:startsFrom IS NULL OR announcement.startsAt >= :startsFrom)
-              AND (:startsTo IS NULL OR announcement.startsAt <= :startsTo)
+              AND announcement.startsAt >= COALESCE(:startsFrom, announcement.startsAt)
+              AND announcement.startsAt <= COALESCE(:startsTo, announcement.startsAt)
               AND (:keyword IS NULL
                    OR lower(announcement.title) LIKE :keyword
                    OR lower(announcement.message) LIKE :keyword)
@@ -109,8 +109,8 @@ public interface SystemAnnouncementRepository extends JpaRepository<SystemAnnoun
     @Query("""
             SELECT announcement.status, count(announcement)
             FROM SystemAnnouncement announcement
-            WHERE (:createdFrom IS NULL OR announcement.createdAt >= :createdFrom)
-              AND (:createdTo IS NULL OR announcement.createdAt <= :createdTo)
+            WHERE announcement.createdAt >= COALESCE(:createdFrom, announcement.createdAt)
+              AND announcement.createdAt <= COALESCE(:createdTo, announcement.createdAt)
             GROUP BY announcement.status
             """)
     List<Object[]> countByStatus(
@@ -121,8 +121,8 @@ public interface SystemAnnouncementRepository extends JpaRepository<SystemAnnoun
     @Query("""
             SELECT announcement.audience, count(announcement)
             FROM SystemAnnouncement announcement
-            WHERE (:createdFrom IS NULL OR announcement.createdAt >= :createdFrom)
-              AND (:createdTo IS NULL OR announcement.createdAt <= :createdTo)
+            WHERE announcement.createdAt >= COALESCE(:createdFrom, announcement.createdAt)
+              AND announcement.createdAt <= COALESCE(:createdTo, announcement.createdAt)
             GROUP BY announcement.audience
             """)
     List<Object[]> countByAudience(

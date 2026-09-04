@@ -51,6 +51,15 @@ public interface TaskService {
                         LocalDate deadlineTo,
                         Pageable pageable);
 
+        Page<TaskResponse> searchAllForAdmin(
+                        String keyword,
+                        TaskStatus status,
+                        PriorityLevel priority,
+                        UUID categoryId,
+                        LocalDate deadlineFrom,
+                        LocalDate deadlineTo,
+                        Pageable pageable);
+
         void archive(
                         UUID id,
                         UUID ownerId);

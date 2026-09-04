@@ -78,6 +78,9 @@ lifebalance:
   security:
     keycloak:
       client-id: ${KEYCLOAK_CLIENT_ID:lifebalance-api}
+    account-status-validation:
+      enabled: ${LIFEBALANCE_ACCOUNT_STATUS_VALIDATION_ENABLED:true}
+      url: ${IDENTITY_SESSION_VALIDATION_URL:http://identity-service:8080/api/internal/session/validate}
 
 info:
   app:

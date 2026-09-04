@@ -152,7 +152,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
       LEFT JOIN UserRole userRole ON userRole.user.id = user.id
       LEFT JOIN userRole.role role
       WHERE (:status IS NULL OR user.status = :status)
-        AND (:roleCode IS NULL OR lower(role.code) = lower(:roleCode))
+        AND (COALESCE(:roleCode, '') = '' OR lower(role.code) = :roleCode)
         AND (:keyword IS NULL
              OR lower(user.email) LIKE :keyword
              OR lower(user.username) LIKE :keyword

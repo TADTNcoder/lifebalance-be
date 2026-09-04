@@ -304,6 +304,43 @@ class TaskServiceImplTest {
     }
 
     @Test
+    void searchAllForAdminDoesNotApplyOwnerScope() {
+        Pageable pageable = PageRequest.of(0, 10);
+        LocalDate deadlineFrom = LocalDate.of(2026, 9, 1);
+        LocalDate deadlineTo = LocalDate.of(2026, 9, 30);
+        Page<Task> page = new PageImpl<>(List.of(mockTask), pageable, 1);
+        when(taskRepository.searchAllByFilters(
+                "Spring",
+                TaskStatus.DRAFT,
+                PriorityLevel.HIGH,
+                null,
+                deadlineFrom,
+                deadlineTo,
+                pageable))
+                .thenReturn(page);
+
+        Page<TaskResponse> result = taskService.searchAllForAdmin(
+                "Spring",
+                TaskStatus.DRAFT,
+                PriorityLevel.HIGH,
+                null,
+                deadlineFrom,
+                deadlineTo,
+                pageable);
+
+        assertEquals(1, result.getTotalElements());
+        assertEquals(USER_ID, result.getContent().getFirst().getOwnerId());
+        verify(taskRepository).searchAllByFilters(
+                "Spring",
+                TaskStatus.DRAFT,
+                PriorityLevel.HIGH,
+                null,
+                deadlineFrom,
+                deadlineTo,
+                pageable);
+    }
+
+    @Test
     void delete_Success() {
         when(taskRepository.findByIdAndOwnerId(TASK_ID, USER_ID)).thenReturn(Optional.of(mockTask));
 

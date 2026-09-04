@@ -14,6 +14,7 @@ public final class IdentityErrorCode {
     public static final String USER_ACTIVATION_NOT_ALLOWED = "IDENTITY_USER_ACTIVATION_NOT_ALLOWED";
     public static final String USER_ALREADY_DELETED = "IDENTITY_USER_ALREADY_DELETED";
     public static final String USER_INACTIVE = "IDENTITY_USER_INACTIVE";
+    public static final String USER_SESSION_REVOKED = "IDENTITY_USER_SESSION_REVOKED";
     public static final String ROLE_NOT_FOUND = "IDENTITY_ROLE_NOT_FOUND";
     public static final String ROLE_VALIDATION_FAILED = "IDENTITY_ROLE_VALIDATION_FAILED";
     public static final String ROLE_CODE_ALREADY_EXISTS = "IDENTITY_ROLE_CODE_ALREADY_EXISTS";

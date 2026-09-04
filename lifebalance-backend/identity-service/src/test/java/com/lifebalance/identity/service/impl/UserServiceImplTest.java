@@ -87,6 +87,23 @@ class UserServiceImplTest {
     }
 
     @Test
+    void shouldResolveUserByKeycloakUuidWhenInternalIdIsNotFound() {
+        UUID keycloakId = UUID.randomUUID();
+        UUID internalId = UUID.randomUUID();
+        User user = createUser(internalId);
+        user.setKeycloakId(keycloakId.toString());
+        when(userRepository.findById(keycloakId)).thenReturn(Optional.empty());
+        when(userRepository.findByKeycloakId(keycloakId.toString())).thenReturn(Optional.of(user));
+
+        UserServiceImpl service = createService();
+
+        UserResponse response = service.getUserById(keycloakId);
+
+        assertThat(response.getId()).isEqualTo(internalId);
+        verify(userRepository).findByKeycloakId(keycloakId.toString());
+    }
+
+    @Test
     void shouldUpdateUserProfileDetails() {
         UUID userId = UUID.randomUUID();
         User user = createUser(userId);
@@ -272,6 +289,7 @@ class UserServiceImplTest {
 
         assertThat(response.getStatus()).isEqualTo(AccountStatus.ACTIVE);
         verify(userRepository).save(user);
+        verify(userSessionRevocationService).restoreAccess(user, "USER_ACTIVATED");
         verify(userSessionRevocationService, never()).revokeSessions(any(), anyString());
     }
 
@@ -290,6 +308,7 @@ class UserServiceImplTest {
 
         assertThat(response.getStatus()).isEqualTo(AccountStatus.ACTIVE);
         verify(userRepository).save(user);
+        verify(userSessionRevocationService).restoreAccess(user, "USER_ACTIVATED");
     }
 
     @Test
@@ -547,6 +566,7 @@ class UserServiceImplTest {
         assertThat(response.getLockReason()).isNull();
         assertThat(response.getLockedAt()).isNull();
         assertThat(response.getLockedUntil()).isNull();
+        verify(userSessionRevocationService).restoreAccess(unlockedUser, "USER_UNLOCKED");
         verify(userSessionRevocationService, never()).revokeSessions(any(), anyString());
     }
 

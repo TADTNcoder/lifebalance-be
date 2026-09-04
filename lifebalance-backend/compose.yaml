@@ -171,6 +171,8 @@ services:
       # JWT issuer validation must match Keycloak's public `iss`; use the internal URL only for JWK retrieval.
       KEYCLOAK_ISSUER_URI: ${KEYCLOAK_PUBLIC_ISSUER_URI:-http://localhost:${FRONTEND_HOST_PORT:-5173}/realms/lifebalance}
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: ${KEYCLOAK_JWK_SET_URI_INTERNAL:-http://keycloak:8080/realms/lifebalance/protocol/openid-connect/certs}
+      LIFEBALANCE_ACCOUNT_STATUS_VALIDATION_ENABLED: "true"
+      IDENTITY_SESSION_VALIDATION_URL: http://identity-service:8080/api/internal/session/validate
       MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
     ports:
       - "${GATEWAY_HOST_PORT:-8080}:8080"
@@ -182,27 +184,6 @@ services:
     networks:
       - lifebalance-internal
       - lifebalance-edge
-
-  frontend:
-    image: ${IMAGE_REGISTRY:-lifebalance}/frontend:${APP_VERSION:-dev}
-    container_name: lifebalance-frontend
-    build:
-      context: ${FRONTEND_BUILD_CONTEXT:-../../lifebalance-frontend/lifebalance-frontend}
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    environment:
-      API_UPSTREAM: http://gateway:8080
-      KEYCLOAK_UPSTREAM: http://keycloak:8080
-    ports:
-      - "${FRONTEND_HOST_PORT:-5173}:80"
-    networks:
-      - lifebalance-edge
-    depends_on:
-      gateway:
-        condition: service_healthy
-      keycloak:
-        condition: service_healthy
-    logging: *default-logging
 
   identity-service:
     <<: *spring-service

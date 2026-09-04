@@ -1,6 +1,8 @@
 package com.lifebalance.identity.service.impl;
 
 import org.keycloak.admin.client.Keycloak;
+import org.keycloak.admin.client.resource.UserResource;
+import org.keycloak.representations.idm.UserRepresentation;
 
 import com.lifebalance.identity.config.KeycloakRoleSyncProperties;
 import com.lifebalance.identity.exception.KeycloakSessionRevocationException;
@@ -30,36 +32,79 @@ public class KeycloakUserSessionRevocationService implements UserSessionRevocati
         }
 
         try {
-            keycloak.realm(properties.getRealm())
-                    .users()
-                    .get(keycloakId)
-                    .logout();
+            UserResource userResource = userResource(keycloakId);
+            setEnabled(userResource, false);
+            userResource.logout();
             log.info(
-                    "Revoked Keycloak sessions for user {} with reason '{}'",
+                    "Blocked Keycloak access and revoked sessions for user {} with reason '{}'",
                     userId(user),
                     safeReason(reason)
             );
         } catch (NotFoundException exception) {
             log.info(
-                    "Skipping Keycloak session revocation for user {} because Keycloak user {} was not found",
+                    "Skipping Keycloak access block for user {} because Keycloak user {} was not found",
                     userId(user),
                     keycloakId
             );
         } catch (WebApplicationException exception) {
-            throw failure(user, exception);
+            throw failure(user, "block access and revoke sessions", exception);
         } catch (ProcessingException exception) {
-            throw failure(user, exception);
+            throw failure(user, "block access and revoke sessions", exception);
         }
     }
 
-    private static KeycloakSessionRevocationException failure(User user, RuntimeException exception) {
+    @Override
+    public void restoreAccess(User user, String reason) {
+        String keycloakId = keycloakId(user);
+        if (keycloakId == null) {
+            log.info("Skipping Keycloak access restoration for user {} because keycloak id is missing", userId(user));
+            return;
+        }
+
+        try {
+            setEnabled(userResource(keycloakId), true);
+            log.info(
+                    "Restored Keycloak access for user {} with reason '{}'",
+                    userId(user),
+                    safeReason(reason)
+            );
+        } catch (NotFoundException exception) {
+            log.info(
+                    "Skipping Keycloak access restoration for user {} because Keycloak user {} was not found",
+                    userId(user),
+                    keycloakId
+            );
+        } catch (WebApplicationException exception) {
+            throw failure(user, "restore access", exception);
+        } catch (ProcessingException exception) {
+            throw failure(user, "restore access", exception);
+        }
+    }
+
+    private UserResource userResource(String keycloakId) {
+        return keycloak.realm(properties.getRealm())
+                .users()
+                .get(keycloakId);
+    }
+
+    private static void setEnabled(UserResource userResource, boolean enabled) {
+        UserRepresentation representation = userResource.toRepresentation();
+        representation.setEnabled(enabled);
+        userResource.update(representation);
+    }
+
+    private static KeycloakSessionRevocationException failure(
+            User user,
+            String action,
+            RuntimeException exception
+    ) {
         int status = exception instanceof WebApplicationException webApplicationException
                 ? status(webApplicationException)
                 : -1;
         String statusText = status > 0 ? "HTTP " + status : exception.getClass().getSimpleName();
 
         return new KeycloakSessionRevocationException(
-                "Failed to revoke Keycloak sessions for user " + userId(user) + ": " + statusText
+                "Failed to " + action + " in Keycloak for user " + userId(user) + ": " + statusText
         );
     }
 

@@ -318,6 +318,29 @@ public class TaskServiceImpl implements TaskService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public Page<TaskResponse> searchAllForAdmin(
+            String keyword,
+            TaskStatus status,
+            PriorityLevel priority,
+            UUID categoryId,
+            LocalDate deadlineFrom,
+            LocalDate deadlineTo,
+            Pageable pageable) {
+
+        return taskRepository
+                .searchAllByFilters(
+                        keyword,
+                        status,
+                        priority,
+                        categoryId,
+                        deadlineFrom,
+                        deadlineTo,
+                        pageable)
+                .map(this::mapToResponse);
+    }
+
+    @Override
     @Transactional
     public void archive(
             UUID id,

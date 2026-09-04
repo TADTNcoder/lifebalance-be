@@ -14,5 +14,6 @@ class NoopUserSessionRevocationServiceTest {
         User user = new User();
 
         assertThatNoException().isThrownBy(() -> service.revokeSessions(user, "test-reason"));
+        assertThatNoException().isThrownBy(() -> service.restoreAccess(user, "test-reason"));
     }
 }

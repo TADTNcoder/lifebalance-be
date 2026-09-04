@@ -109,7 +109,9 @@
     <div class="auth-shell">
         <header class="auth-topbar" aria-label="Xác thực LifeBalance">
             <a class="auth-brand" href="${appHomeUrl}" aria-label="Trang chủ LifeBalance">
-                <span class="auth-brand-mark" aria-hidden="true">LB</span>
+                <span aria-hidden="true">
+                    <img src="${url.resourcesPath}/Logo.png" class="brand-mark" alt="LifeBalance">
+                </span>
                 <span class="auth-brand-text">LifeBalance</span>
             </a>
 

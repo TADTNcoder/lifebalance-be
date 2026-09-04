@@ -116,9 +116,16 @@ textarea {
 .auth-brand:hover {
   color: var(--lb-text);
 }
-
+.brand-mark {
+  width: 37px;
+  height: 37px;
+  min-width: 37px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
 .auth-brand-mark,
-.brand-mark,
 .brand-icon {
   width: 36px;
   min-width: 36px;

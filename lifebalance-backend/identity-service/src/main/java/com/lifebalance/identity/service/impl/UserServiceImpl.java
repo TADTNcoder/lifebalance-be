@@ -57,7 +57,11 @@ public class UserServiceImpl implements UserService {
     public UserResponse getUserById(UUID id) {
         validateUserId(id);
 
+        // Older admin links and cross-service records may still carry the
+        // Keycloak subject. Keep the public read endpoint compatible while
+        // always returning the canonical internal user id in the response.
         return userRepository.findById(id)
+                .or(() -> userRepository.findByKeycloakId(id.toString()))
                 .map(UserServiceImpl::toResponse)
                 .orElseThrow(() -> new UserNotFoundException(id));
     }
@@ -107,6 +111,7 @@ public class UserServiceImpl implements UserService {
         user.setStatus(AccountStatus.ACTIVE);
 
         User activatedUser = userRepository.save(user);
+        userSessionRevocationService.restoreAccess(activatedUser, "USER_ACTIVATED");
         userAuthorizationCacheService.evictUser(activatedUser.getId());
         userAuditEventPublisher.publishUserAudit(
                 AuditAction.ACTIVATE_USER,
@@ -203,6 +208,7 @@ public class UserServiceImpl implements UserService {
         user.setLockedByKeycloakId(null);
 
         User unlockedUser = userRepository.save(user);
+        userSessionRevocationService.restoreAccess(unlockedUser, "USER_UNLOCKED");
         userAuthorizationCacheService.evictUser(unlockedUser.getId());
         userAuditEventPublisher.publishUserAudit(
                 AuditAction.UNLOCK_USER,

@@ -51,8 +51,8 @@ public interface SupportTicketRepository extends JpaRepository<SupportTicket, UU
               AND (:status IS NULL OR ticket.status = :status)
               AND (:priority IS NULL OR ticket.priority = :priority)
               AND (:category IS NULL OR ticket.category = :category)
-              AND (:createdFrom IS NULL OR ticket.createdAt >= :createdFrom)
-              AND (:createdTo IS NULL OR ticket.createdAt <= :createdTo)
+              AND ticket.createdAt >= COALESCE(:createdFrom, ticket.createdAt)
+              AND ticket.createdAt <= COALESCE(:createdTo, ticket.createdAt)
               AND (:keyword IS NULL
                    OR lower(ticket.ticketNumber) LIKE :keyword
                    OR lower(ticket.title) LIKE :keyword
@@ -66,8 +66,8 @@ public interface SupportTicketRepository extends JpaRepository<SupportTicket, UU
               AND (:status IS NULL OR ticket.status = :status)
               AND (:priority IS NULL OR ticket.priority = :priority)
               AND (:category IS NULL OR ticket.category = :category)
-              AND (:createdFrom IS NULL OR ticket.createdAt >= :createdFrom)
-              AND (:createdTo IS NULL OR ticket.createdAt <= :createdTo)
+              AND ticket.createdAt >= COALESCE(:createdFrom, ticket.createdAt)
+              AND ticket.createdAt <= COALESCE(:createdTo, ticket.createdAt)
               AND (:keyword IS NULL
                    OR lower(ticket.ticketNumber) LIKE :keyword
                    OR lower(ticket.title) LIKE :keyword
@@ -88,8 +88,8 @@ public interface SupportTicketRepository extends JpaRepository<SupportTicket, UU
     @Query("""
             SELECT ticket.status, count(ticket)
             FROM SupportTicket ticket
-            WHERE (:createdFrom IS NULL OR ticket.createdAt >= :createdFrom)
-              AND (:createdTo IS NULL OR ticket.createdAt <= :createdTo)
+            WHERE ticket.createdAt >= COALESCE(:createdFrom, ticket.createdAt)
+              AND ticket.createdAt <= COALESCE(:createdTo, ticket.createdAt)
             GROUP BY ticket.status
             """)
     List<Object[]> countByStatus(
@@ -100,8 +100,8 @@ public interface SupportTicketRepository extends JpaRepository<SupportTicket, UU
     @Query("""
             SELECT ticket.priority, count(ticket)
             FROM SupportTicket ticket
-            WHERE (:createdFrom IS NULL OR ticket.createdAt >= :createdFrom)
-              AND (:createdTo IS NULL OR ticket.createdAt <= :createdTo)
+            WHERE ticket.createdAt >= COALESCE(:createdFrom, ticket.createdAt)
+              AND ticket.createdAt <= COALESCE(:createdTo, ticket.createdAt)
             GROUP BY ticket.priority
             """)
     List<Object[]> countByPriority(
@@ -112,8 +112,8 @@ public interface SupportTicketRepository extends JpaRepository<SupportTicket, UU
     @Query("""
             SELECT ticket.category, count(ticket)
             FROM SupportTicket ticket
-            WHERE (:createdFrom IS NULL OR ticket.createdAt >= :createdFrom)
-              AND (:createdTo IS NULL OR ticket.createdAt <= :createdTo)
+            WHERE ticket.createdAt >= COALESCE(:createdFrom, ticket.createdAt)
+              AND ticket.createdAt <= COALESCE(:createdTo, ticket.createdAt)
             GROUP BY ticket.category
             """)
     List<Object[]> countByCategory(

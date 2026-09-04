@@ -21,11 +21,11 @@ public interface ActivityLogRepository extends JpaRepository<ActivityLog, UUID> 
             LEFT JOIN FETCH logEntry.actor
             WHERE (:actorId IS NULL OR logEntry.actor.id = :actorId)
               AND (:category IS NULL OR logEntry.category = :category)
-              AND (:action IS NULL OR lower(logEntry.action) = lower(:action))
-              AND (:entityType IS NULL OR lower(logEntry.entityType) = lower(:entityType))
-              AND (:entityId IS NULL OR lower(logEntry.entityId) = lower(:entityId))
-              AND (:occurredFrom IS NULL OR logEntry.occurredAt >= :occurredFrom)
-              AND (:occurredTo IS NULL OR logEntry.occurredAt <= :occurredTo)
+              AND (COALESCE(:action, '') = '' OR lower(logEntry.action) = :action)
+              AND (COALESCE(:entityType, '') = '' OR lower(logEntry.entityType) = :entityType)
+              AND (COALESCE(:entityId, '') = '' OR lower(logEntry.entityId) = :entityId)
+              AND logEntry.occurredAt >= COALESCE(:occurredFrom, logEntry.occurredAt)
+              AND logEntry.occurredAt <= COALESCE(:occurredTo, logEntry.occurredAt)
               AND (:keyword IS NULL
                    OR lower(logEntry.summary) LIKE :keyword
                    OR lower(logEntry.details) LIKE :keyword)
@@ -35,11 +35,11 @@ public interface ActivityLogRepository extends JpaRepository<ActivityLog, UUID> 
             FROM ActivityLog logEntry
             WHERE (:actorId IS NULL OR logEntry.actor.id = :actorId)
               AND (:category IS NULL OR logEntry.category = :category)
-              AND (:action IS NULL OR lower(logEntry.action) = lower(:action))
-              AND (:entityType IS NULL OR lower(logEntry.entityType) = lower(:entityType))
-              AND (:entityId IS NULL OR lower(logEntry.entityId) = lower(:entityId))
-              AND (:occurredFrom IS NULL OR logEntry.occurredAt >= :occurredFrom)
-              AND (:occurredTo IS NULL OR logEntry.occurredAt <= :occurredTo)
+              AND (COALESCE(:action, '') = '' OR lower(logEntry.action) = :action)
+              AND (COALESCE(:entityType, '') = '' OR lower(logEntry.entityType) = :entityType)
+              AND (COALESCE(:entityId, '') = '' OR lower(logEntry.entityId) = :entityId)
+              AND logEntry.occurredAt >= COALESCE(:occurredFrom, logEntry.occurredAt)
+              AND logEntry.occurredAt <= COALESCE(:occurredTo, logEntry.occurredAt)
               AND (:keyword IS NULL
                    OR lower(logEntry.summary) LIKE :keyword
                    OR lower(logEntry.details) LIKE :keyword)
@@ -59,8 +59,8 @@ public interface ActivityLogRepository extends JpaRepository<ActivityLog, UUID> 
     @Query("""
             SELECT logEntry.category, count(logEntry)
             FROM ActivityLog logEntry
-            WHERE (:occurredFrom IS NULL OR logEntry.occurredAt >= :occurredFrom)
-              AND (:occurredTo IS NULL OR logEntry.occurredAt <= :occurredTo)
+            WHERE logEntry.occurredAt >= COALESCE(:occurredFrom, logEntry.occurredAt)
+              AND logEntry.occurredAt <= COALESCE(:occurredTo, logEntry.occurredAt)
             GROUP BY logEntry.category
             """)
     List<Object[]> countByCategory(

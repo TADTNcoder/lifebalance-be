@@ -15,6 +15,7 @@ import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.resource.RealmResource;
 import org.keycloak.admin.client.resource.UserResource;
 import org.keycloak.admin.client.resource.UsersResource;
+import org.keycloak.representations.idm.UserRepresentation;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -53,13 +54,34 @@ class KeycloakUserSessionRevocationServiceTest {
     @Test
     void shouldLogoutKeycloakUserSessions() {
         User user = user("kc-user-1");
+        UserRepresentation representation = new UserRepresentation();
         when(keycloak.realm("lifebalance")).thenReturn(realmResource);
         when(realmResource.users()).thenReturn(usersResource);
         when(usersResource.get("kc-user-1")).thenReturn(userResource);
+        when(userResource.toRepresentation()).thenReturn(representation);
 
         service.revokeSessions(user, "USER_LOCKED");
 
+        verify(userResource).update(representation);
         verify(userResource).logout();
+        org.assertj.core.api.Assertions.assertThat(representation.isEnabled()).isFalse();
+    }
+
+    @Test
+    void shouldRestoreKeycloakUserAccess() {
+        User user = user("kc-user-1");
+        UserRepresentation representation = new UserRepresentation();
+        representation.setEnabled(false);
+        when(keycloak.realm("lifebalance")).thenReturn(realmResource);
+        when(realmResource.users()).thenReturn(usersResource);
+        when(usersResource.get("kc-user-1")).thenReturn(userResource);
+        when(userResource.toRepresentation()).thenReturn(representation);
+
+        service.restoreAccess(user, "USER_UNLOCKED");
+
+        verify(userResource).update(representation);
+        verify(userResource, never()).logout();
+        org.assertj.core.api.Assertions.assertThat(representation.isEnabled()).isTrue();
     }
 
     @Test
@@ -75,11 +97,11 @@ class KeycloakUserSessionRevocationServiceTest {
         when(keycloak.realm("lifebalance")).thenReturn(realmResource);
         when(realmResource.users()).thenReturn(usersResource);
         when(usersResource.get("kc-user-1")).thenReturn(userResource);
-        doThrow(new NotFoundException()).when(userResource).logout();
+        doThrow(new NotFoundException()).when(userResource).toRepresentation();
 
         service.revokeSessions(user, "USER_DELETED");
 
-        verify(userResource).logout();
+        verify(userResource).toRepresentation();
     }
 
     @Test
@@ -88,13 +110,15 @@ class KeycloakUserSessionRevocationServiceTest {
         when(keycloak.realm("lifebalance")).thenReturn(realmResource);
         when(realmResource.users()).thenReturn(usersResource);
         when(usersResource.get("kc-user-1")).thenReturn(userResource);
+        when(userResource.toRepresentation()).thenReturn(new UserRepresentation());
         doThrow(new WebApplicationException(Response.serverError().build()))
                 .when(userResource)
-                .logout();
+                .update(org.mockito.ArgumentMatchers.any(UserRepresentation.class));
 
         assertThatThrownBy(() -> service.revokeSessions(user, "USER_DISABLED"))
                 .isInstanceOf(KeycloakSessionRevocationException.class)
-                .hasMessage("Failed to revoke Keycloak sessions for user " + user.getId() + ": HTTP 500");
+                .hasMessage("Failed to block access and revoke sessions in Keycloak for user "
+                        + user.getId() + ": HTTP 500");
     }
 
     private static User user(String keycloakId) {

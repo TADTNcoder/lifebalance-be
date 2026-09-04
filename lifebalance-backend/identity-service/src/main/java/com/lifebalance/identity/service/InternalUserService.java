@@ -1,5 +1,7 @@
 package com.lifebalance.identity.service;
 
+import java.time.Instant;
+
 import com.lifebalance.identity.dto.UpdateUserRequest;
 import com.lifebalance.identity.dto.UserResponse;
 import com.lifebalance.identity.model.User;
@@ -9,6 +11,8 @@ import org.springframework.data.domain.Pageable;
 
 public interface InternalUserService {
     User findOrCreate(CurrentUser currentUser);
+
+    User validateSession(CurrentUser currentUser, Instant tokenIssuedAt);
 
     User getCurrentUser(CurrentUser currentUser);
 

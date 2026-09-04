@@ -138,4 +138,34 @@ public interface TaskRepository extends JpaRepository<Task, UUID> {
                         @Param("deadlineFrom") LocalDate deadlineFrom,
                         @Param("deadlineTo") LocalDate deadlineTo,
                         Pageable pageable);
+
+        @Query("""
+                        SELECT task
+                        FROM Task task
+                        WHERE (
+                                :keyword IS NULL
+                                OR :keyword = ''
+                                OR lower(task.name) LIKE lower(concat('%', :keyword, '%'))
+                                OR lower(coalesce(task.description, '')) LIKE lower(concat('%', :keyword, '%'))
+                          )
+                          AND (:status IS NULL OR task.status = :status)
+                          AND (:priority IS NULL OR task.priority = :priority)
+                          AND (:categoryId IS NULL OR task.category.id = :categoryId)
+                          AND (
+                                (task.deadline IS NULL AND COALESCE(:deadlineFrom, task.deadline) IS NULL)
+                                OR task.deadline >= COALESCE(:deadlineFrom, task.deadline)
+                          )
+                          AND (
+                                (task.deadline IS NULL AND COALESCE(:deadlineTo, task.deadline) IS NULL)
+                                OR task.deadline <= COALESCE(:deadlineTo, task.deadline)
+                          )
+                        """)
+        Page<Task> searchAllByFilters(
+                        @Param("keyword") String keyword,
+                        @Param("status") TaskStatus status,
+                        @Param("priority") PriorityLevel priority,
+                        @Param("categoryId") UUID categoryId,
+                        @Param("deadlineFrom") LocalDate deadlineFrom,
+                        @Param("deadlineTo") LocalDate deadlineTo,
+                        Pageable pageable);
 }

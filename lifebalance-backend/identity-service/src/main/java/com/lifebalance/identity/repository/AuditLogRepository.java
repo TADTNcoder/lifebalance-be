@@ -34,8 +34,8 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, UUID> {
               AND (:userId IS NULL OR auditLog.userId = :userId)
               AND (:entityName IS NULL OR auditLog.entityName = :entityName)
               AND (:action IS NULL OR auditLog.action = :action)
-              AND (:createdFrom IS NULL OR auditLog.createdAt >= :createdFrom)
-              AND (:createdTo IS NULL OR auditLog.createdAt <= :createdTo)
+              AND auditLog.createdAt >= COALESCE(:createdFrom, auditLog.createdAt)
+              AND auditLog.createdAt <= COALESCE(:createdTo, auditLog.createdAt)
               AND (:keyword IS NULL
                    OR lower(auditLog.details) LIKE :keyword
                    OR lower(auditLog.actorUsername) LIKE :keyword
@@ -55,8 +55,8 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, UUID> {
     @Query("""
             SELECT auditLog.action, count(auditLog)
             FROM AuditLog auditLog
-            WHERE (:createdFrom IS NULL OR auditLog.createdAt >= :createdFrom)
-              AND (:createdTo IS NULL OR auditLog.createdAt <= :createdTo)
+            WHERE auditLog.createdAt >= COALESCE(:createdFrom, auditLog.createdAt)
+              AND auditLog.createdAt <= COALESCE(:createdTo, auditLog.createdAt)
             GROUP BY auditLog.action
             """)
     java.util.List<Object[]> countByAction(
@@ -69,8 +69,8 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, UUID> {
             FROM AuditLog auditLog
             WHERE auditLog.entityName IN :entityNames
               AND auditLog.action IN :actions
-              AND (:createdFrom IS NULL OR auditLog.createdAt >= :createdFrom)
-              AND (:createdTo IS NULL OR auditLog.createdAt <= :createdTo)
+              AND auditLog.createdAt >= COALESCE(:createdFrom, auditLog.createdAt)
+              AND auditLog.createdAt <= COALESCE(:createdTo, auditLog.createdAt)
             GROUP BY auditLog.action
             """)
     java.util.List<Object[]> countByActionForEntities(
@@ -83,8 +83,8 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, UUID> {
     @Query("""
             SELECT auditLog.entityName, count(auditLog)
             FROM AuditLog auditLog
-            WHERE (:createdFrom IS NULL OR auditLog.createdAt >= :createdFrom)
-              AND (:createdTo IS NULL OR auditLog.createdAt <= :createdTo)
+            WHERE auditLog.createdAt >= COALESCE(:createdFrom, auditLog.createdAt)
+              AND auditLog.createdAt <= COALESCE(:createdTo, auditLog.createdAt)
             GROUP BY auditLog.entityName
             """)
     java.util.List<Object[]> countByEntityName(

@@ -1,10 +1,11 @@
 package com.lifebalance.identity.service.impl;
 
-import java.util.Locale;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -22,6 +23,7 @@ import com.lifebalance.identity.dto.UserResponse;
 import com.lifebalance.identity.exception.UserEmailAlreadyExistsException;
 import com.lifebalance.identity.exception.UserInactiveException;
 import com.lifebalance.identity.exception.UserNotFoundException;
+import com.lifebalance.identity.exception.UserSessionRevokedException;
 import com.lifebalance.identity.exception.UserUsernameAlreadyExistsException;
 import com.lifebalance.identity.exception.UserValidationException;
 import com.lifebalance.identity.model.User;
@@ -100,6 +102,20 @@ public class InternalUserServiceImpl implements InternalUserService {
         } else {
             assignDefaultUserRole(user);
         }
+        return user;
+    }
+
+    @Transactional
+    @Override
+    public User validateSession(CurrentUser currentUser, Instant tokenIssuedAt) {
+        User user = findOrCreate(currentUser);
+        OffsetDateTime tokenValidAfter = user.getTokenValidAfter();
+
+        if (tokenValidAfter != null
+                && (tokenIssuedAt == null || tokenIssuedAt.isBefore(tokenValidAfter.toInstant()))) {
+            throw new UserSessionRevokedException();
+        }
+
         return user;
     }
 
