@@ -330,6 +330,48 @@ class FinancialTransactionServiceImplTest {
     }
 
     @Test
+    void createOneOffTaskIncomeRejectsDuplicateTask() {
+        FinanceAccount destinationAccount = account(DESTINATION_ACCOUNT_ID, "Income wallet", "USD", "100.0000");
+        FinanceCategory category = category(CATEGORY_ID, "Task income", FinanceCategoryType.INCOME);
+        when(accountRepository.findByIdAndOwnerIdForUpdate(DESTINATION_ACCOUNT_ID, OWNER_ID))
+                .thenReturn(Optional.of(destinationAccount));
+        when(categoryRepository.findByIdAndOwnerId(CATEGORY_ID, OWNER_ID))
+                .thenReturn(Optional.of(category));
+        when(transactionRepository.existsPostedOneOffTaskIncome(OWNER_ID, TASK_ID, null))
+                .thenReturn(true);
+
+        assertThatThrownBy(() -> createService().create(OWNER_ID, oneOffTaskIncomeRequest()))
+                .isInstanceOf(AppException.class)
+                .extracting("code")
+                .isEqualTo(FinanceErrorCode.FINANCE_ONE_OFF_TASK_INCOME_ALREADY_EXISTS);
+
+        assertThat(destinationAccount.getCurrentBalance()).isEqualByComparingTo("100.0000");
+        verify(transactionRepository, never()).save(any());
+    }
+
+    @Test
+    void createOneOffTaskIncomeTranslatesConcurrentUniqueConstraintFailure() {
+        FinanceAccount destinationAccount = account(DESTINATION_ACCOUNT_ID, "Income wallet", "USD", "100.0000");
+        FinanceCategory category = category(CATEGORY_ID, "Task income", FinanceCategoryType.INCOME);
+        when(accountRepository.findByIdAndOwnerIdForUpdate(DESTINATION_ACCOUNT_ID, OWNER_ID))
+                .thenReturn(Optional.of(destinationAccount));
+        when(categoryRepository.findByIdAndOwnerId(CATEGORY_ID, OWNER_ID))
+                .thenReturn(Optional.of(category));
+        when(transactionRepository.save(any(FinancialTransaction.class))).thenAnswer(invocation -> {
+            FinancialTransaction transaction = invocation.getArgument(0);
+            setId(transaction, TRANSACTION_ID);
+            return transaction;
+        });
+        doThrow(new DataIntegrityViolationException("duplicate posted one-off task income"))
+                .when(transactionRepository).flush();
+
+        assertThatThrownBy(() -> createService().create(OWNER_ID, oneOffTaskIncomeRequest()))
+                .isInstanceOf(AppException.class)
+                .extracting("code")
+                .isEqualTo(FinanceErrorCode.FINANCE_ONE_OFF_TASK_INCOME_ALREADY_EXISTS);
+    }
+
+    @Test
     void createRejectsAccountOutsideItsCreationMonth() {
         FinanceAccount sourceAccount = account(SOURCE_ACCOUNT_ID, "Daily wallet", "USD", "500.0000");
         ReflectionTestUtils.setField(sourceAccount, "createdAt", TRANSACTION_DATE.minusMonths(1));
@@ -495,6 +537,29 @@ class FinancialTransactionServiceImplTest {
                 amount("100.0000"),
                 amount("50.0000"),
                 "Record received salary"
+        );
+    }
+
+    private static CreateTransactionRequest oneOffTaskIncomeRequest() {
+        return new CreateTransactionRequest(
+                FinanceTransactionType.INCOME,
+                null,
+                DESTINATION_ACCOUNT_ID,
+                CATEGORY_ID,
+                amount("250.0000"),
+                "USD",
+                TRANSACTION_DATE,
+                "Task income",
+                "One-off task income",
+                TASK_ID,
+                null,
+                null,
+                FinanceIncomeSourceType.ONE_OFF,
+                null,
+                null,
+                null,
+                null,
+                "Settle completed task"
         );
     }
 

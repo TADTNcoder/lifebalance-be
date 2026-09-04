@@ -1,8 +1,6 @@
 package com.lifebalance.task.controller;
 
 import com.lifebalance.common.web.PageableLimits;
-import com.lifebalance.security.keycloak.KeycloakUserMappingFilter;
-import com.lifebalance.security.keycloak.KeycloakUserPrincipal;
 import com.lifebalance.task.dto.request.CancelTimelinePlacementRequest;
 import com.lifebalance.task.dto.request.RescheduleTimelinePlacementRequest;
 import com.lifebalance.task.dto.request.ScheduleTimelinePlacementRequest;
@@ -13,7 +11,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -39,7 +36,7 @@ public class TimelinePlacementController {
             HttpServletRequest httpRequest) {
 
         return timelinePlacementService.schedule(
-                getCurrentUserId(httpRequest),
+                AuthenticatedUserId.from(httpRequest),
                 request);
     }
 
@@ -50,7 +47,7 @@ public class TimelinePlacementController {
             HttpServletRequest httpRequest) {
 
         return timelinePlacementService.reschedule(
-                getCurrentUserId(httpRequest),
+                AuthenticatedUserId.from(httpRequest),
                 placementId,
                 request);
     }
@@ -62,7 +59,7 @@ public class TimelinePlacementController {
             HttpServletRequest httpRequest) {
 
         return timelinePlacementService.move(
-                getCurrentUserId(httpRequest),
+                AuthenticatedUserId.from(httpRequest),
                 placementId,
                 request);
     }
@@ -74,7 +71,7 @@ public class TimelinePlacementController {
             HttpServletRequest httpRequest) {
 
         timelinePlacementService.cancel(
-                getCurrentUserId(httpRequest),
+                AuthenticatedUserId.from(httpRequest),
                 placementId,
                 request);
     }
@@ -89,21 +86,10 @@ public class TimelinePlacementController {
 
         Pageable pageable = PageableLimits.of(page, size);
         return timelinePlacementService.getTimeline(
-                getCurrentUserId(httpRequest),
+                AuthenticatedUserId.from(httpRequest),
                 from,
                 to,
                 pageable);
     }
 
-    private UUID getCurrentUserId(HttpServletRequest request) {
-        KeycloakUserPrincipal currentUser = (KeycloakUserPrincipal) request.getAttribute(
-                KeycloakUserMappingFilter.CURRENT_USER_ATTRIBUTE);
-
-        if (currentUser == null || currentUser.userId() == null) {
-            throw new AuthenticationCredentialsNotFoundException(
-                    "Authenticated internal user id is required.");
-        }
-
-        return currentUser.userId();
-    }
 }

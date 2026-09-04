@@ -6,11 +6,8 @@ import java.util.UUID;
 import com.lifebalance.common.web.PageableLimits;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.web.bind.annotation.*;
 
-import com.lifebalance.security.keycloak.KeycloakUserMappingFilter;
-import com.lifebalance.security.keycloak.KeycloakUserPrincipal;
 import com.lifebalance.task.dto.request.CreateTaskRequest;
 import com.lifebalance.task.dto.request.TaskLifecycleActionRequest;
 import com.lifebalance.task.dto.request.TaskPlanningRequest;
@@ -37,7 +34,7 @@ public class TaskController {
             @Valid @RequestBody CreateTaskRequest request,
             HttpServletRequest httpRequest) {
 
-        UUID ownerId = getCurrentUserId(httpRequest);
+        UUID ownerId = AuthenticatedUserId.from(httpRequest);
 
         return taskService.create(
                 ownerId,
@@ -49,7 +46,7 @@ public class TaskController {
             @PathVariable UUID id,
             HttpServletRequest httpRequest) {
 
-        UUID ownerId = getCurrentUserId(httpRequest);
+        UUID ownerId = AuthenticatedUserId.from(httpRequest);
 
         return taskService.duplicate(
                 id,
@@ -70,7 +67,7 @@ public class TaskController {
             @RequestParam(defaultValue = "DESC") String sortDirection,
             HttpServletRequest httpRequest) {
 
-        UUID ownerId = getCurrentUserId(httpRequest);
+        UUID ownerId = AuthenticatedUserId.from(httpRequest);
 
         Pageable pageable = PageableLimits.of(
                 page,
@@ -93,7 +90,7 @@ public class TaskController {
             @PathVariable UUID id,
             HttpServletRequest httpRequest) {
 
-        UUID ownerId = getCurrentUserId(httpRequest);
+        UUID ownerId = AuthenticatedUserId.from(httpRequest);
 
         return taskService.getById(
                 id,
@@ -106,7 +103,7 @@ public class TaskController {
             @Valid @RequestBody UpdateTaskRequest request,
             HttpServletRequest httpRequest) {
 
-        UUID ownerId = getCurrentUserId(httpRequest);
+        UUID ownerId = AuthenticatedUserId.from(httpRequest);
 
         return taskService.update(
                 id,
@@ -120,7 +117,7 @@ public class TaskController {
             @Valid @RequestBody TaskPlanningRequest request,
             HttpServletRequest httpRequest) {
 
-        UUID ownerId = getCurrentUserId(httpRequest);
+        UUID ownerId = AuthenticatedUserId.from(httpRequest);
 
         return taskService.plan(
                 id,
@@ -134,7 +131,7 @@ public class TaskController {
             @Valid @RequestBody UpdateTaskProgressRequest request,
             HttpServletRequest httpRequest) {
 
-        UUID ownerId = getCurrentUserId(httpRequest);
+        UUID ownerId = AuthenticatedUserId.from(httpRequest);
 
         return taskService.updateProgress(
                 id,
@@ -147,7 +144,7 @@ public class TaskController {
             @PathVariable UUID id,
             HttpServletRequest httpRequest) {
 
-        UUID ownerId = getCurrentUserId(httpRequest);
+        UUID ownerId = AuthenticatedUserId.from(httpRequest);
 
         taskService.archive(
                 id,
@@ -159,7 +156,7 @@ public class TaskController {
             @PathVariable UUID id,
             HttpServletRequest httpRequest) {
 
-        UUID ownerId = getCurrentUserId(httpRequest);
+        UUID ownerId = AuthenticatedUserId.from(httpRequest);
 
         taskService.restore(
                 id,
@@ -172,7 +169,7 @@ public class TaskController {
             @Valid @RequestBody(required = false) TaskLifecycleActionRequest request,
             HttpServletRequest httpRequest) {
 
-        UUID ownerId = getCurrentUserId(httpRequest);
+        UUID ownerId = AuthenticatedUserId.from(httpRequest);
 
         return taskService.pause(
                 id,
@@ -186,7 +183,7 @@ public class TaskController {
             @Valid @RequestBody(required = false) TaskLifecycleActionRequest request,
             HttpServletRequest httpRequest) {
 
-        UUID ownerId = getCurrentUserId(httpRequest);
+        UUID ownerId = AuthenticatedUserId.from(httpRequest);
 
         return taskService.resume(
                 id,
@@ -200,7 +197,7 @@ public class TaskController {
             @Valid @RequestBody(required = false) TaskLifecycleActionRequest request,
             HttpServletRequest httpRequest) {
 
-        UUID ownerId = getCurrentUserId(httpRequest);
+        UUID ownerId = AuthenticatedUserId.from(httpRequest);
 
         return taskService.complete(
                 id,
@@ -214,7 +211,7 @@ public class TaskController {
             @Valid @RequestBody(required = false) TaskLifecycleActionRequest request,
             HttpServletRequest httpRequest) {
 
-        UUID ownerId = getCurrentUserId(httpRequest);
+        UUID ownerId = AuthenticatedUserId.from(httpRequest);
 
         return taskService.cancel(
                 id,
@@ -228,7 +225,7 @@ public class TaskController {
             @Valid @RequestBody(required = false) TaskLifecycleActionRequest request,
             HttpServletRequest httpRequest) {
 
-        UUID ownerId = getCurrentUserId(httpRequest);
+        UUID ownerId = AuthenticatedUserId.from(httpRequest);
 
         return taskService.reopen(
                 id,
@@ -241,7 +238,7 @@ public class TaskController {
             @PathVariable UUID id,
             HttpServletRequest httpRequest) {
 
-        UUID ownerId = getCurrentUserId(httpRequest);
+        UUID ownerId = AuthenticatedUserId.from(httpRequest);
 
         taskService.delete(
                 id,
@@ -253,26 +250,11 @@ public class TaskController {
             @PathVariable UUID id,
             HttpServletRequest httpRequest) {
 
-        UUID ownerId = getCurrentUserId(httpRequest);
+        UUID ownerId = AuthenticatedUserId.from(httpRequest);
 
         taskService.deleteFinanceLinkedTask(
                 id,
                 ownerId);
     }
 
-    private UUID getCurrentUserId(
-            HttpServletRequest request) {
-
-        KeycloakUserPrincipal currentUser = (KeycloakUserPrincipal) request.getAttribute(
-                KeycloakUserMappingFilter.CURRENT_USER_ATTRIBUTE);
-
-        if (currentUser == null
-                || currentUser.userId() == null) {
-
-            throw new AuthenticationCredentialsNotFoundException(
-                    "Authenticated internal user id is required.");
-        }
-
-        return currentUser.userId();
-    }
 }

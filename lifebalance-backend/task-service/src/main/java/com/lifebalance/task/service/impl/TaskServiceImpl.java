@@ -128,137 +128,18 @@ public class TaskServiceImpl implements TaskService {
             UUID ownerId,
             UpdateTaskRequest request) {
 
-        lockMonthlyIncomeGroup(id, ownerId);
-        if (request.getStatus() == TaskStatus.COMPLETED
-                && request.getMonthlyIncomeGroupId() != null) {
-            taskRepository.lockMonthlyIncomeGroup(ownerId, request.getMonthlyIncomeGroupId());
-        }
-        Task task = taskRepository
-                .findByIdAndOwnerId(id, ownerId)
-                .orElseThrow(TaskExceptions::taskNotFound);
+        lockMonthlyIncomeGroupsForUpdate(id, ownerId, request);
 
-        TaskStatus oldStatus = task.getStatus();
-        String oldSnapshot = taskSnapshot(task);
-        if (request.getStatus() != null) {
-            taskLifecyclePolicy.validateTransition(
-                    oldStatus,
-                    request.getStatus());
-        }
-        boolean planningChangeRequested = isPlanningChangeRequested(
-                task,
-                request);
-        if (planningChangeRequested) {
-            taskLifecyclePolicy.validatePlanningEditable(task);
-        }
+        Task task = findTask(id, ownerId);
+        TaskStatus previousStatus = task.getStatus();
+        String previousSnapshot = taskSnapshot(task);
 
-        TaskTimeKey candidateTime = isPlanningLocked(oldStatus)
-                ? TaskTimeKey.from(task)
-                : TaskTimeKey.of(
-                        request.getDeadline(),
-                        request.getPlannedStartAt(),
-                        request.getPlannedEndAt(),
-                        task.getScheduledStartAt(),
-                        task.getScheduledEndAt());
-        ensureNameAvailable(
-                request.getName(),
-                ownerId,
-                id,
-                candidateTime);
+        validateTaskUpdate(task, id, ownerId, previousStatus, request);
+        Category category = resolveCategory(ownerId, request.getCategoryId());
+        applyTaskUpdate(task, previousStatus, request, category);
+        applyRequestedProgressAndStatus(task, previousStatus, request);
 
-        Category category = resolveCategory(
-                ownerId,
-                request.getCategoryId());
-
-        if (!isPlanningLocked(oldStatus)) {
-            validateOptionalPlanningWindow(
-                    request.getPlannedStartAt(),
-                    request.getPlannedEndAt());
-            task.updateDetails(
-                    request.getName(),
-                    request.getDescription(),
-                    request.getPriority(),
-                    request.getDeadline(),
-                    request.getEstimatedMinutes(),
-                    request.getEstimatedCost(),
-                    category);
-            if (request.getNote() != null) {
-                task.setNote(request.getNote());
-            }
-            if (request.getCurrency() != null) {
-                task.setCurrency(request.getCurrency());
-            }
-            task.setFinanceAccountId(request.getFinanceAccountId());
-            applyMonthlyIncomeFields(
-                    task,
-                    request.getMonthlyIncomeGroupId(),
-                    request.getMonthlyIncomeAccountId(),
-                    request.getMonthlyIncomeCurrency(),
-                    request.getMonthlyIncomePeriod(),
-                    request.getMonthlyIncomeBase(),
-                    request.getMonthlyIncomeBonus(),
-                    request.getMonthlyIncomeDeduction());
-            task.planWindow(
-                    request.getPlannedStartAt(),
-                    request.getPlannedEndAt());
-        } else {
-            // Completed/cancelled/archived tasks keep their planning immutable, but
-            // core descriptive fields (name, description and note) remain editable.
-            task.setName(request.getName());
-            task.setDescription(request.getDescription());
-            if (request.getNote() != null) {
-                task.setNote(request.getNote());
-            }
-            if (request.getCurrency() != null) {
-                task.setCurrency(request.getCurrency());
-            }
-        }
-
-        if (request.getProgress() != null) {
-            TaskStatus progressStatus = request.getStatus() == null
-                    ? oldStatus
-                    : request.getStatus();
-            taskLifecyclePolicy.validateProgressEditable(progressStatus);
-            task.updateProgress(
-                    request.getProgress());
-        }
-
-        if (request.getStatus() != null) {
-            task.transitionTo(
-                    request.getStatus());
-        }
-
-        task.setUpdatedBy(ownerId);
-        task = taskRepository.save(task);
-        String newSnapshot = taskSnapshot(task);
-        if (!Objects.equals(oldSnapshot, newSnapshot)) {
-            taskChangeHistoryService.recordTaskChange(
-                    task,
-                    ownerId,
-                    TaskHistoryActionType.TASK_UPDATED,
-                    null,
-                    oldSnapshot,
-                    newSnapshot,
-                    null);
-        }
-        if (oldStatus != task.getStatus()) {
-            taskChangeHistoryService.recordTaskChange(
-                    task,
-                    ownerId,
-                    TaskHistoryActionType.TASK_STATUS_CHANGED,
-                    "status",
-                    String.valueOf(oldStatus),
-                    String.valueOf(task.getStatus()),
-                    null);
-        }
-        if (!Objects.equals(oldSnapshot, newSnapshot) || oldStatus != task.getStatus()) {
-            taskIntegrationPublisher.publishTaskChanged(
-                    task,
-                    ownerId,
-                    integrationActionForStatusChange(oldStatus, task.getStatus()),
-                    null);
-        }
-
-        return mapToResponse(task);
+        return saveTaskUpdate(task, ownerId, previousStatus, previousSnapshot);
     }
 
     @Override
@@ -806,6 +687,186 @@ public class TaskServiceImpl implements TaskService {
         return taskRepository
                 .findByIdAndOwnerId(id, ownerId)
                 .orElseThrow(TaskExceptions::taskNotFound);
+    }
+
+    private void lockMonthlyIncomeGroupsForUpdate(
+            UUID taskId,
+            UUID ownerId,
+            UpdateTaskRequest request) {
+
+        lockMonthlyIncomeGroup(taskId, ownerId);
+        if (request.getStatus() == TaskStatus.COMPLETED
+                && request.getMonthlyIncomeGroupId() != null) {
+            taskRepository.lockMonthlyIncomeGroup(ownerId, request.getMonthlyIncomeGroupId());
+        }
+    }
+
+    private void validateTaskUpdate(
+            Task task,
+            UUID taskId,
+            UUID ownerId,
+            TaskStatus previousStatus,
+            UpdateTaskRequest request) {
+
+        if (request.getStatus() != null) {
+            taskLifecyclePolicy.validateTransition(previousStatus, request.getStatus());
+        }
+        if (isPlanningChangeRequested(task, request)) {
+            taskLifecyclePolicy.validatePlanningEditable(task);
+        }
+
+        ensureNameAvailable(
+                request.getName(),
+                ownerId,
+                taskId,
+                candidateTimeForUpdate(task, previousStatus, request));
+    }
+
+    private TaskTimeKey candidateTimeForUpdate(
+            Task task,
+            TaskStatus previousStatus,
+            UpdateTaskRequest request) {
+
+        if (isPlanningLocked(previousStatus)) {
+            return TaskTimeKey.from(task);
+        }
+
+        return TaskTimeKey.of(
+                request.getDeadline(),
+                request.getPlannedStartAt(),
+                request.getPlannedEndAt(),
+                task.getScheduledStartAt(),
+                task.getScheduledEndAt());
+    }
+
+    private void applyTaskUpdate(
+            Task task,
+            TaskStatus previousStatus,
+            UpdateTaskRequest request,
+            Category category) {
+
+        if (isPlanningLocked(previousStatus)) {
+            applyPlanningLockedTaskUpdate(task, request);
+            return;
+        }
+
+        applyPlanningEditableTaskUpdate(task, request, category);
+    }
+
+    private void applyPlanningEditableTaskUpdate(
+            Task task,
+            UpdateTaskRequest request,
+            Category category) {
+
+        validateOptionalPlanningWindow(
+                request.getPlannedStartAt(),
+                request.getPlannedEndAt());
+        task.updateDetails(
+                request.getName(),
+                request.getDescription(),
+                request.getPriority(),
+                request.getDeadline(),
+                request.getEstimatedMinutes(),
+                request.getEstimatedCost(),
+                category);
+        applyOptionalTaskDetails(task, request);
+        task.setFinanceAccountId(request.getFinanceAccountId());
+        applyMonthlyIncomeFields(
+                task,
+                request.getMonthlyIncomeGroupId(),
+                request.getMonthlyIncomeAccountId(),
+                request.getMonthlyIncomeCurrency(),
+                request.getMonthlyIncomePeriod(),
+                request.getMonthlyIncomeBase(),
+                request.getMonthlyIncomeBonus(),
+                request.getMonthlyIncomeDeduction());
+        task.planWindow(
+                request.getPlannedStartAt(),
+                request.getPlannedEndAt());
+    }
+
+    private void applyPlanningLockedTaskUpdate(
+            Task task,
+            UpdateTaskRequest request) {
+
+        // Completed/cancelled/archived tasks keep planning immutable while their
+        // descriptive fields remain editable.
+        task.setName(request.getName());
+        task.setDescription(request.getDescription());
+        applyOptionalTaskDetails(task, request);
+    }
+
+    private void applyOptionalTaskDetails(
+            Task task,
+            UpdateTaskRequest request) {
+
+        if (request.getNote() != null) {
+            task.setNote(request.getNote());
+        }
+        if (request.getCurrency() != null) {
+            task.setCurrency(request.getCurrency());
+        }
+    }
+
+    private void applyRequestedProgressAndStatus(
+            Task task,
+            TaskStatus previousStatus,
+            UpdateTaskRequest request) {
+
+        if (request.getProgress() != null) {
+            TaskStatus progressStatus = request.getStatus() == null
+                    ? previousStatus
+                    : request.getStatus();
+            taskLifecyclePolicy.validateProgressEditable(progressStatus);
+            task.updateProgress(request.getProgress());
+        }
+
+        if (request.getStatus() != null) {
+            task.transitionTo(request.getStatus());
+        }
+    }
+
+    private TaskResponse saveTaskUpdate(
+            Task task,
+            UUID ownerId,
+            TaskStatus previousStatus,
+            String previousSnapshot) {
+
+        task.setUpdatedBy(ownerId);
+        Task savedTask = taskRepository.save(task);
+        String currentSnapshot = taskSnapshot(savedTask);
+        boolean snapshotChanged = !Objects.equals(previousSnapshot, currentSnapshot);
+        boolean statusChanged = previousStatus != savedTask.getStatus();
+
+        if (snapshotChanged) {
+            taskChangeHistoryService.recordTaskChange(
+                    savedTask,
+                    ownerId,
+                    TaskHistoryActionType.TASK_UPDATED,
+                    null,
+                    previousSnapshot,
+                    currentSnapshot,
+                    null);
+        }
+        if (statusChanged) {
+            taskChangeHistoryService.recordTaskChange(
+                    savedTask,
+                    ownerId,
+                    TaskHistoryActionType.TASK_STATUS_CHANGED,
+                    "status",
+                    String.valueOf(previousStatus),
+                    String.valueOf(savedTask.getStatus()),
+                    null);
+        }
+        if (snapshotChanged || statusChanged) {
+            taskIntegrationPublisher.publishTaskChanged(
+                    savedTask,
+                    ownerId,
+                    integrationActionForStatusChange(previousStatus, savedTask.getStatus()),
+                    null);
+        }
+
+        return mapToResponse(savedTask);
     }
 
     private void cancelActiveTimelinePlacements(

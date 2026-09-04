@@ -405,6 +405,15 @@ public class FinancialTransactionServiceImpl implements FinancialTransactionServ
                 : requestedIncomeSourceType;
 
         if (incomeSourceType == FinanceIncomeSourceType.ONE_OFF) {
+            if (transactionType == FinanceTransactionType.INCOME
+                    && taskId != null
+                    && transactionRepository.existsPostedOneOffTaskIncome(
+                            ownerId,
+                            taskId,
+                            excludedTransactionId
+                    )) {
+                throw FinanceExceptions.oneOffTaskIncomeAlreadyExists(taskId);
+            }
             return SalaryMetadata.oneOff();
         }
         if (transactionType != FinanceTransactionType.INCOME) {
@@ -486,17 +495,25 @@ public class FinancialTransactionServiceImpl implements FinancialTransactionServ
             SalaryMetadata salaryMetadata,
             UUID taskId
     ) {
+        boolean monthlySalary = salaryMetadata.incomeSourceType() == FinanceIncomeSourceType.MONTHLY_SALARY;
+        boolean oneOffTaskIncome = salaryMetadata.incomeSourceType() == FinanceIncomeSourceType.ONE_OFF
+                && transaction.getTransactionType() == FinanceTransactionType.INCOME
+                && taskId != null;
+
         try {
             FinancialTransaction saved = transactionRepository.save(transaction);
-            if (salaryMetadata.incomeSourceType() == FinanceIncomeSourceType.MONTHLY_SALARY) {
+            if (monthlySalary || oneOffTaskIncome) {
                 // Check the database idempotency constraint before leaving this
                 // service method so a concurrent duplicate becomes a domain error.
                 transactionRepository.flush();
             }
             return saved;
         } catch (DataIntegrityViolationException exception) {
-            if (salaryMetadata.incomeSourceType() == FinanceIncomeSourceType.MONTHLY_SALARY) {
+            if (monthlySalary) {
                 throw FinanceExceptions.monthlySalaryAlreadyExists(taskId, salaryMetadata.salaryPeriod());
+            }
+            if (oneOffTaskIncome) {
+                throw FinanceExceptions.oneOffTaskIncomeAlreadyExists(taskId);
             }
             throw exception;
         }

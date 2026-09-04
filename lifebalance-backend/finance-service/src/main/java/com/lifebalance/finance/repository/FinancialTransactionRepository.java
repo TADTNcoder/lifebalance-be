@@ -34,6 +34,21 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
             @Param("excludedId") UUID excludedId);
 
     @Query("""
+            select (count(transaction) > 0)
+            from FinancialTransaction transaction
+            where transaction.ownerId = :ownerId
+              and transaction.taskId = :taskId
+              and transaction.transactionType = com.lifebalance.finance.domain.FinanceTransactionType.INCOME
+              and transaction.incomeSourceType = com.lifebalance.finance.domain.FinanceIncomeSourceType.ONE_OFF
+              and transaction.status = com.lifebalance.finance.domain.FinanceTransactionStatus.POSTED
+              and (:excludedId is null or transaction.id <> :excludedId)
+            """)
+    boolean existsPostedOneOffTaskIncome(
+            @Param("ownerId") UUID ownerId,
+            @Param("taskId") UUID taskId,
+            @Param("excludedId") UUID excludedId);
+
+    @Query("""
             select transaction
             from FinancialTransaction transaction
             left join fetch transaction.sourceAccount

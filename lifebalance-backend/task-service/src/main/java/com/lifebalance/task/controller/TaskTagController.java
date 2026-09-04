@@ -1,12 +1,9 @@
 package com.lifebalance.task.controller;
 
-import com.lifebalance.security.keycloak.KeycloakUserMappingFilter;
-import com.lifebalance.security.keycloak.KeycloakUserPrincipal;
 import com.lifebalance.task.dto.response.TagResponse;
 import com.lifebalance.task.service.TaskTagService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -31,7 +28,7 @@ public class TaskTagController {
             HttpServletRequest httpRequest) {
 
         taskTagService.assignTag(
-                getCurrentUserId(httpRequest),
+                AuthenticatedUserId.from(httpRequest),
                 taskId,
                 tagId);
     }
@@ -43,7 +40,7 @@ public class TaskTagController {
             HttpServletRequest httpRequest) {
 
         taskTagService.removeTag(
-                getCurrentUserId(httpRequest),
+                AuthenticatedUserId.from(httpRequest),
                 taskId,
                 tagId);
     }
@@ -54,19 +51,8 @@ public class TaskTagController {
             HttpServletRequest httpRequest) {
 
         return taskTagService.getTags(
-                getCurrentUserId(httpRequest),
+                AuthenticatedUserId.from(httpRequest),
                 taskId);
     }
 
-    private UUID getCurrentUserId(HttpServletRequest request) {
-        KeycloakUserPrincipal currentUser = (KeycloakUserPrincipal) request.getAttribute(
-                KeycloakUserMappingFilter.CURRENT_USER_ATTRIBUTE);
-
-        if (currentUser == null || currentUser.userId() == null) {
-            throw new AuthenticationCredentialsNotFoundException(
-                    "Authenticated internal user id is required.");
-        }
-
-        return currentUser.userId();
-    }
 }

@@ -90,6 +90,14 @@ public final class FinanceExceptions {
                 ));
     }
 
+    public static AppException oneOffTaskIncomeAlreadyExists(UUID taskId) {
+        return conflict(
+                FinanceErrorCode.FINANCE_ONE_OFF_TASK_INCOME_ALREADY_EXISTS,
+                "One-off income already exists for task",
+                Map.of("taskId", String.valueOf(taskId))
+        );
+    }
+
     public static AppException budgetNotFound(UUID budgetId) {
         return notFound(FinanceErrorCode.FINANCE_BUDGET_NOT_FOUND, "Finance budget not found",
                 Map.of("budgetId", String.valueOf(budgetId)));
